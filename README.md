@@ -48,6 +48,7 @@ visit the office and describe the item or look at the displayed casing.
 
 ## Initial ERD
 
+```mermaid
 erDiagram
     Users {
         int user_id PK
@@ -85,3 +86,4 @@ erDiagram
     Users ||--o{ Found_Items : "reports"
     Users ||--o{ Claims : "makes"
     Found_Items ||--o{ Claims : "receives"
+```
