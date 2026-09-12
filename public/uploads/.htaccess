@@ -1,0 +1,6 @@
+# User uploads are data, never code: refuse to execute anything in this folder (Apache/XAMPP).
+<FilesMatch "\.(php|phtml|php\d|phar|pl|py|cgi|sh)$">
+    Require all denied
+</FilesMatch>
+Options -ExecCGI -Indexes
+php_flag engine off

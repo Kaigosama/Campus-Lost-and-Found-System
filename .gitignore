@@ -1,9 +1,9 @@
-# ---- Local configuration (backend phase) ----
-# Each developer copies app/config.example.php to app/config.php with their own DB credentials.
-app/config.php
+# ---- Local configuration ----
+# Per-machine DB credentials: define() any DB_* constant here; config/db_connect.php applies defaults for the rest.
+config/db_connect.local.php
 
 # ---- User uploads ----
-# Item photos are runtime data, not source. Keep the folder's .htaccess (blocks script execution).
+# Item photos are runtime data, not source. Keep the folder's .htaccess (blocks script execution) and .gitkeep.
 public/uploads/*
 !public/uploads/.htaccess
 !public/uploads/.gitkeep
