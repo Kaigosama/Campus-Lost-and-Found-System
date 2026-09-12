@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CLAFS · Entity-Relationship Diagram</title>
+    <style>
+        :root { color-scheme: light; }
+        body { margin: 0; padding: 2rem 1.5rem 4rem; font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2937; background: #f8fafc; }
+        main { max-width: 1100px; margin: 0 auto; }
+        h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+        h2 { font-size: 1.15rem; margin: 2.5rem 0 .75rem; }
+        .sub { color: #6b7280; margin: 0 0 1.5rem; }
+        .diagram { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; overflow-x: auto; }
+        .mermaid { display: flex; justify-content: center; }
+        table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; font-size: .92rem; }
+        th, td { text-align: left; padding: .6rem .9rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+        th { background: #f1f5f9; font-weight: 600; }
+        code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .9em; background: #f1f5f9; padding: .05em .35em; border-radius: 4px; }
+        .legend { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; color: #6b7280; font-size: .88rem; margin-top: .75rem; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>CLAFS — Entity-Relationship Diagram</h1>
+    <p class="sub">Campus Lost-and-Found System · ITS122P Group 4 · created by <code>docs/schema.sql</code></p>
+
+    <div class="diagram">
+        <pre class="mermaid">
+erDiagram
+    users {
+        int      user_id     PK
+        varchar  first_name
+        varchar  last_name
+        varchar  email       UK
+        enum     role        "user | staff | admin"
+        datetime created_at
+        datetime updated_at
+    }
+
+    lost_reports {
+        int      report_id      PK
+        int      user_id        FK "reporter"
+        varchar  category
+        text     description
+        varchar  location_lost
+        date     date_lost
+        varchar  image_url
+        enum     status         "open | matched | closed"
+        datetime created_at
+        datetime updated_at
+    }
+
+    found_items {
+        int      item_id           PK
+        int      user_id           FK "staff who logged it"
+        varchar  category
+        text     description
+        varchar  location_found
+        varchar  storage_location
+        date     date_found
+        varchar  image_url
+        enum     status            "stored | returned | disposed"
+        datetime created_at
+        datetime updated_at
+    }
+
+    claims {
+        int      claim_id      PK
+        int      item_id       FK
+        int      user_id       FK "claimant"
+        int      report_id     FK "optional"
+        enum     status        "pending | approved | rejected"
+        date     date_claimed
+        datetime created_at
+        datetime updated_at
+    }
+
+    users        ||--o{ lost_reports : "files"
+    users        ||--o{ found_items  : "logs"
+    users        ||--o{ claims       : "makes"
+    found_items  ||--o{ claims       : "receives"
+    lost_reports |o--o{ claims       : "is linked to"
+        </pre>
+        <div class="legend">
+            <span><code>||</code> exactly one</span>
+            <span><code>|o</code> zero or one</span>
+            <span><code>o{</code> zero or many</span>
+        </div>
+    </div>
+
+    <h2>Columns the current UI needs that are not in the diagram</h2>
+    <p class="sub">
+        Added by section 5 of <code>schema.sql</code>. The group should either add these to the ERD
+        or remove the features that use them and delete that section.
+    </p>
+    <table>
+        <thead><tr><th>Table</th><th>Column</th><th>Used by</th></tr></thead>
+        <tbody>
+            <tr><td><code>users</code></td><td><code>password_hash</code></td><td>Log-in / registration — required for any authentication.</td></tr>
+            <tr><td><code>users</code></td><td><code>is_active</code></td><td>Admin “Deactivate / Reactivate” on <code>index.php?tab=users</code>.</td></tr>
+            <tr><td><code>lost_reports</code></td><td><code>item_name</code></td><td>Report titles in every list and detail page.</td></tr>
+            <tr><td><code>found_items</code></td><td><code>item_name</code></td><td>Item titles in cards, tables and detail pages.</td></tr>
+            <tr><td><code>found_items</code></td><td><code>private_details</code></td><td>Staff-only intake record that claims are compared against.</td></tr>
+            <tr><td><code>found_items</code></td><td><code>returned_at</code></td><td>Hand-over timestamp shown in the staff panel.</td></tr>
+            <tr><td><code>claims</code></td><td><code>proof_description</code></td><td>What the claimant wrote — the core of ownership verification.</td></tr>
+            <tr><td><code>claims</code></td><td><code>reviewed_by</code>, <code>review_note</code>, <code>reviewed_at</code></td><td>Staff decision, the note shown to the claimant, and when it was made.</td></tr>
+        </tbody>
+    </table>
+</main>
+
+<script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'neutral', er: { useMaxWidth: true } });
+</script>
+</body>
+</html>
