@@ -9,6 +9,7 @@ public/uploads/*
 !public/uploads/.gitkeep
 
 # ---- Editors & OS ----
+.claude/launch.json
 .vscode/
 .idea/
 *.swp
