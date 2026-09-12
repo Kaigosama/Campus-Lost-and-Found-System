@@ -1,0 +1,22 @@
+# ---- Local configuration (backend phase) ----
+# Each developer copies app/config.example.php to app/config.php with their own DB credentials.
+app/config.php
+
+# ---- User uploads ----
+# Item photos are runtime data, not source. Keep the folder's .htaccess (blocks script execution).
+public/uploads/*
+!public/uploads/.htaccess
+!public/uploads/.gitkeep
+
+# ---- Editors & OS ----
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Logs & temp ----
+*.log
+*.tmp
