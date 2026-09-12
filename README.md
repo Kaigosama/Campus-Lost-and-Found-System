@@ -48,7 +48,7 @@ visit the office and describe the item or look at the displayed casing.
 
 ## Project Structure
 
-```
+```text
 CLAFS/
 ├── api/                    # JSON endpoints called from public/js/api.js
 │   ├── get_items.php       # GET  list found items / lost reports (filters, role-aware fields)
@@ -85,44 +85,67 @@ Then open <http://localhost:8000>. Until real login exists, use the **Preview as
 of every page to switch between guest, user, staff and admin. The database is not connected yet;
 create it with `docs/schema.sql` when the backend phase starts.
 
-## Initial ERD
+## ERD
+
+Interactive version: [docs/erd.html](docs/erd.html). Created by [docs/schema.sql](docs/schema.sql).
 
 ```mermaid
 erDiagram
-    Users {
-        int user_id PK
-        string first_name
-        string last_name
-        string email
-        string role
+    users {
+        int      user_id     PK
+        varchar  first_name
+        varchar  last_name
+        varchar  email       UK
+        enum     role        "user | staff | admin"
+        datetime created_at
+        datetime updated_at
     }
 
-    Lost_Reports {
-        int report_id PK
-        int user_id FK
-        string description
-        date date_lost
-        string status
+    lost_reports {
+        int      report_id      PK
+        int      user_id        FK "reporter"
+        varchar  category
+        text     description
+        varchar  location_lost
+        date     date_lost
+        varchar  image_url
+        enum     status         "open | matched | closed"
+        datetime created_at
+        datetime updated_at
     }
 
-    Found_Items {
-        int item_id PK
-        int user_id FK
-        string description
-        string storage_location
-        string status
+    found_items {
+        int      item_id           PK
+        int      user_id           FK "staff who logged it"
+        varchar  category
+        text     description
+        varchar  location_found
+        varchar  storage_location
+        date     date_found
+        varchar  image_url
+        enum     status            "stored | returned | disposed"
+        datetime created_at
+        datetime updated_at
     }
 
-    Claims {
-        int claim_id PK
-        int item_id FK
-        int user_id FK
-        string status
+    claims {
+        int      claim_id      PK
+        int      item_id       FK
+        int      user_id       FK "claimant"
+        int      report_id     FK "optional"
+        enum     status        "pending | approved | rejected"
+        date     date_claimed
+        datetime created_at
+        datetime updated_at
     }
 
-    %% Relationships based on PK/FK pairs
-    Users ||--o{ Lost_Reports : "has"
-    Users ||--o{ Found_Items : "reports"
-    Users ||--o{ Claims : "makes"
-    Found_Items ||--o{ Claims : "receives"
+    users        ||--o{ lost_reports : "files"
+    users        ||--o{ found_items  : "logs"
+    users        ||--o{ claims       : "makes"
+    found_items  ||--o{ claims       : "receives"
+    lost_reports |o--o{ claims       : "is linked to"
 ```
+
+The front-end also uses a few columns not in the diagram (`item_name`, `private_details`,
+`proof_description`, `review_*`, `is_active`, `password_hash`); they are added in a separate,
+removable section of `schema.sql` until the group decides whether to adopt them into the ERD.
