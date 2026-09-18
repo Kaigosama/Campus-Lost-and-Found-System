@@ -4,7 +4,7 @@ require_once __DIR__ . '/config/db_connect.php';
 /**
  * ?type=lost            file a lost report (any logged-in user)      ?type=lost&id=N    edit your own open report
  * ?type=found           log a found item at intake (staff)           ?type=found&id=N   edit a found item
- * New records post through api/add_item.php (multipart, photo included); editing is not wired yet.
+ * New records post through api/add_item.php, edits through api/update_item.php (both multipart, photo included).
  */
 require_login();
 
@@ -32,7 +32,7 @@ if ($type === 'found') {
 
 $editing    = $row !== null;
 $formAction = url('/report.php?type=' . $type . ($editing ? '&id=' . $id : ''));
-$formMode   = $editing ? 'data-mock' : 'data-api="add_item" data-type="' . $type . '"';
+$formMode   = 'data-api="' . ($editing ? 'update_item' : 'add_item') . '" data-type="' . $type . '"';
 $pageTitle  = match (true) {
     $type === 'found' && $editing => 'Edit: ' . $row['item_name'],
     $type === 'found'             => 'Log a found item',
@@ -67,7 +67,7 @@ include APP_ROOT . '/includes/header.php';
 <div class="grid <?= $editing ? '' : 'grid-sidebar' ?>">
     <div class="card">
         <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate <?= $formMode ?>>
-            <?php if ($editing): ?><input type="hidden" name="item_id" value="<?= $id ?>"><?php endif; ?>
+            <?php if ($editing): ?><input type="hidden" name="id" value="<?= $id ?>"><?php endif; ?>
 
             <fieldset>
                 <legend>Public details</legend>
@@ -190,7 +190,7 @@ include APP_ROOT . '/includes/header.php';
 <div class="grid grid-sidebar">
     <div class="card">
         <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate <?= $formMode ?>>
-            <?php if ($editing): ?><input type="hidden" name="report_id" value="<?= $id ?>"><?php endif; ?>
+            <?php if ($editing): ?><input type="hidden" name="id" value="<?= $id ?>"><?php endif; ?>
 
             <div class="form-group">
                 <label for="item_name">What did you lose? <span class="req" aria-hidden="true">*</span></label>

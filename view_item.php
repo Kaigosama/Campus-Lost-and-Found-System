@@ -18,6 +18,7 @@ if ($type === 'lost') {
     $isOwner      = $report['user_id'] === $user['user_id'];
     $owner        = find_user($report['user_id']);
     $linkedClaims = where(all_claims(), 'report_id', $report['report_id']);
+    $matchedItem  = $report['matched_item_id'] ? find_found_item((int) $report['matched_item_id']) : null;
     $pageTitle    = $report['item_name'];
 } else {
     $item = find_found_item($id);
@@ -46,13 +47,13 @@ include APP_ROOT . '/includes/header.php';
 
 <div class="page-header">
     <div>
-        <h1><?= e($report['item_name']) ?> <?= status_badge($report['status']) ?></h1>
+        <h1><?= e($report['item_name']) ?> <?= status_badge($report['status'], 'lost-' . $report['report_id']) ?></h1>
         <p>Report #<?= $report['report_id'] ?> &middot; filed <?= e(format_datetime($report['created_at'])) ?></p>
     </div>
     <?php if ($isOwner && $report['status'] === 'open'): ?>
-        <div class="btn-row">
+        <div class="btn-row" data-remove>
             <a class="btn btn-outline" href="<?= e(url('/report.php?type=lost&id=' . $report['report_id'])) ?>">Edit</a>
-            <form method="post" action="<?= e(item_url('lost', $report['report_id'])) ?>" data-api="update_status" data-type="lost" data-confirm="Close this report? Do this if you found the item or no longer need help." style="display:inline">
+            <form method="post" action="<?= e(item_url('lost', $report['report_id'])) ?>" data-api="update_status" data-type="lost" data-done="remove" data-confirm="Close this report? Do this if you found the item or no longer need help." style="display:inline">
                 <input type="hidden" name="id" value="<?= $report['report_id'] ?>">
                 <input type="hidden" name="status" value="closed">
                 <button type="submit" class="btn btn-secondary">Mark as found / close</button>
@@ -70,7 +71,10 @@ include APP_ROOT . '/includes/header.php';
                     <dt>Category</dt><dd><?= e($report['category']) ?></dd>
                     <dt>Date lost</dt><dd><?= e(format_date($report['date_lost'])) ?></dd>
                     <dt>Last seen at</dt><dd><?= e($report['location_lost']) ?></dd>
-                    <dt>Status</dt><dd><?= status_badge($report['status']) ?></dd>
+                    <dt>Status</dt><dd><?= status_badge($report['status'], 'lost-' . $report['report_id']) ?></dd>
+                    <?php if ($matchedItem): ?>
+                        <dt>Matched item</dt><dd><a href="<?= e(item_url('found', $matchedItem['item_id'])) ?>">#<?= $matchedItem['item_id'] ?> <?= e($matchedItem['item_name']) ?></a></dd>
+                    <?php endif; ?>
                     <?php if (is_staff()): ?>
                         <dt>Reported by</dt><dd><?= e(full_name($owner)) ?><br><small><?= e($owner['email']) ?></small></dd>
                     <?php endif; ?>
@@ -110,7 +114,13 @@ include APP_ROOT . '/includes/header.php';
             </div>
         <?php elseif ($report['status'] === 'matched'): ?>
             <div class="alert alert-warning mb-0">
-                <strong>Possible match.</strong> Staff matched this report to a found item. Check your <a href="<?= e(url('/?tab=my_claims')) ?>">claims</a> for next steps.
+                <strong>Possible match.</strong>
+                <?php if ($matchedItem): ?>
+                    Staff matched this report to <a href="<?= e(item_url('found', $matchedItem['item_id'])) ?>"><?= e($matchedItem['item_name']) ?></a>.
+                    Open it and submit a claim if it's yours, or check your <a href="<?= e(url('/?tab=my_claims')) ?>">claims</a>.
+                <?php else: ?>
+                    Staff matched this report to a found item. Check your <a href="<?= e(url('/?tab=my_claims')) ?>">claims</a> for next steps.
+                <?php endif; ?>
             </div>
         <?php else: ?>
             <div class="alert alert-info mb-0">This report is closed. Thanks for letting us know!</div>
@@ -120,8 +130,9 @@ include APP_ROOT . '/includes/header.php';
             <div class="card card-staff mt-2">
                 <h3>Staff actions</h3>
                 <p class="text-sm text-muted">Found a match in storage? Link it so the owner is notified.</p>
-                <form method="post" action="<?= e(item_url('lost', $report['report_id'])) ?>" class="form" data-validate data-mock>
-                    <input type="hidden" name="action" value="match">
+                <form method="post" action="<?= e(item_url('lost', $report['report_id'])) ?>" class="form" data-validate data-api="update_status" data-type="lost" data-done="replace">
+                    <input type="hidden" name="id" value="<?= $report['report_id'] ?>">
+                    <input type="hidden" name="status" value="matched">
                     <div class="form-group">
                         <label for="match_item">Matching found item</label>
                         <select id="match_item" name="item_id" required>
@@ -145,7 +156,7 @@ include APP_ROOT . '/includes/header.php';
 <div class="page-header">
     <div>
         <span class="item-card-category"><?= e($item['category']) ?></span>
-        <h1><?= e($item['item_name']) ?> <?= status_badge($item['status']) ?></h1>
+        <h1><?= e($item['item_name']) ?> <?= status_badge($item['status'], 'found-' . $item['item_id']) ?></h1>
         <p>Item #<?= $item['item_id'] ?> &middot; turned in <?= e(format_date($item['date_found'])) ?></p>
     </div>
     <?php if (is_staff()): ?>
@@ -165,8 +176,12 @@ include APP_ROOT . '/includes/header.php';
                     <dt>Category</dt><dd><?= e($item['category']) ?></dd>
                     <dt>Date found</dt><dd><?= e(format_date($item['date_found'])) ?></dd>
                     <dt>Found at</dt><dd><?= e($item['location_found']) ?></dd>
-                    <dt>Status</dt><dd><?= status_badge($item['status']) ?></dd>
-                    <dt>Pickup</dt><dd>Lost &amp; Found office<br><small>Admin Bldg, Rm 104 · Mon–Fri 8 AM–5 PM</small></dd>
+                    <dt>Status</dt><dd><?= status_badge($item['status'], 'found-' . $item['item_id']) ?></dd>
+                    <dt>Pickup</dt>
+                    <dd>
+                        Lost &amp; Found office<br><small>Admin Bldg, Rm 104 · Mon–Fri 8 AM–5 PM</small>
+                        <br><small data-next-holiday>Checking holiday schedule…</small>
+                    </dd>
                 </dl>
             </div>
             <hr>
@@ -202,7 +217,7 @@ include APP_ROOT . '/includes/header.php';
         <article class="card mt-2" id="claim-<?= $claim['claim_id'] ?>">
             <div class="card-header">
                 <h3 class="mb-0">Claim #<?= $claim['claim_id'] ?> &middot; <?= e(full_name($claimant)) ?></h3>
-                <?= status_badge($claim['status']) ?>
+                <?= status_badge($claim['status'], 'claim-' . $claim['claim_id']) ?>
             </div>
 
             <div class="grid grid-2">
@@ -230,10 +245,33 @@ include APP_ROOT . '/includes/header.php';
                 </dl>
             </div>
 
+            <?php
+            // Hand-over form: shown once a claim is approved while the item is still in storage.
+            // For pending claims it is rendered hidden and revealed by app.js when the claim is approved.
+            $handoverForm = '';
+            if ($item['status'] === 'stored' && in_array($claim['status'], ['pending', 'approved'], true)) {
+                ob_start(); ?>
+                <div data-handover="<?= $claim['claim_id'] ?>" <?= $claim['status'] === 'pending' ? 'hidden' : '' ?>>
+                    <hr>
+                    <h4>Hand-over</h4>
+                    <p class="text-sm text-muted">When the claimant collects the item, mark it returned. This sets the item to <strong>Returned</strong>, closes the linked lost report, and rejects any other pending claims on it.</p>
+                    <form method="post" action="<?= e(item_url('found', $item['item_id']) . '#claim-' . $claim['claim_id']) ?>" class="form" data-validate
+                          data-api="update_status" data-type="found" data-done="replace" data-confirm="Confirm the item has been handed to the claimant?">
+                        <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
+                        <input type="hidden" name="status" value="returned">
+                        <div class="form-group">
+                            <label class="check"><input type="checkbox" name="id_verified" value="1" required> I checked the claimant's ID against the claim.</label>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Mark item as returned</button>
+                    </form>
+                </div>
+                <?php $handoverForm = ob_get_clean();
+            }
+            ?>
+
             <?php if ($claim['status'] === 'pending'): ?>
                 <hr>
-                <form method="post" action="<?= e(item_url('found', $item['item_id']) . '#claim-' . $claim['claim_id']) ?>" class="form" data-validate data-mock>
-                    <input type="hidden" name="action" value="review">
+                <form method="post" action="<?= e(item_url('found', $item['item_id']) . '#claim-' . $claim['claim_id']) ?>" class="form" data-validate data-api="review" data-done="replace">
                     <input type="hidden" name="claim_id" value="<?= $claim['claim_id'] ?>">
                     <div class="form-group">
                         <label for="review_note_<?= $claim['claim_id'] ?>">Note to claimant <span class="req" aria-hidden="true">*</span></label>
@@ -246,6 +284,7 @@ include APP_ROOT . '/includes/header.php';
                         <button type="submit" name="decision" value="reject" class="btn btn-danger" data-confirm="Reject this claim?">Reject claim</button>
                     </div>
                 </form>
+                <?= $handoverForm ?>
             <?php else: ?>
                 <hr>
                 <dl class="detail-list">
@@ -254,17 +293,7 @@ include APP_ROOT . '/includes/header.php';
                 </dl>
 
                 <?php if ($claim['status'] === 'approved' && $item['status'] === 'stored'): ?>
-                    <hr>
-                    <h4>Hand-over</h4>
-                    <p class="text-sm text-muted">When the claimant collects the item, mark it returned. This sets the item to <strong>Returned</strong>, closes the linked lost report, and rejects any other pending claims on it.</p>
-                    <form method="post" action="<?= e(item_url('found', $item['item_id']) . '#claim-' . $claim['claim_id']) ?>" class="form" data-validate data-mock data-confirm="Confirm the item has been handed to the claimant?">
-                        <input type="hidden" name="action" value="returned">
-                        <input type="hidden" name="claim_id" value="<?= $claim['claim_id'] ?>">
-                        <div class="form-group">
-                            <label class="check"><input type="checkbox" name="id_verified" value="1" required> I checked the claimant's ID against the claim.</label>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Mark item as returned</button>
-                    </form>
+                    <?= $handoverForm ?>
                 <?php elseif ($claim['status'] === 'approved' && $item['status'] === 'returned'): ?>
                     <div class="alert alert-success mb-0 mt-2">Item returned on <?= e(format_datetime($item['returned_at'])) ?>.</div>
                 <?php endif; ?>
@@ -293,11 +322,10 @@ include APP_ROOT . '/includes/header.php';
                 <?php endif; ?>
             </div>
         <?php elseif ($item['status'] === 'stored'): ?>
-            <div class="card" id="claim">
+            <div class="card" id="claim" data-replace>
                 <h3>Is this yours?</h3>
                 <p class="text-sm">Prove it by describing details that aren't visible in the listing. Staff compare this with the record made at intake — vague claims are rejected.</p>
-                <form method="post" action="<?= e(item_url('found', $item['item_id']) . '#claim') ?>" class="form" data-validate data-mock>
-                    <input type="hidden" name="action" value="claim">
+                <form method="post" action="<?= e(item_url('found', $item['item_id']) . '#claim') ?>" class="form" data-validate data-api="claim" data-done="replace">
                     <input type="hidden" name="item_id" value="<?= $item['item_id'] ?>">
 
                     <div class="form-group">

@@ -16,6 +16,7 @@
     </div>
 </footer>
 
+<script>window.CLAFS = <?= json_encode(['statusLabels' => LOST_STATUSES + FOUND_STATUSES + CLAIM_STATUSES + ['active' => 'Active', 'inactive' => 'Deactivated']]) ?>;</script>
 <script src="<?= e(asset('js/api.js')) ?>"></script>
 <script src="<?= e(asset('js/app.js')) ?>"></script>
 </body>

@@ -3,8 +3,11 @@
  *   [data-nav-toggle]                  mobile menu; .nav-group dropdowns close on outside click / Escape
  *   [data-confirm]                     confirm() before links, buttons and forms
  *   form[data-validate]                client-side rules mirroring the API (a convenience, not security)
- *   form[data-mock]                    validated only — handler not built yet
- *   form[data-api="add_item|update_status"]   submitted through ClafsApi
+ *   form[data-api="…"]                 submitted through ClafsApi with fetch(); see `handlers` for the names
+ *     data-done="notify|replace|remove"  what to do with the form after success (default: notify)
+ *   [data-status-for="found-3"]        badge that is updated in place after a status change
+ *   form[data-live-search]             found-items search: results are fetched from api/get_items.php as you type
+ *   [data-next-holiday]                filled with the next office closure from the public-holiday API
  *   input[type=file][data-preview]     image preview
  *   [data-table-filter]                quick text filter for a table
  */
@@ -12,6 +15,18 @@
     var ALLOWED_DOMAINS = ['mymail.mapua.edu.ph', 'mapua.edu.ph'];
     var IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
     var MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+    var BASE = document.documentElement.getAttribute('data-base') || '';
+    var STATUS_LABELS = (window.CLAFS && window.CLAFS.statusLabels) || {};
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function formatDate(iso) {
+        if (!iso) return '—';
+        return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
 
     /* ---- Navigation ---- */
     var toggle = document.querySelector('[data-nav-toggle]');
@@ -45,15 +60,20 @@
     }, true);
 
     /* ---- Alerts and field errors ---- */
+    function alertNode(type, message) {
+        var node = document.createElement('div');
+        node.className = 'alert alert-' + type;
+        node.setAttribute('role', 'status');
+        node.textContent = message;
+        return node;
+    }
     function alertIn(container, type, message, className) {
         if (!container) return;
         var existing = container.querySelector('.' + className);
         if (existing) existing.remove();
         if (!message) return;
-        var node = document.createElement('div');
-        node.className = 'alert alert-' + type + ' ' + className;
-        node.setAttribute('role', 'status');
-        node.textContent = message;
+        var node = alertNode(type, message);
+        node.classList.add(className);
         container.insertBefore(node, container.firstChild);
         node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
@@ -151,6 +171,7 @@
 
     function setBusy(form, busy) {
         form.querySelectorAll('button, select').forEach(function (el) { el.disabled = busy; });
+        form.setAttribute('aria-busy', busy ? 'true' : 'false');
     }
 
     function showApiError(form, error) {
@@ -161,7 +182,30 @@
                 if (field) setError(field, errors[name]);
             });
         }
-        formAlert(form, 'error', error.message);
+        // Inline forms (a status <select> in a table cell) have nowhere to show a message; use the page banner.
+        form.querySelector('.form-group') ? formAlert(form, 'error', error.message) : notify('error', error.message);
+    }
+
+    // Update every badge that shows this record's status, e.g. setBadge('found-3', 'returned').
+    function setBadge(key, status) {
+        document.querySelectorAll('[data-status-for="' + key + '"]').forEach(function (badge) {
+            badge.className = 'badge badge-' + status;
+            badge.textContent = STATUS_LABELS[status] || status;
+        });
+    }
+
+    // After success: data-done="replace" swaps the form (or its closest [data-replace]) for a success alert,
+    // "remove" deletes it (or its closest [data-remove]), anything else shows a page banner.
+    function finish(form, message) {
+        var mode = form.dataset.done || 'notify';
+        if (mode === 'replace') {
+            (form.closest('[data-replace]') || form).replaceWith(alertNode('success', message));
+        } else if (mode === 'remove') {
+            (form.closest('[data-remove]') || form).remove();
+            notify('success', message);
+        } else {
+            notify('success', message);
+        }
     }
 
     var handlers = {
@@ -169,12 +213,51 @@
             return ClafsApi.addItem(form.dataset.type || 'lost', formData)
                 .then(function (result) { window.location.href = result.url; });
         },
+        update_item: function (form, data, formData) {
+            return ClafsApi.updateItem(form.dataset.type || 'lost', parseInt(data.id, 10), formData)
+                .then(function (result) { window.location.href = result.url; });
+        },
         update_status: function (form, data) {
-            return ClafsApi.updateStatus(form.dataset.type || 'found', parseInt(data.id, 10), data.status)
+            var type = form.dataset.type || 'found';
+            return ClafsApi.updateStatus(type, parseInt(data.id, 10), data.status, data.item_id)
                 .then(function (result) {
-                    notify('success', result.message);
-                    setTimeout(function () { window.location.reload(); }, 600);
+                    setBadge(type + '-' + result.id, result.status);
+                    (result.rejected_claims || []).forEach(function (claimId) { setBadge('claim-' + claimId, 'rejected'); });
+                    finish(form, result.message);
                 });
+        },
+        claim: function (form, data) {
+            return ClafsApi.createClaim(data).then(function (result) { finish(form, result.message); });
+        },
+        review: function (form, data) {
+            return ClafsApi.reviewClaim(parseInt(data.claim_id, 10), data.decision, data.review_note)
+                .then(function (result) {
+                    setBadge('claim-' + result.claim_id, result.status);
+                    var handover = document.querySelector('[data-handover="' + result.claim_id + '"]');
+                    if (handover && result.status === 'approved') handover.hidden = false;
+                    finish(form, result.message);
+                });
+        },
+        withdraw: function (form, data) {
+            return ClafsApi.withdrawClaim(parseInt(data.claim_id, 10))
+                .then(function (result) { finish(form, result.message); });
+        },
+        update_user: function (form, data) {
+            var changes = {};
+            if ('role' in data) changes.role = data.role;
+            if ('is_active' in data) changes.is_active = data.is_active;
+            return ClafsApi.updateUser(parseInt(data.user_id, 10), changes).then(function (result) {
+                setBadge('user-' + result.user_id, result.is_active ? 'active' : 'inactive');
+                var toggle = form.querySelector('[data-toggle-active]');
+                if (toggle) { // flip the Deactivate / Reactivate button so it can be used again without a reload
+                    var active = !!result.is_active;
+                    form.querySelector('[name="is_active"]').value = active ? '0' : '1';
+                    toggle.textContent = active ? 'Deactivate' : 'Reactivate';
+                    toggle.className = 'btn btn-sm ' + (active ? 'btn-secondary' : 'btn-success');
+                    form.dataset.confirm = active ? 'Deactivate this account? They will no longer be able to log in.' : 'Reactivate this account?';
+                }
+                finish(form, result.message);
+            });
         }
     };
 
@@ -184,24 +267,124 @@
             event.preventDefault();
             return;
         }
-        if (form.hasAttribute('data-mock')) {
-            event.preventDefault();
-            formAlert(form, 'info', 'Looks good — this form passed validation. Saving is not connected yet.');
-            return;
-        }
         var handler = handlers[form.dataset.api];
         if (!handler || !window.ClafsApi) return;
         event.preventDefault();
 
         formAlert(form, '', '');
         var formData = new FormData(form); // before setBusy(): disabled fields are left out of FormData
+        if (event.submitter && event.submitter.name) formData.append(event.submitter.name, event.submitter.value);
         setBusy(form, true);
         handler(form, fields(formData), formData)
+            .then(function () { if (document.body.contains(form)) setBusy(form, false); })
             .catch(function (error) {
                 showApiError(form, error);
                 setBusy(form, false);
             });
     });
+
+    /* ---- Live search (found items) ---- */
+    var liveForm = document.querySelector('form[data-live-search]');
+    var liveResults = document.querySelector('[data-live-results]');
+    if (liveForm && liveResults && window.ClafsApi) {
+        var liveCount = document.querySelector('[data-live-count]');
+        var liveTimer = null;
+        var liveSeq = 0;
+
+        function liveParams() {
+            var params = {};
+            new FormData(liveForm).forEach(function (value, key) { if (value !== '') params[key] = value; });
+            return params;
+        }
+
+        function cardHtml(item) {
+            var href = BASE + '/view_item.php?type=found&id=' + item.item_id;
+            var photo = item.image_url
+                ? '<img src="' + escapeHtml(BASE + '/public/' + item.image_url) + '" alt="' + escapeHtml(item.item_name) + '" class="photo" loading="lazy">'
+                : '<div class="photo photo-placeholder" role="img" aria-label="No photo available">'
+                  + '<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">'
+                  + '<path d="M4 7h3l2-2h6l2 2h3v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>No photo</span></div>';
+            var desc = String(item.description || '').replace(/\s+/g, ' ').trim();
+            if (desc.length > 110) desc = desc.slice(0, 109) + '…';
+            return '<article class="item-card">'
+                + '<a class="item-card-photo" href="' + escapeHtml(href) + '">' + photo + '</a>'
+                + '<div class="item-card-body">'
+                + '<span class="item-card-category">' + escapeHtml(item.category) + '</span>'
+                + '<h3 class="item-card-title"><a href="' + escapeHtml(href) + '">' + escapeHtml(item.item_name) + '</a></h3>'
+                + '<p class="item-card-desc">' + escapeHtml(desc) + '</p>'
+                + '<dl class="item-card-meta"><div><dt>Found</dt><dd>' + escapeHtml(formatDate(item.date_found)) + '</dd></div>'
+                + '<div><dt>Where</dt><dd>' + escapeHtml(item.location_found) + '</dd></div></dl>'
+                + '</div>'
+                + '<div class="item-card-footer"><span class="badge badge-' + escapeHtml(item.status) + '">' + escapeHtml(STATUS_LABELS[item.status] || item.status) + '</span>'
+                + '<a class="btn btn-outline btn-sm" href="' + escapeHtml(href) + '">View details</a></div>'
+                + '</article>';
+        }
+
+        function renderResults(items, query) {
+            if (liveCount) {
+                liveCount.textContent = items.length + ' item' + (items.length === 1 ? '' : 's') + ' in storage' + (query ? ' matching "' + query + '"' : '');
+            }
+            if (!items.length) {
+                liveResults.innerHTML = '<div class="empty-state"><div class="empty-icon" aria-hidden="true">&#128269;</div>'
+                    + '<h2>No items match your search</h2><p>Try a different keyword or clear the filters.</p></div>';
+                return;
+            }
+            liveResults.innerHTML = '<div class="item-grid">' + items.map(cardHtml).join('') + '</div>';
+        }
+
+        function runSearch() {
+            var params = liveParams();
+            var mine = ++liveSeq;
+            liveResults.setAttribute('aria-busy', 'true');
+            ClafsApi.getItems(Object.assign({ type: 'found', limit: 100 }, params))
+                .then(function (result) {
+                    if (mine !== liveSeq) return; // a newer search has started
+                    renderResults(result.items, params.q || '');
+                    var qs = new URLSearchParams(params).toString();
+                    window.history.replaceState(null, '', liveForm.getAttribute('action') + (qs ? '?' + qs : ''));
+                })
+                .catch(function (error) { notify('error', 'Search failed: ' + error.message); })
+                .then(function () { if (mine === liveSeq) liveResults.removeAttribute('aria-busy'); });
+        }
+
+        liveForm.addEventListener('input', function (event) {
+            if (event.target.type !== 'search') return;
+            clearTimeout(liveTimer);
+            liveTimer = setTimeout(runSearch, 300);
+        });
+        liveForm.addEventListener('change', function () { clearTimeout(liveTimer); runSearch(); });
+        liveForm.addEventListener('submit', function (event) { event.preventDefault(); clearTimeout(liveTimer); runSearch(); });
+    }
+
+    /* ---- Next office closure (external public-holiday API) ---- */
+    var holidayNodes = document.querySelectorAll('[data-next-holiday]');
+    if (holidayNodes.length && window.ClafsApi) {
+        var today = new Date();
+        var todayIso = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+        var year = today.getFullYear();
+
+        ClafsApi.getHolidays(year)
+            .then(function (holidays) {
+                var upcoming = holidays.filter(function (h) { return h.date >= todayIso; });
+                // Late in the year the remaining holidays may all be in the next one.
+                return upcoming.length ? upcoming : ClafsApi.getHolidays(year + 1);
+            })
+            .then(function (upcoming) {
+                var next = upcoming[0];
+                holidayNodes.forEach(function (node) {
+                    if (!next) { node.textContent = 'No upcoming holidays on record.'; return; }
+                    node.innerHTML = 'Next closure: <strong>' + escapeHtml(formatDate(next.date)) + '</strong> — ' + escapeHtml(next.localName || next.name);
+                    if (node.dataset.nextHoliday === 'list') {
+                        node.innerHTML = '<strong>Upcoming holidays (office closed):</strong> ' + upcoming.slice(0, 3).map(function (h) {
+                            return escapeHtml(formatDate(h.date)) + ' (' + escapeHtml(h.localName || h.name) + ')';
+                        }).join(' · ');
+                    }
+                });
+            })
+            .catch(function () {
+                holidayNodes.forEach(function (node) { node.textContent = 'Holiday schedule unavailable right now.'; });
+            });
+    }
 
     /* ---- Image preview ---- */
     document.querySelectorAll('input[type="file"][data-preview]').forEach(function (input) {

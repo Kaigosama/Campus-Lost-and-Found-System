@@ -199,10 +199,11 @@ include APP_ROOT . '/includes/header.php';
     <?php endif; ?>
 </div>
 
-<form method="get" action="<?= e(url('/browse.php')) ?>" class="filter-bar" role="search">
+<!-- With JavaScript, results are fetched from api/get_items.php as you type (no page reload); without it, the form submits normally. -->
+<form method="get" action="<?= e(url('/browse.php')) ?>" class="filter-bar" role="search" data-live-search>
     <div class="form-group grow">
         <label for="q">Search</label>
-        <input type="search" id="q" name="q" value="<?= e($q) ?>" placeholder="e.g. calculator, blue bag, ID…">
+        <input type="search" id="q" name="q" value="<?= e($q) ?>" placeholder="e.g. calculator, blue bag, ID…" autocomplete="off">
     </div>
     <div class="form-group">
         <label for="category">Category</label>
@@ -220,10 +221,11 @@ include APP_ROOT . '/includes/header.php';
     <a class="btn btn-secondary" href="<?= e(url('/browse.php')) ?>">Reset</a>
 </form>
 
-<p class="result-count">
+<p class="result-count" data-live-count aria-live="polite">
     <?= count($rows) ?> item<?= count($rows) === 1 ? '' : 's' ?> in storage<?= $q ? ' matching "' . e($q) . '"' : '' ?>
 </p>
 
+<div data-live-results>
 <?php if ($pageRows): ?>
     <div class="item-grid">
         <?php foreach ($pageRows as $item) echo item_card($item); ?>
@@ -237,6 +239,7 @@ include APP_ROOT . '/includes/header.php';
         is_logged_in() ? 'Report a lost item' : 'Log in to report a lost item'
     ) ?>
 <?php endif; ?>
+</div>
 <?php endif; ?>
 
 <?php include APP_ROOT . '/includes/footer.php'; ?>

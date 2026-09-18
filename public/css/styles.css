@@ -306,6 +306,7 @@ fieldset.staff-only legend { color: var(--blue-dark); }
 
 /* ---------- 9. Item cards grid ---------- */
 .item-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+[data-live-results][aria-busy="true"] { opacity: .5; transition: opacity .15s; }
 .item-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
     box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden;

@@ -86,6 +86,7 @@ if (!$user) {
         <span class="stat-label">Office hours</span>
         <span class="stat-value" style="font-size:1.2rem">Mon–Fri</span>
         <span class="stat-note">8:00 AM – 5:00 PM, Admin Bldg Rm 104</span>
+        <span class="stat-note" data-next-holiday>Checking holiday schedule…</span>
     </div>
 </div>
 
@@ -485,7 +486,7 @@ include APP_ROOT . '/includes/header.php';
     <?php if ($myClaims): ?>
     <div class="grid">
         <?php foreach ($myClaims as $claim): $item = find_found_item($claim['item_id']); $reviewer = find_user($claim['reviewed_by']); ?>
-            <article class="card">
+            <article class="card" data-remove>
                 <div class="card-header">
                     <div class="flex items-center gap-2">
                         <?= photo_tag($item['image_url'], $item['item_name'], 'photo-thumb') ?>
@@ -520,8 +521,7 @@ include APP_ROOT . '/includes/header.php';
 
                 <?php if ($claim['status'] === 'pending'): ?>
                     <div class="form-actions" style="margin-top:1rem;padding-top:.75rem">
-                        <form method="post" action="<?= e(url('/?tab=my_claims')) ?>" data-confirm="Withdraw this claim?">
-                            <input type="hidden" name="action" value="withdraw">
+                        <form method="post" action="<?= e(url('/?tab=my_claims')) ?>" data-api="withdraw" data-done="remove" data-confirm="Withdraw this claim?">
                             <input type="hidden" name="claim_id" value="<?= $claim['claim_id'] ?>">
                             <button type="submit" class="btn btn-secondary btn-sm">Withdraw claim</button>
                         </form>
@@ -634,8 +634,7 @@ include APP_ROOT . '/includes/header.php';
                     </td>
                     <td><?= e($u['email']) ?></td>
                     <td>
-                        <form method="post" action="<?= e(url('/?tab=users')) ?>" data-confirm="Change this user's role?">
-                            <input type="hidden" name="action" value="role">
+                        <form method="post" action="<?= e(url('/?tab=users')) ?>" data-api="update_user" data-confirm="Change this user's role?">
                             <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
                             <label for="role-<?= $u['user_id'] ?>" class="sr-only">Role</label>
                             <select id="role-<?= $u['user_id'] ?>" name="role" class="inline-select" onchange="this.form.requestSubmit()" <?= $isMe ? 'disabled title="You cannot change your own role"' : '' ?>>
@@ -643,15 +642,15 @@ include APP_ROOT . '/includes/header.php';
                             </select>
                         </form>
                     </td>
-                    <td><span class="badge badge-<?= $u['is_active'] ? 'active' : 'inactive' ?>"><?= $u['is_active'] ? 'Active' : 'Deactivated' ?></span></td>
+                    <td><span class="badge badge-<?= $u['is_active'] ? 'active' : 'inactive' ?>" data-status-for="user-<?= $u['user_id'] ?>"><?= $u['is_active'] ? 'Active' : 'Deactivated' ?></span></td>
                     <td class="nowrap"><?= e(format_date($u['created_at'])) ?></td>
                     <td class="actions">
                         <?php if (!$isMe): ?>
-                            <form method="post" action="<?= e(url('/?tab=users')) ?>" style="display:inline"
+                            <form method="post" action="<?= e(url('/?tab=users')) ?>" style="display:inline" data-api="update_user"
                                   data-confirm="<?= $u['is_active'] ? 'Deactivate this account? They will no longer be able to log in.' : 'Reactivate this account?' ?>">
-                                <input type="hidden" name="action" value="<?= $u['is_active'] ? 'deactivate' : 'activate' ?>">
                                 <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
-                                <button type="submit" class="btn btn-sm <?= $u['is_active'] ? 'btn-secondary' : 'btn-success' ?>"><?= $u['is_active'] ? 'Deactivate' : 'Reactivate' ?></button>
+                                <input type="hidden" name="is_active" value="<?= $u['is_active'] ? '0' : '1' ?>">
+                                <button type="submit" class="btn btn-sm <?= $u['is_active'] ? 'btn-secondary' : 'btn-success' ?>" data-toggle-active><?= $u['is_active'] ? 'Deactivate' : 'Reactivate' ?></button>
                             </form>
                         <?php endif; ?>
                     </td>
