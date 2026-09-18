@@ -18,6 +18,7 @@ declare(strict_types=1);
  */
 
 define('APP_ROOT', dirname(__DIR__));
+date_default_timezone_set('Asia/Manila');
 
 /** '' when the repo root is the web root (php -S localhost:8000); '/clafs' for an Apache alias. */
 const BASE_URL = '';
@@ -71,12 +72,18 @@ function db(): PDO
 {
     static $pdo = null;
     if ($pdo === null) {
-        $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=%s', DB_HOST, DB_PORT, DB_NAME, DB_CHARSET);
-        $pdo = new PDO($dsn, DB_USER, DB_PASS, [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
-        ]);
+        try {
+            $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=%s', DB_HOST, DB_PORT, DB_NAME, DB_CHARSET);
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, [
+                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES   => false,
+            ]);
+        } catch (PDOException $e) {
+            http_response_code(500);
+            header('Content-Type: text/plain; charset=utf-8');
+            exit("Database connection failed: {$e->getMessage()}\n\nImport docs/schema.sql and set DB_* constants in config/db_connect.local.php.");
+        }
     }
     return $pdo;
 }
@@ -421,194 +428,36 @@ function require_role(array|string $roles): void
     }
 }
 
-/* =========================================================================
- * 5. Data layer — MOCK rows until the database exists.
- *
- * Column names follow docs/erd.html + docs/schema.sql, including the
- * "UI additions" block at the end of the schema (item_name, private_details,
- * proof_description, review_*, is_active). Pages never touch the arrays
- * directly; they call the accessors below, which the backend phase rewrites
- * as SELECT/INSERT/UPDATE queries through db().
- * ========================================================================= */
+/* ---------------------------------------------------------------- Data layer */
 
-/** The whole mock dataset, built once per request. */
-function mock_db(): array
+const TABLE_KEYS = ['users' => 'user_id', 'found_items' => 'item_id', 'lost_reports' => 'report_id', 'claims' => 'claim_id'];
+
+/** Whole table keyed by primary key, loaded once per request. Pages filter in PHP with the helpers below. */
+function table(string $name): array
 {
-    static $db = null;
-    if ($db !== null) {
-        return $db;
+    static $cache = [];
+    if (!isset($cache[$name])) {
+        $cache[$name] = array_column(db()->query("SELECT * FROM `$name`")->fetchAll(), null, TABLE_KEYS[$name]);
     }
-
-    $users = [
-        1 => ['user_id' => 1, 'first_name' => 'Ana',   'last_name' => 'Reyes',      'email' => 'admin@mapua.edu.ph',           'role' => 'admin', 'is_active' => 1, 'created_at' => '2026-08-01 09:00:00', 'updated_at' => '2026-08-01 09:00:00'],
-        2 => ['user_id' => 2, 'first_name' => 'Marco', 'last_name' => 'Santos',     'email' => 'staff@mapua.edu.ph',           'role' => 'staff', 'is_active' => 1, 'created_at' => '2026-08-01 09:05:00', 'updated_at' => '2026-08-01 09:05:00'],
-        3 => ['user_id' => 3, 'first_name' => 'Jose',  'last_name' => 'Dela Cruz',  'email' => 'student1@mymail.mapua.edu.ph', 'role' => 'user',  'is_active' => 1, 'created_at' => '2026-08-15 14:20:00', 'updated_at' => '2026-08-15 14:20:00'],
-        4 => ['user_id' => 4, 'first_name' => 'Bea',   'last_name' => 'Lim',        'email' => 'student2@mymail.mapua.edu.ph', 'role' => 'user',  'is_active' => 1, 'created_at' => '2026-08-20 10:12:00', 'updated_at' => '2026-08-20 10:12:00'],
-        5 => ['user_id' => 5, 'first_name' => 'Ramon', 'last_name' => 'Villanueva', 'email' => 'rvillanueva@mapua.edu.ph',     'role' => 'user',  'is_active' => 1, 'created_at' => '2026-09-01 08:45:00', 'updated_at' => '2026-09-01 08:45:00'],
-        6 => ['user_id' => 6, 'first_name' => 'Carla', 'last_name' => 'Mendoza',    'email' => 'student9@mymail.mapua.edu.ph', 'role' => 'user',  'is_active' => 0, 'created_at' => '2026-09-03 16:30:00', 'updated_at' => '2026-09-05 10:00:00'],
-    ];
-
-    $foundItems = [
-        1 => [
-            'item_id' => 1, 'user_id' => 2,
-            'item_name' => 'Black JBL earbuds case', 'category' => 'Electronics',
-            'description' => 'Small black charging case for wireless earbuds. Found on a study table near the windows.',
-            'private_details' => 'Case has a deep scratch on the lid. Left earbud is missing; only the right one is inside.',
-            'date_found' => '2026-09-08', 'location_found' => 'Library', 'storage_location' => 'Cabinet A, Shelf 1',
-            'image_url' => null, 'status' => 'stored', 'returned_at' => null,
-            'created_at' => '2026-09-08 11:40:00', 'updated_at' => '2026-09-08 11:40:00',
-        ],
-        2 => [
-            'item_id' => 2, 'user_id' => 2,
-            'item_name' => 'Blue JanSport backpack', 'category' => 'Bags',
-            'description' => 'Navy blue backpack, medium size, left on the bleachers after PE class.',
-            'private_details' => 'Contains a green calculus notebook, a folding umbrella, and a Casio watch in the front pocket.',
-            'date_found' => '2026-09-05', 'location_found' => 'Gymnasium', 'storage_location' => 'Cabinet B, Shelf 2',
-            'image_url' => null, 'status' => 'stored', 'returned_at' => null,
-            'created_at' => '2026-09-05 16:05:00', 'updated_at' => '2026-09-05 16:05:00',
-        ],
-        3 => [
-            'item_id' => 3, 'user_id' => 2,
-            'item_name' => 'Mapua student ID card', 'category' => 'IDs & Cards',
-            'description' => 'Student ID card in a clear plastic holder with a red lanyard. Turned in by cafeteria staff.',
-            'private_details' => 'Name on card: Jose Dela Cruz. Student number ends in 4471. Lanyard has a small keychain bear.',
-            'date_found' => '2026-09-10', 'location_found' => 'Cafeteria', 'storage_location' => 'Drawer 1 (IDs)',
-            'image_url' => null, 'status' => 'stored', 'returned_at' => null,
-            'created_at' => '2026-09-10 13:15:00', 'updated_at' => '2026-09-11 09:00:00',
-        ],
-        4 => [
-            'item_id' => 4, 'user_id' => 2,
-            'item_name' => 'Casio fx-991 scientific calculator', 'category' => 'Electronics',
-            'description' => 'Grey/black Casio scientific calculator with slide cover. Left in a lecture room.',
-            'private_details' => 'Initials "K.S." written in marker on the back of the slide cover. Battery cover is cracked.',
-            'date_found' => '2026-09-03', 'location_found' => 'North Building', 'storage_location' => 'Cabinet A, Shelf 3',
-            'image_url' => null, 'status' => 'stored', 'returned_at' => null,
-            'created_at' => '2026-09-03 10:20:00', 'updated_at' => '2026-09-03 10:20:00',
-        ],
-        5 => [
-            'item_id' => 5, 'user_id' => 2,
-            'item_name' => 'Silver keychain with 3 keys', 'category' => 'Keys',
-            'description' => 'Keychain with three keys found near the motorcycle parking area.',
-            'private_details' => 'Has a red bottle-opener tag and one key is a small padlock key.',
-            'date_found' => '2026-09-11', 'location_found' => 'Parking Area', 'storage_location' => 'Drawer 2 (Keys)',
-            'image_url' => null, 'status' => 'stored', 'returned_at' => null,
-            'created_at' => '2026-09-11 08:50:00', 'updated_at' => '2026-09-11 08:50:00',
-        ],
-        6 => [
-            'item_id' => 6, 'user_id' => 2,
-            'item_name' => 'Grey hoodie', 'category' => 'Clothing',
-            'description' => 'Plain grey pullover hoodie, size medium.',
-            'private_details' => 'Name tag inside collar: "B. Lim". Small bleach stain on the left sleeve.',
-            'date_found' => '2026-08-28', 'location_found' => 'Student Lounge', 'storage_location' => 'Cabinet C, Shelf 1',
-            'image_url' => null, 'status' => 'returned', 'returned_at' => '2026-09-02 15:30:00',
-            'created_at' => '2026-08-28 17:10:00', 'updated_at' => '2026-09-02 15:30:00',
-        ],
-        7 => [
-            'item_id' => 7, 'user_id' => 2,
-            'item_name' => 'Black folding umbrella', 'category' => 'Accessories',
-            'description' => 'Compact black umbrella, unbranded.',
-            'private_details' => 'Handle has a piece of yellow tape wrapped around it.',
-            'date_found' => '2026-07-14', 'location_found' => 'Admin Building', 'storage_location' => 'Bin 4 (Misc)',
-            'image_url' => null, 'status' => 'disposed', 'returned_at' => null,
-            'created_at' => '2026-07-14 09:00:00', 'updated_at' => '2026-08-30 12:00:00',
-        ],
-    ];
-
-    $lostReports = [
-        1 => [
-            'report_id' => 1, 'user_id' => 3,
-            'item_name' => 'JBL wireless earbuds (black)', 'category' => 'Electronics',
-            'description' => 'JBL Tune 230 earbuds in a black case. The case lid has a scratch and I think the left earbud was already out of the case when I lost it.',
-            'date_lost' => '2026-09-07', 'location_lost' => 'Library',
-            'image_url' => null, 'status' => 'open',
-            'created_at' => '2026-09-07 18:25:00', 'updated_at' => '2026-09-07 18:25:00',
-        ],
-        2 => [
-            'report_id' => 2, 'user_id' => 3,
-            'item_name' => 'Student ID with red lanyard', 'category' => 'IDs & Cards',
-            'description' => 'My Mapua ID in a clear holder. The lanyard has a tiny bear keychain.',
-            'date_lost' => '2026-09-10', 'location_lost' => 'Cafeteria',
-            'image_url' => null, 'status' => 'matched',
-            'created_at' => '2026-09-10 14:00:00', 'updated_at' => '2026-09-11 09:00:00',
-        ],
-        3 => [
-            'report_id' => 3, 'user_id' => 4,
-            'item_name' => 'Red Hydro Flask water bottle', 'category' => 'Other',
-            'description' => '32 oz red bottle with a sticker of a cat on the side.',
-            'date_lost' => '2026-09-09', 'location_lost' => 'Covered Court',
-            'image_url' => null, 'status' => 'open',
-            'created_at' => '2026-09-09 12:10:00', 'updated_at' => '2026-09-09 12:10:00',
-        ],
-        4 => [
-            'report_id' => 4, 'user_id' => 3,
-            'item_name' => 'Physics textbook (Serway)', 'category' => 'Books & Notes',
-            'description' => 'Hardbound physics textbook with my name on the first page.',
-            'date_lost' => '2026-08-20', 'location_lost' => 'South Building',
-            'image_url' => null, 'status' => 'closed',
-            'created_at' => '2026-08-20 09:30:00', 'updated_at' => '2026-08-25 11:00:00',
-        ],
-        5 => [
-            'report_id' => 5, 'user_id' => 5,
-            'item_name' => 'Grey hoodie', 'category' => 'Clothing',
-            'description' => 'Grey pullover hoodie, medium. Has a name tag inside the collar.',
-            'date_lost' => '2026-08-27', 'location_lost' => 'Student Lounge',
-            'image_url' => null, 'status' => 'closed',
-            'created_at' => '2026-08-27 20:00:00', 'updated_at' => '2026-09-02 15:30:00',
-        ],
-    ];
-
-    $claims = [
-        1 => [
-            'claim_id' => 1, 'item_id' => 1, 'user_id' => 3, 'report_id' => 1,
-            'proof_description' => 'These are JBL Tune 230 earbuds. The case has a scratch on the lid, and only the right earbud should be inside because I had the left one in my ear when I lost the case.',
-            'status' => 'pending', 'date_claimed' => '2026-09-09',
-            'reviewed_by' => null, 'review_note' => null, 'reviewed_at' => null,
-            'created_at' => '2026-09-09 08:15:00', 'updated_at' => '2026-09-09 08:15:00',
-        ],
-        2 => [
-            'claim_id' => 2, 'item_id' => 3, 'user_id' => 3, 'report_id' => 2,
-            'proof_description' => 'It is my student ID. My student number ends in 4471 and the lanyard has a small bear keychain.',
-            'status' => 'approved', 'date_claimed' => '2026-09-10',
-            'reviewed_by' => 2, 'review_note' => 'Details match. Please bring a valid ID to the Lost & Found office (Admin Bldg, Rm 104) to claim.', 'reviewed_at' => '2026-09-11 09:00:00',
-            'created_at' => '2026-09-10 15:30:00', 'updated_at' => '2026-09-11 09:00:00',
-        ],
-        3 => [
-            'claim_id' => 3, 'item_id' => 2, 'user_id' => 4, 'report_id' => null,
-            'proof_description' => 'Blue backpack with my laptop and charger inside.',
-            'status' => 'rejected', 'date_claimed' => '2026-09-06',
-            'reviewed_by' => 2, 'review_note' => 'Described contents do not match what was logged at intake.', 'reviewed_at' => '2026-09-06 10:45:00',
-            'created_at' => '2026-09-06 09:20:00', 'updated_at' => '2026-09-06 10:45:00',
-        ],
-        4 => [
-            'claim_id' => 4, 'item_id' => 2, 'user_id' => 5, 'report_id' => null,
-            'proof_description' => 'Navy JanSport. There should be a green calculus notebook, a folding umbrella and my Casio watch in the front pocket.',
-            'status' => 'pending', 'date_claimed' => '2026-09-11',
-            'reviewed_by' => null, 'review_note' => null, 'reviewed_at' => null,
-            'created_at' => '2026-09-11 17:05:00', 'updated_at' => '2026-09-11 17:05:00',
-        ],
-    ];
-
-    return $db = [
-        'users'        => $users,
-        'found_items'  => $foundItems,
-        'lost_reports' => $lostReports,
-        'claims'       => $claims,
-    ];
+    return $cache[$name];
 }
 
-/* ---- Collections (later: SELECT * FROM …), keyed by primary key ---- */
+function all_users(): array        { return table('users'); }
+function all_found_items(): array  { return table('found_items'); }
+function all_lost_reports(): array { return table('lost_reports'); }
+function all_claims(): array       { return table('claims'); }
 
-function all_users(): array        { return mock_db()['users']; }
-function all_found_items(): array  { return mock_db()['found_items']; }
-function all_lost_reports(): array { return mock_db()['lost_reports']; }
-function all_claims(): array       { return mock_db()['claims']; }
-
-/* ---- Single rows (later: SELECT … WHERE id = ?) ---- */
-
-function find_user(?int $id): ?array       { return $id !== null ? (all_users()[$id] ?? null) : null; }
+function find_user(?int $id): ?array       { return $id ? (all_users()[$id] ?? null) : null; }
 function find_found_item(int $id): ?array  { return all_found_items()[$id] ?? null; }
 function find_lost_report(int $id): ?array { return all_lost_reports()[$id] ?? null; }
 function find_claim(int $id): ?array       { return all_claims()[$id] ?? null; }
+
+function find_user_by_email(string $email): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
+    $stmt->execute([mb_strtolower(trim($email))]);
+    return $stmt->fetch() ?: null;
+}
 
 /** Rows whose $column equals $value, as a plain list. */
 function where(array $rows, string $column, mixed $value): array
