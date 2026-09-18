@@ -30,9 +30,13 @@ visit the office and describe the item or look at the displayed casing.
 
 ## User Roles
 
-- Administrator
-- Staff/Employee
-- Customer/User
+| Role (DB value) | Label in the app         | Can do                                                        |
+|-----------------|--------------------------|---------------------------------------------------------------|
+| `user`          | Student / Faculty        | Browse found items, file lost reports, submit ownership claims |
+| `staff`         | Security & Maintenance   | Everything above + log found items, review claims, hand over   |
+| `admin`         | Office Administrator     | Everything above + manage users and roles, view statistics     |
+
+New registrations always start as **Student / Faculty**; an administrator promotes accounts.
 
 ## System Architecture
 
@@ -52,17 +56,18 @@ visit the office and describe the item or look at the displayed casing.
 CLAFS/
 ├── api/                    # JSON endpoints called from public/js/api.js
 │   ├── get_items.php       # GET  list found items / lost reports (filters, role-aware fields)
-│   ├── add_item.php        # POST validate + create a found item or lost report
+│   ├── add_item.php        # POST validate + insert a found item or lost report; multipart "photo" saved to public/uploads
 │   └── update_status.php   # POST change a found item's / lost report's status
 ├── config/
-│   └── db_connect.php      # App core: constants, DB settings + db(), helpers, auth stub, data layer
+│   └── db_connect.php      # App core: constants, PDO connection, helpers, session auth, data layer
+│   └── db_connect.local.php  (git-ignored) per-machine DB_* overrides
 ├── docs/
 │   ├── schema.sql          # MySQL tables (ERD) + UI-required additions + seed rows
 │   └── erd.html            # Mermaid.js ERD
 ├── includes/
 │   ├── header.php          # <head>, opens <main>, flash message
 │   ├── navbar.php          # role-aware navigation
-│   └── footer.php          # footer, preview role switcher, scripts
+│   └── footer.php          # footer, scripts
 ├── public/
 │   ├── css/styles.css
 │   ├── js/app.js           # nav, validation, image preview, table filter, API-backed forms
@@ -77,13 +82,47 @@ CLAFS/
 
 ### Running locally
 
-```bash
-C:\xampp\php\php.exe -S localhost:8000 -t .
-```
+1. Create the database (drops and recreates the tables, then seeds test rows):
 
-Then open <http://localhost:8000>. Until real login exists, use the **Preview as** bar at the bottom
-of every page to switch between guest, user, staff and admin. The database is not connected yet;
-create it with `docs/schema.sql` when the backend phase starts.
+   ```bash
+   C:\xampp\mysql\bin\mysql.exe -u root < docs/schema.sql
+   ```
+
+2. If your MySQL is not `root` with no password on `127.0.0.1:3306`, create `config/db_connect.local.php`:
+
+   ```php
+   <?php
+   define('DB_PASS', 'your-password');   // any of DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
+   ```
+
+3. Start the server and open <http://localhost:8000>:
+
+   ```bash
+   C:\xampp\php\php.exe -S localhost:8000 -t .
+   ```
+
+Seeded accounts (password for all: `password123`):
+
+| Email                          | Role                   |
+|--------------------------------|------------------------|
+| `admin@mapua.edu.ph`           | Office Administrator   |
+| `staff@mapua.edu.ph`           | Security & Maintenance |
+| `student1@mymail.mapua.edu.ph` | Student / Faculty      |
+
+Registration is open to `@mymail.mapua.edu.ph` and `@mapua.edu.ph` addresses.
+
+### What is wired up
+
+- Login, registration, logout and "keep me logged in" — plain PHP form handling in `index.php`, PHP sessions
+- Creating lost reports and found items with a photo (`api/add_item.php`, multipart → `public/uploads/`)
+- Changing item / report status (`api/update_status.php`)
+- Every page reads from MySQL
+
+The `api/` files are PHP endpoints that return JSON; `public/js/api.js` is the browser client that calls
+them with `fetch()`. They accept ordinary form fields too, so any page could post to them directly.
+
+Not wired yet (forms validate but show a notice instead of saving): editing an existing report/item,
+submitting and reviewing claims, matching reports, hand-over, and admin role/deactivation changes.
 
 ## ERD
 
