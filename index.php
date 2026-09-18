@@ -55,15 +55,18 @@ if (!$user) {
     ?>
 
 <section class="hero">
-    <h1>Lost something on campus?<br>Check here before you check the drawer.</h1>
-    <p>
-        <?= e(APP_FULL_NAME) ?> replaces the Lost &amp; Found office's paper logbook. Browse items that have been
-        turned in, file a report for what you lost, and claim your belongings online.
-    </p>
-    <div class="btn-row">
-        <a class="btn btn-accent btn-lg" href="<?= e(url('/browse.php')) ?>">Browse found items</a>
-        <a class="btn btn-outline btn-lg" href="#account">Log in or register</a>
+    <div class="hero-body">
+        <h1>Lost something on campus?<br>Check here before you check the drawer.</h1>
+        <p>
+            <?= e(APP_FULL_NAME) ?> replaces the Lost &amp; Found office's paper logbook. Browse items that have been
+            turned in, file a report for what you lost, and claim your belongings online.
+        </p>
+        <div class="btn-row">
+            <a class="btn btn-accent btn-lg" href="<?= e(url('/browse.php')) ?>">Browse found items</a>
+            <a class="btn btn-outline btn-lg" href="#account">Log in or register</a>
+        </div>
     </div>
+    <img class="hero-logo" src="<?= e(asset('images/logo.png')) ?>" alt="<?= e(APP_NAME) ?> logo" width="220" height="220">
 </section>
 
 <div class="stat-grid">

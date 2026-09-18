@@ -9,6 +9,8 @@ $title = !empty($pageTitle) ? $pageTitle . ' · ' . APP_NAME : APP_NAME . ' · '
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($title) ?></title>
+    <link rel="icon" type="image/png" href="<?= e(asset('images/logo.png')) ?>">
+    <link rel="apple-touch-icon" href="<?= e(asset('images/logo.png')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/styles.css')) ?>">
 </head>
 <body>

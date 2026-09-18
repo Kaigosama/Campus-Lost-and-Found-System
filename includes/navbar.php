@@ -6,7 +6,7 @@ $navType = $type ?? '';
 <header class="site-header">
     <div class="container header-inner">
         <a class="brand" href="<?= e(url('/')) ?>">
-            <span class="brand-mark" aria-hidden="true">LF</span>
+            <img class="brand-mark" src="<?= e(asset('images/logo.png')) ?>" alt="" width="40" height="40">
             <span class="brand-text"><?= e(APP_NAME) ?><small><?= e(APP_FULL_NAME) ?></small></span>
         </a>
 
