@@ -55,13 +55,17 @@ New registrations always start as **Student / Faculty**; an administrator promot
 ```text
 CLAFS/
 ├── api/                    # JSON endpoints called from public/js/api.js
-│   ├── get_items.php       # GET  list found items / lost reports (filters, role-aware fields)
+│   ├── get_items.php       # GET  list found items / lost reports (filters, sort, role-aware fields) — powers the live search
 │   ├── add_item.php        # POST validate + insert a found item or lost report; multipart "photo" saved to public/uploads
-│   └── update_status.php   # POST change a found item's / lost report's status
+│   ├── update_item.php     # POST edit a found item / lost report (optionally replace the photo)
+│   ├── update_status.php   # POST change a found item's / lost report's status; match a report to an item
+│   ├── claims.php          # POST create / review (approve, reject) / withdraw an ownership claim
+│   └── update_user.php     # POST admin: change a user's role, deactivate / reactivate
 ├── config/
 │   └── db_connect.php      # App core: constants, PDO connection, helpers, session auth, data layer
 │   └── db_connect.local.php  (git-ignored) per-machine DB_* overrides
 ├── docs/
+│   ├── API_Documentation.docx  # Phase 3 API notes: APIs used, purpose, endpoints, data, integration
 │   ├── schema.sql          # MySQL tables (ERD) + UI-required additions + seed rows
 │   └── erd.html            # Mermaid.js ERD
 ├── includes/
@@ -70,8 +74,8 @@ CLAFS/
 │   └── footer.php          # footer, scripts
 ├── public/
 │   ├── css/styles.css
-│   ├── js/app.js           # nav, validation, image preview, table filter, API-backed forms
-│   ├── js/api.js           # fetch() wrappers for api/
+│   ├── js/app.js           # nav, validation, image preview, table filter, live search, API-backed forms, holiday widget
+│   ├── js/api.js           # fetch() wrappers for api/ and for the Nager.Date public-holiday API
 │   ├── images/             # static icons and logos
 │   └── uploads/            # user-uploaded item photos (git-ignored)
 ├── index.php               # Homepage + login/register (guests) · tabbed dashboard (users, staff, admin)
@@ -123,15 +127,17 @@ Registration is open to `@mymail.mapua.edu.ph` and `@mapua.edu.ph` addresses.
 ### What is wired up
 
 - Login, registration, logout and "keep me logged in" — plain PHP form handling in `index.php`, PHP sessions
-- Creating lost reports and found items with a photo (`api/add_item.php`, multipart → `public/uploads/`)
-- Changing item / report status (`api/update_status.php`)
+- Creating and editing lost reports and found items with a photo (`api/add_item.php`, `api/update_item.php`)
+- Live search on Found Items — results are fetched from `api/get_items.php` as you type, no reload
+- Changing item / report status and matching a report to an item (`api/update_status.php`)
+- Submitting, approving/rejecting and withdrawing claims, and the hand-over step (`api/claims.php`, `api/update_status.php`)
+- Admin role changes and account deactivation (`api/update_user.php`)
+- Next office closure from the external Nager.Date public-holiday API (landing page and item pickup details)
 - Every page reads from MySQL
 
 The `api/` files are PHP endpoints that return JSON; `public/js/api.js` is the browser client that calls
-them with `fetch()`. They accept ordinary form fields too, so any page could post to them directly.
-
-Not wired yet (forms validate but show a notice instead of saving): editing an existing report/item,
-submitting and reviewing claims, matching reports, hand-over, and admin role/deactivation changes.
+them with `fetch()`, and `app.js` updates the page in place from the response. The endpoints accept ordinary
+form fields too, so any page could post to them directly. Full notes: `docs/API_Documentation.docx`.
 
 ## ERD
 
@@ -194,6 +200,6 @@ erDiagram
     lost_reports |o--o{ claims       : "is linked to"
 ```
 
-The front-end also uses a few columns not in the diagram (`item_name`, `private_details`,
+The front-end also uses a few columns not in the diagram (`item_name`, `matched_item_id`, `private_details`,
 `proof_description`, `review_*`, `is_active`, `password_hash`); they are added in a separate,
 removable section of `schema.sql` until the group decides whether to adopt them into the ERD.
