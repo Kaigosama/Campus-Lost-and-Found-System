@@ -82,7 +82,16 @@ CLAFS/
 
 ### Running locally
 
-1. Create the database (drops and recreates the tables, then seeds test rows):
+1. Create the database (drops and recreates the tables, then seeds test rows). Make sure MySQL is
+   started in the XAMPP Control Panel first.
+
+   PowerShell (the default terminal in VS Code — `<` does not work there, so pipe the file in):
+
+   ```powershell
+   Get-Content docs/schema.sql -Raw | C:\xampp\mysql\bin\mysql.exe -u root
+   ```
+
+   Command Prompt or Git Bash:
 
    ```bash
    C:\xampp\mysql\bin\mysql.exe -u root < docs/schema.sql
