@@ -203,6 +203,7 @@ code { background: var(--neutral-bg); padding: .1em .35em; border-radius: var(--
     box-shadow: var(--shadow); padding: 1.25rem;
 }
 .card + .card { margin-top: 1rem; }
+.grid > .card + .card { margin-top: 0; }
 .card-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .card-header h2, .card-header h3 { margin: 0; }
 .card-muted { background: var(--bg); box-shadow: none; }
