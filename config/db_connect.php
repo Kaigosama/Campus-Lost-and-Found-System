@@ -31,7 +31,11 @@ const APP_FULL_NAME = 'Campus Lost-and-Found System';
 
 const CATEGORIES = ['Electronics', 'IDs & Cards', 'Bags', 'Clothing', 'Books & Notes', 'Keys', 'Accessories', 'Other'];
 
-const ROLES          = ['user' => 'User', 'staff' => 'Staff', 'admin' => 'Administrator'];
+const ROLES = [
+    'user'  => 'Student / Faculty',
+    'staff' => 'Security & Maintenance',
+    'admin' => 'Office Administrator',
+];
 const LOST_STATUSES  = ['open' => 'Open', 'matched' => 'Matched', 'closed' => 'Closed'];
 const FOUND_STATUSES = ['stored' => 'In Storage', 'returned' => 'Returned', 'disposed' => 'Disposed'];
 const CLAIM_STATUSES = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected'];

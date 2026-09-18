@@ -236,7 +236,7 @@ include APP_ROOT . '/includes/header.php';
 </div>
 <?php elseif ($tab === 'users'): ?>
 <div class="page-header">
-    <div><h1>Manage users</h1><p>Promote staff, deactivate accounts. New registrations always start as <strong>User</strong>.</p></div>
+    <div><h1>Manage users</h1><p>Assign roles and deactivate accounts. New registrations start as <strong><?= e(ROLES['user']) ?></strong>.</p></div>
 </div>
 <?php else: ?>
 <div class="page-header">
