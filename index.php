@@ -601,7 +601,7 @@ include APP_ROOT . '/includes/header.php';
                 <tr>
                     <td>
                         <div class="flex items-center gap-1">
-                            <span class="avatar" style="background:var(--primary-light)" aria-hidden="true"><?= e(initials($u)) ?></span>
+                            <span class="avatar" aria-hidden="true"><?= e(initials($u)) ?></span>
                             <span class="table-title"><?= e(full_name($u)) ?><?= $isMe ? ' <small class="text-muted">(you)</small>' : '' ?></span>
                         </div>
                     </td>
