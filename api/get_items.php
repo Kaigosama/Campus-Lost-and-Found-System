@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../config/db_connect.php';
 
 /**
- * GET /api/get_items.php   type=found|lost  q=  category=  status=  from=  to=  limit=1..100
+ * GET /api/get_items.php   type=found|lost  q=  category=  status=  from=  to=  sort=newest|oldest  limit=1..100
  *   found → public sees items in storage (public fields); staff see every status and private fields
  *   lost  → login required; users see their own reports, staff see all
  * Response: { ok, type, count, items }
@@ -15,6 +15,7 @@ $category = $_GET['category'] ?? '';
 $status   = $_GET['status'] ?? '';
 $from     = $_GET['from'] ?? '';
 $to       = $_GET['to'] ?? '';
+$sort     = ($_GET['sort'] ?? 'newest') === 'oldest' ? 'oldest' : 'newest';
 $limit    = min(100, max(1, (int) ($_GET['limit'] ?? 50)));
 
 if ($type === 'found') {
@@ -39,6 +40,8 @@ if ($type === 'found') {
 
 if ($from) $rows = array_values(array_filter($rows, fn ($r) => $r[$dateColumn] >= $from));
 if ($to)   $rows = array_values(array_filter($rows, fn ($r) => $r[$dateColumn] <= $to));
-$rows = array_slice(newest_first($rows, $dateColumn), 0, $limit);
+$rows = newest_first($rows, $dateColumn);
+if ($sort === 'oldest') $rows = array_reverse($rows);
+$rows = array_slice($rows, 0, $limit);
 
 json_response(['ok' => true, 'type' => $type, 'count' => count($rows), 'items' => $rows]);

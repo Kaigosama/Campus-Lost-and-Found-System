@@ -3,10 +3,11 @@ require_once __DIR__ . '/../config/db_connect.php';
 
 /**
  * POST /api/update_status.php   (JSON body or form fields)
- *   { type: 'found'|'lost', id, status }
+ *   { type: 'found'|'lost', id, status, item_id? }
  *   found → staff only. Marking an item returned also closes the linked report and rejects other pending claims.
- *   lost  → staff may set any status; the owner may only close their own open report.
- * Response: { ok, type, id, previous, status, message }
+ *   lost  → staff may set any status (status=matched takes item_id, the found item it was matched to);
+ *           the owner may only close their own open report.
+ * Response: { ok, type, id, previous, status, message, rejected_claims: [claim_id…] }
  */
 require_method('POST');
 if (!is_logged_in()) {
@@ -19,6 +20,7 @@ $id     = (int) ($in['id'] ?? 0);
 $status = (string) ($in['status'] ?? '');
 $user   = current_user();
 $pdo    = db();
+$rejectedClaims = [];
 
 if ($type === 'found') {
     if (!is_staff()) {
@@ -37,7 +39,8 @@ if ($type === 'found') {
     $pdo->prepare('UPDATE found_items SET status = ?, returned_at = ? WHERE item_id = ?')->execute([$status, $returnedAt, $id]);
     if ($status === 'returned') {
         $pdo->prepare('UPDATE lost_reports r JOIN claims c ON c.report_id = r.report_id
-                       SET r.status = "closed" WHERE c.item_id = ? AND c.status = "approved"')->execute([$id]);
+                       SET r.status = "closed", r.matched_item_id = c.item_id WHERE c.item_id = ? AND c.status = "approved"')->execute([$id]);
+        $rejectedClaims = array_map('intval', array_column(where(where(all_claims(), 'item_id', $id), 'status', 'pending'), 'claim_id'));
         $pdo->prepare('UPDATE claims SET status = "rejected", reviewed_by = ?, reviewed_at = NOW(),
                        review_note = "The item was returned to another claimant." WHERE item_id = ? AND status = "pending"')->execute([$user['user_id'], $id]);
     }
@@ -53,14 +56,22 @@ if ($type === 'found') {
     if (!is_staff() && !($row['status'] === 'open' && $status === 'closed')) {
         json_error(403, 'You can only close your own open report.');
     }
-    $pdo->prepare('UPDATE lost_reports SET status = ? WHERE report_id = ?')->execute([$status, $id]);
+    $matchedItem = $row['matched_item_id'];
+    if ($status === 'matched') {
+        $matchedItem = (int) ($in['item_id'] ?? 0) ?: null;
+        if ($matchedItem && !find_found_item($matchedItem)) {
+            json_error(422, 'Choose a valid found item.', ['errors' => ['item_id' => 'Choose a valid found item.']]);
+        }
+    }
+    $pdo->prepare('UPDATE lost_reports SET status = ?, matched_item_id = ? WHERE report_id = ?')->execute([$status, $matchedItem, $id]);
 }
 
 json_response([
-    'ok'       => true,
-    'type'     => $type,
-    'id'       => $id,
-    'previous' => $row['status'],
-    'status'   => $status,
-    'message'  => ($type === 'found' ? 'Item' : 'Report') . " #$id is now “" . status_label($status) . '”.',
+    'ok'              => true,
+    'type'            => $type,
+    'id'              => $id,
+    'previous'        => $row['status'],
+    'status'          => $status,
+    'message'         => ($type === 'found' ? 'Item' : 'Report') . " #$id is now “" . status_label($status) . '”.',
+    'rejected_claims' => $rejectedClaims,
 ]);

@@ -112,8 +112,12 @@ ALTER TABLE users
     ADD COLUMN is_active     TINYINT(1)   NOT NULL DEFAULT 1 AFTER role;
 
 -- Items are titled ("Blue JanSport backpack") everywhere in the UI, not just described.
+-- matched_item_id records which found item staff matched a report to ("Mark as matched").
 ALTER TABLE lost_reports
-    ADD COLUMN item_name VARCHAR(150) NOT NULL AFTER user_id;
+    ADD COLUMN item_name       VARCHAR(150) NOT NULL AFTER user_id,
+    ADD COLUMN matched_item_id INT UNSIGNED NULL     AFTER status,
+    ADD CONSTRAINT fk_lost_matched_item FOREIGN KEY (matched_item_id) REFERENCES found_items (item_id)
+        ON UPDATE CASCADE ON DELETE SET NULL;
 
 -- private_details is what staff compare a claim against; returned_at feeds the hand-over record.
 ALTER TABLE found_items
@@ -152,12 +156,12 @@ INSERT INTO found_items (item_id, user_id, item_name, category, description, pri
     (6, 2, 'Grey hoodie',                       'Clothing',    'Plain grey pullover hoodie, size medium.',                                                        'Name tag inside collar: "B. Lim". Small bleach stain on the left sleeve.',                                 'Student Lounge', 'Cabinet C, Shelf 1', '2026-08-28', NULL, 'returned', '2026-09-02 15:30:00', '2026-08-28 17:10:00', '2026-09-02 15:30:00'),
     (7, 2, 'Black folding umbrella',            'Accessories', 'Compact black umbrella, unbranded.',                                                              'Handle has a piece of yellow tape wrapped around it.',                                                     'Admin Building', 'Bin 4 (Misc)',       '2026-07-14', NULL, 'disposed', NULL,                  '2026-07-14 09:00:00', '2026-08-30 12:00:00');
 
-INSERT INTO lost_reports (report_id, user_id, item_name, category, description, location_lost, date_lost, image_url, status, created_at, updated_at) VALUES
-    (1, 3, 'JBL wireless earbuds (black)',  'Electronics',   'JBL Tune 230 earbuds in a black case. The case lid has a scratch and I think the left earbud was already out of the case when I lost it.', 'Library',        '2026-09-07', NULL, 'open',    '2026-09-07 18:25:00', '2026-09-07 18:25:00'),
-    (2, 3, 'Student ID with red lanyard',   'IDs & Cards',   'My Mapua ID in a clear holder. The lanyard has a tiny bear keychain.',                                                                      'Cafeteria',      '2026-09-10', NULL, 'matched', '2026-09-10 14:00:00', '2026-09-11 09:00:00'),
-    (3, 4, 'Red Hydro Flask water bottle',  'Other',         '32 oz red bottle with a sticker of a cat on the side.',                                                                                    'Covered Court',  '2026-09-09', NULL, 'open',    '2026-09-09 12:10:00', '2026-09-09 12:10:00'),
-    (4, 3, 'Physics textbook (Serway)',     'Books & Notes', 'Hardbound physics textbook with my name on the first page.',                                                                               'South Building', '2026-08-20', NULL, 'closed',  '2026-08-20 09:30:00', '2026-08-25 11:00:00'),
-    (5, 5, 'Grey hoodie',                   'Clothing',      'Grey pullover hoodie, medium. Has a name tag inside the collar.',                                                                          'Student Lounge', '2026-08-27', NULL, 'closed',  '2026-08-27 20:00:00', '2026-09-02 15:30:00');
+INSERT INTO lost_reports (report_id, user_id, item_name, category, description, location_lost, date_lost, image_url, status, matched_item_id, created_at, updated_at) VALUES
+    (1, 3, 'JBL wireless earbuds (black)',  'Electronics',   'JBL Tune 230 earbuds in a black case. The case lid has a scratch and I think the left earbud was already out of the case when I lost it.', 'Library',        '2026-09-07', NULL, 'open',    NULL, '2026-09-07 18:25:00', '2026-09-07 18:25:00'),
+    (2, 3, 'Student ID with red lanyard',   'IDs & Cards',   'My Mapua ID in a clear holder. The lanyard has a tiny bear keychain.',                                                                      'Cafeteria',      '2026-09-10', NULL, 'matched', 3,    '2026-09-10 14:00:00', '2026-09-11 09:00:00'),
+    (3, 4, 'Red Hydro Flask water bottle',  'Other',         '32 oz red bottle with a sticker of a cat on the side.',                                                                                    'Covered Court',  '2026-09-09', NULL, 'open',    NULL, '2026-09-09 12:10:00', '2026-09-09 12:10:00'),
+    (4, 3, 'Physics textbook (Serway)',     'Books & Notes', 'Hardbound physics textbook with my name on the first page.',                                                                               'South Building', '2026-08-20', NULL, 'closed',  NULL, '2026-08-20 09:30:00', '2026-08-25 11:00:00'),
+    (5, 5, 'Grey hoodie',                   'Clothing',      'Grey pullover hoodie, medium. Has a name tag inside the collar.',                                                                          'Student Lounge', '2026-08-27', NULL, 'closed',  6,    '2026-08-27 20:00:00', '2026-09-02 15:30:00');
 
 INSERT INTO claims (claim_id, item_id, user_id, report_id, proof_description, status, date_claimed, reviewed_by, review_note, reviewed_at, created_at, updated_at) VALUES
     (1, 1, 3, 1,    'These are JBL Tune 230 earbuds. The case has a scratch on the lid, and only the right earbud should be inside because I had the left one in my ear when I lost the case.', 'pending',  '2026-09-09', NULL, NULL,                                                                                                          NULL,                  '2026-09-09 08:15:00', '2026-09-09 08:15:00'),
