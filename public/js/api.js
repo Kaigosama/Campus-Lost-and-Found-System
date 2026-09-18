@@ -1,12 +1,6 @@
 /*
- * Centralised fetch() wrappers for the api/ endpoints. Loaded before app.js.
- *
- *   ClafsApi.getItems({ type: 'found', q: 'bag', category: 'Bags' })   → { ok, type, count, items }
- *   ClafsApi.addItem('lost', { item_name, category, date_lost, location_lost, description })
- *   ClafsApi.updateStatus('found', 3, 'returned')
- *
- * Every call resolves with the decoded JSON body, or rejects with an Error whose
- * .status is the HTTP code and .data the body (e.g. .data.errors for 422).
+ * fetch() wrappers for api/. Each call resolves with the JSON body, or rejects with an
+ * Error carrying .status (HTTP code) and .data (body, e.g. .data.errors for 422).
  */
 window.ClafsApi = (function () {
     var base = (document.documentElement.getAttribute('data-base') || '') + '/api/';
@@ -14,11 +8,7 @@ window.ClafsApi = (function () {
     function request(endpoint, options) {
         options = options || {};
         var url = base + endpoint;
-        var init = {
-            method: options.method || 'GET',
-            headers: { 'Accept': 'application/json' },
-            credentials: 'same-origin'
-        };
+        var init = { method: options.method || 'GET', headers: { 'Accept': 'application/json' }, credentials: 'same-origin' };
 
         if (options.query) {
             var params = new URLSearchParams();
@@ -29,8 +19,9 @@ window.ClafsApi = (function () {
             var qs = params.toString();
             if (qs) url += '?' + qs;
         }
-
-        if (options.body) {
+        if (options.body instanceof FormData) {
+            init.body = options.body;
+        } else if (options.body) {
             init.headers['Content-Type'] = 'application/json';
             init.body = JSON.stringify(options.body);
         }
@@ -48,15 +39,20 @@ window.ClafsApi = (function () {
         });
     }
 
+    function post(endpoint, body) {
+        return request(endpoint, { method: 'POST', body: body });
+    }
+
     return {
-        getItems: function (params) {
-            return request('get_items.php', { query: params });
-        },
+        getItems:     function (params)           { return request('get_items.php', { query: params }); },
+        updateStatus: function (type, id, status) { return post('update_status.php', { type: type, id: id, status: status }); },
+        // fields: a plain object, or a FormData (multipart — carries the "photo" file)
         addItem: function (type, fields) {
-            return request('add_item.php', { method: 'POST', body: Object.assign({ type: type }, fields) });
-        },
-        updateStatus: function (type, id, status) {
-            return request('update_status.php', { method: 'POST', body: { type: type, id: id, status: status } });
+            if (fields instanceof FormData) {
+                fields.set('type', type);
+                return post('add_item.php', fields);
+            }
+            return post('add_item.php', Object.assign({ type: type }, fields));
         }
     };
 })();

@@ -2,20 +2,12 @@
 require_once __DIR__ . '/../config/db_connect.php';
 
 /**
- * GET /api/get_items.php
- *   type=found (default) | lost
- *   q=keyword  category=…  status=…  from=YYYY-MM-DD  to=YYYY-MM-DD  limit=1..100 (default 50)
- *
- * Visibility mirrors the pages:
- *   found → everyone sees items in storage, public fields only; staff see every status and the private fields
+ * GET /api/get_items.php   type=found|lost  q=  category=  status=  from=  to=  limit=1..100
+ *   found → public sees items in storage (public fields); staff see every status and private fields
  *   lost  → login required; users see their own reports, staff see all
- *
- * Response: { ok, type, count, items: [...] }
- * Backend phase: replace the all_*() calls with SELECT … WHERE queries through db().
+ * Response: { ok, type, count, items }
  */
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    json_error(405, 'Use GET.');
-}
+require_method('GET');
 
 $type     = ($_GET['type'] ?? 'found') === 'lost' ? 'lost' : 'found';
 $q        = trim($_GET['q'] ?? '');
@@ -27,7 +19,7 @@ $limit    = min(100, max(1, (int) ($_GET['limit'] ?? 50)));
 
 if ($type === 'found') {
     if (!is_staff()) {
-        $status = 'stored'; // the public may only see what is claimable
+        $status = 'stored';
     }
     $rows = search_rows(array_values(all_found_items()), $q, ['status' => $status, 'category' => $category]);
     $dateColumn = 'date_found';

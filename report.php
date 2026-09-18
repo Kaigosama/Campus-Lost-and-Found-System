@@ -2,12 +2,9 @@
 require_once __DIR__ . '/config/db_connect.php';
 
 /**
- * Report form — one page, four modes:
- *   ?type=lost            file a lost report (any logged-in user)
- *   ?type=lost&id=N       edit your own report while it is still open
- *   ?type=found           log a found item at intake (staff)
- *   ?type=found&id=N      edit a found item (staff)
- * Forms are data-mock until the POST handlers exist (see api/add_item.php for the validation rules).
+ * ?type=lost            file a lost report (any logged-in user)      ?type=lost&id=N    edit your own open report
+ * ?type=found           log a found item at intake (staff)           ?type=found&id=N   edit a found item
+ * New records post through api/add_item.php (multipart, photo included); editing is not wired yet.
  */
 require_login();
 
@@ -35,6 +32,7 @@ if ($type === 'found') {
 
 $editing    = $row !== null;
 $formAction = url('/report.php?type=' . $type . ($editing ? '&id=' . $id : ''));
+$formMode   = $editing ? 'data-mock' : 'data-api="add_item" data-type="' . $type . '"';
 $pageTitle  = match (true) {
     $type === 'found' && $editing => 'Edit: ' . $row['item_name'],
     $type === 'found'             => 'Log a found item',
@@ -68,7 +66,7 @@ include APP_ROOT . '/includes/header.php';
 
 <div class="grid <?= $editing ? '' : 'grid-sidebar' ?>">
     <div class="card">
-        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate data-mock>
+        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate <?= $formMode ?>>
             <?php if ($editing): ?><input type="hidden" name="item_id" value="<?= $id ?>"><?php endif; ?>
 
             <fieldset>
@@ -191,7 +189,7 @@ include APP_ROOT . '/includes/header.php';
 
 <div class="grid grid-sidebar">
     <div class="card">
-        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate data-mock>
+        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate <?= $formMode ?>>
             <?php if ($editing): ?><input type="hidden" name="report_id" value="<?= $id ?>"><?php endif; ?>
 
             <div class="form-group">

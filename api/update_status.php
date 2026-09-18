@@ -3,18 +3,12 @@ require_once __DIR__ . '/../config/db_connect.php';
 
 /**
  * POST /api/update_status.php   (JSON body or form fields)
- *   { type: 'found'|'lost', id: <int>, status: <new status> }
- *
- *   found → staff only; status ∈ FOUND_STATUSES
- *   lost  → staff may set any LOST_STATUSES; the report's owner may only set 'closed' on an open report
- *
- * Response: { ok, mock, type, id, status, message }
- * Backend phase: replace the mock block with an UPDATE … SET status=?, updated_at=NOW() through db()
- * (and, for found→returned, set returned_at, close the linked report and reject other pending claims).
+ *   { type: 'found'|'lost', id, status }
+ *   found → staff only. Marking an item returned also closes the linked report and rejects other pending claims.
+ *   lost  → staff may set any status; the owner may only close their own open report.
+ * Response: { ok, type, id, previous, status, message }
  */
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    json_error(405, 'Use POST.');
-}
+require_method('POST');
 if (!is_logged_in()) {
     json_error(401, 'Log in first.');
 }
@@ -24,6 +18,7 @@ $type   = ($in['type'] ?? 'found') === 'lost' ? 'lost' : 'found';
 $id     = (int) ($in['id'] ?? 0);
 $status = (string) ($in['status'] ?? '');
 $user   = current_user();
+$pdo    = db();
 
 if ($type === 'found') {
     if (!is_staff()) {
@@ -36,6 +31,17 @@ if ($type === 'found') {
     if (!$row) {
         json_error(404, 'Item not found.');
     }
+
+    $pdo->beginTransaction();
+    $returnedAt = $status === 'returned' ? ($row['returned_at'] ?? date('Y-m-d H:i:s')) : $row['returned_at'];
+    $pdo->prepare('UPDATE found_items SET status = ?, returned_at = ? WHERE item_id = ?')->execute([$status, $returnedAt, $id]);
+    if ($status === 'returned') {
+        $pdo->prepare('UPDATE lost_reports r JOIN claims c ON c.report_id = r.report_id
+                       SET r.status = "closed" WHERE c.item_id = ? AND c.status = "approved"')->execute([$id]);
+        $pdo->prepare('UPDATE claims SET status = "rejected", reviewed_by = ?, reviewed_at = NOW(),
+                       review_note = "The item was returned to another claimant." WHERE item_id = ? AND status = "pending"')->execute([$user['user_id'], $id]);
+    }
+    $pdo->commit();
 } else {
     if (!isset(LOST_STATUSES[$status])) {
         json_error(422, 'Invalid status.', ['allowed' => array_keys(LOST_STATUSES)]);
@@ -47,15 +53,14 @@ if ($type === 'found') {
     if (!is_staff() && !($row['status'] === 'open' && $status === 'closed')) {
         json_error(403, 'You can only close your own open report.');
     }
+    $pdo->prepare('UPDATE lost_reports SET status = ? WHERE report_id = ?')->execute([$status, $id]);
 }
 
-// ---- Mock update: report what would change; nothing is persisted yet ----
 json_response([
     'ok'       => true,
-    'mock'     => true,
     'type'     => $type,
     'id'       => $id,
     'previous' => $row['status'],
     'status'   => $status,
-    'message'  => ($type === 'found' ? 'Item' : 'Report') . " #$id would move from “" . status_label($row['status']) . '” to “' . status_label($status) . '”. Not saved — no database connected yet.',
+    'message'  => ($type === 'found' ? 'Item' : 'Report') . " #$id is now “" . status_label($status) . '”.',
 ]);
