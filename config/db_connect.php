@@ -112,9 +112,11 @@ function status_label(string $status): string
     return $labels[$status] ?? ucfirst($status);
 }
 
-function status_badge(string $status): string
+/** $for ("found-3", "claim-7", …) lets app.js update the badge in place after an API call. */
+function status_badge(string $status, ?string $for = null): string
 {
-    return '<span class="badge badge-' . e($status) . '">' . e(status_label($status)) . '</span>';
+    $attr = $for !== null ? ' data-status-for="' . e($for) . '"' : '';
+    return '<span class="badge badge-' . e($status) . '"' . $attr . '>' . e(status_label($status)) . '</span>';
 }
 
 function format_date(?string $value): string
@@ -301,6 +303,47 @@ function require_method(string $method): void
     if ($_SERVER['REQUEST_METHOD'] !== $method) {
         json_error(405, "Use $method.");
     }
+}
+
+/**
+ * Validates the fields of a lost report ('lost') or found item ('found') from add_item / update_item.
+ * Returns [errors (field => message), values (trimmed, keyed by column)].
+ */
+function validate_item_input(array $in, string $type): array
+{
+    $field = fn (string $key) => trim((string) ($in[$key] ?? ''));
+    $rules = [
+        'item_name'   => [1, 150],
+        'description' => [$type === 'found' ? 15 : 20, 2000],
+    ];
+    if ($type === 'found') {
+        $rules += ['location_found' => [1, 150], 'storage_location' => [1, 150], 'private_details' => [15, 2000]];
+        $dateKey = 'date_found';
+    } else {
+        $rules += ['location_lost' => [1, 150]];
+        $dateKey = 'date_lost';
+    }
+
+    $errors = [];
+    $values = [];
+    foreach ($rules as $key => [$min, $max]) {
+        $values[$key] = $field($key);
+        $len = mb_strlen($values[$key]);
+        if ($len === 0)     $errors[$key] = 'This field is required.';
+        elseif ($len < $min) $errors[$key] = "Must be at least $min characters.";
+        elseif ($len > $max) $errors[$key] = "Must be $max characters or fewer.";
+    }
+    $values['category'] = $field('category');
+    if (!in_array($values['category'], CATEGORIES, true)) {
+        $errors['category'] = 'Choose a valid category.';
+    }
+    $values[$dateKey] = $field($dateKey);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $values[$dateKey]) || !strtotime($values[$dateKey])) {
+        $errors[$dateKey] = 'Enter a valid date.';
+    } elseif ($values[$dateKey] > date('Y-m-d')) {
+        $errors[$dateKey] = 'Date cannot be in the future.';
+    }
+    return [$errors, $values];
 }
 
 /**

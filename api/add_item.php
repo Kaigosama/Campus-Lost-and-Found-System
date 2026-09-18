@@ -20,37 +20,7 @@ if ($type === 'found' && !is_staff()) {
     json_error(403, 'Only staff can log found items.');
 }
 
-$field = fn (string $key) => trim((string) ($in[$key] ?? ''));
-$today = date('Y-m-d');
-
-$rules = [
-    'item_name'   => [1, 150],
-    'description' => [$type === 'found' ? 15 : 20, 2000],
-];
-if ($type === 'found') {
-    $rules += ['location_found' => [1, 150], 'storage_location' => [1, 150], 'private_details' => [15, 2000]];
-    $dateKey = 'date_found';
-} else {
-    $rules += ['location_lost' => [1, 150]];
-    $dateKey = 'date_lost';
-}
-
-$errors = [];
-foreach ($rules as $key => [$min, $max]) {
-    $len = mb_strlen($field($key));
-    if ($len === 0)     $errors[$key] = 'This field is required.';
-    elseif ($len < $min) $errors[$key] = "Must be at least $min characters.";
-    elseif ($len > $max) $errors[$key] = "Must be $max characters or fewer.";
-}
-if (!in_array($field('category'), CATEGORIES, true)) {
-    $errors['category'] = 'Choose a valid category.';
-}
-$date = $field($dateKey);
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !strtotime($date)) {
-    $errors[$dateKey] = 'Enter a valid date.';
-} elseif ($date > $today) {
-    $errors[$dateKey] = 'Date cannot be in the future.';
-}
+[$errors, $v] = validate_item_input($in, $type);
 if ($errors) {
     json_error(422, 'Please fix the highlighted fields.', ['errors' => $errors]);
 }
@@ -62,12 +32,12 @@ if ($photoError) {
 if ($type === 'found') {
     $sql  = 'INSERT INTO found_items (user_id, item_name, category, description, private_details, location_found, storage_location, date_found, image_url)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
-    $args = [$user['user_id'], $field('item_name'), $field('category'), $field('description'), $field('private_details'),
-             $field('location_found'), $field('storage_location'), $date, $imageUrl];
+    $args = [$user['user_id'], $v['item_name'], $v['category'], $v['description'], $v['private_details'],
+             $v['location_found'], $v['storage_location'], $v['date_found'], $imageUrl];
 } else {
     $sql  = 'INSERT INTO lost_reports (user_id, item_name, category, description, location_lost, date_lost, image_url)
              VALUES (?, ?, ?, ?, ?, ?, ?)';
-    $args = [$user['user_id'], $field('item_name'), $field('category'), $field('description'), $field('location_lost'), $date, $imageUrl];
+    $args = [$user['user_id'], $v['item_name'], $v['category'], $v['description'], $v['location_lost'], $v['date_lost'], $imageUrl];
 }
 db()->prepare($sql)->execute($args);
 $id  = (int) db()->lastInsertId();

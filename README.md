@@ -32,9 +32,9 @@ visit the office and describe the item or look at the displayed casing.
 
 | Role (DB value) | Label in the app         | Can do                                                        |
 |-----------------|--------------------------|---------------------------------------------------------------|
-| `user`          | Student / Faculty        | Browse found items, file lost reports, submit ownership claims |
-| `staff`         | Security & Maintenance   | Everything above + log found items, review claims, hand over   |
-| `admin`         | Office Administrator     | Everything above + manage users and roles, view statistics     |
+| `user`          | Student / Faculty        | Browse found items, file lost reports, submit ownership claims|
+| `staff`         | Security & Maintenance   | Everything above + log found items, review claims, hand over  |
+| `admin`         | Office Administrator     | Everything above + manage users and roles, view statistics    |
 
 New registrations always start as **Student / Faculty**; an administrator promotes accounts.
 
