@@ -2,19 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Application core — the one file every page and API endpoint requires first:
- *
- *     require_once __DIR__ . '/config/db_connect.php';        (root pages)
- *     require_once __DIR__ . '/../config/db_connect.php';     (api/)
- *
- * Contents, top to bottom:
- *   1. App constants (name, categories, roles, statuses) — shared by the forms,
- *      the API validation and the SQL ENUMs in docs/schema.sql.
- *   2. MySQL settings + db() — the PDO connection, opened on first use.
- *   3. Shared helpers: escaping, URLs, formatting, HTML fragments, JSON responses.
- *   4. PREVIEW auth stub — ?as=guest|user|staff|admin until real login exists.
- *   5. Data layer — mock rows today; the backend phase rewrites these function
- *      bodies as queries through db() and nothing else changes.
+ * Application core — required first by every page and API endpoint.
+ * Constants, database connection, shared helpers, session auth and the data layer.
  */
 
 define('APP_ROOT', dirname(__DIR__));
@@ -46,7 +35,11 @@ const ALLOWED_EMAIL_DOMAINS = ['mymail.mapua.edu.ph', 'mapua.edu.ph'];
 /** Suggested values for the location <datalist>s on the forms. */
 const CAMPUS_LOCATIONS = ['Library', 'Cafeteria', 'Gymnasium', 'Student Lounge', 'Parking Area', 'North Building', 'South Building', 'Admin Building', 'Chapel', 'Covered Court'];
 
-const MAX_UPLOAD_MB = 5;
+const MAX_UPLOAD_MB   = 5;
+const UPLOAD_DIR      = APP_ROOT . '/public/uploads';
+const IMAGE_TYPES     = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+const PASSWORD_MIN    = 8;
+const REMEMBER_DAYS   = 30;
 
 /* =========================================================================
  * 2. MySQL connection (XAMPP defaults)
@@ -331,53 +324,121 @@ function json_input(): array
     return $_POST;
 }
 
-/* =========================================================================
- * 4. PREVIEW AUTH STUB — no real authentication yet.
- *
- * Pages call current_user(), has_role(), require_login() and require_role()
- * exactly as they will once sessions exist. For now the "logged-in user" is
- * chosen with ?as=guest|user|staff|admin (remembered in a cookie) so every
- * screen can be previewed in every role. The backend phase replaces the
- * bodies of these functions; the pages do not change.
- * ========================================================================= */
-
-const PREVIEW_COOKIE = 'clafs_preview_role';
-const PREVIEW_ROLE_TO_USER = ['user' => 3, 'staff' => 2, 'admin' => 1];
-
-/** Resolved once, before any output, so setcookie() never runs after headers are sent. */
-function preview_role(): string
+function require_method(string $method): void
 {
-    static $role = null;
-    if ($role !== null) {
-        return $role;
+    if ($_SERVER['REQUEST_METHOD'] !== $method) {
+        json_error(405, "Use $method.");
     }
-
-    $allowed = ['guest', 'user', 'staff', 'admin'];
-    $chosen  = $_GET['as'] ?? null;
-
-    if ($chosen !== null && in_array($chosen, $allowed, true)) {
-        setcookie(PREVIEW_COOKIE, $chosen, ['path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
-        return $role = $chosen;
-    }
-    $fromCookie = $_COOKIE[PREVIEW_COOKIE] ?? 'guest';
-    return $role = in_array($fromCookie, $allowed, true) ? $fromCookie : 'guest';
 }
 
-/** PREVIEW: forget the mock role. Later: session_destroy() + cookie cleanup. */
-function logout(): void
+/**
+ * Stores an uploaded photo ($_FILES entry) in public/uploads under a random name.
+ * Returns the image_url (relative to public/), null when no file was sent, or sets $error.
+ */
+function save_photo(?array $file, ?string &$error): ?string
 {
-    setcookie(PREVIEW_COOKIE, '', ['expires' => time() - 3600, 'path' => '/']);
+    $error = null;
+    if (!$file || $file['error'] === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if (in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) || $file['size'] > MAX_UPLOAD_MB * 1024 * 1024) {
+        $error = 'Image must be ' . MAX_UPLOAD_MB . ' MB or smaller.';
+        return null;
+    }
+    if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
+        $error = 'Upload failed. Please try again.';
+        return null;
+    }
+    // Trust the file contents, not the client's filename or declared type.
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
+    if (!isset(IMAGE_TYPES[$mime]) || @getimagesize($file['tmp_name']) === false) {
+        $error = 'Only JPG, PNG or WEBP images are allowed.';
+        return null;
+    }
+    $name = bin2hex(random_bytes(8)) . '.' . IMAGE_TYPES[$mime];
+    is_dir(UPLOAD_DIR) || mkdir(UPLOAD_DIR, 0755, true);
+    if (!move_uploaded_file($file['tmp_name'], UPLOAD_DIR . '/' . $name)) {
+        $error = 'Could not save the image.';
+        return null;
+    }
+    return 'uploads/' . $name;
 }
 
-/** The logged-in user row, or null for guests. */
+/* ---------------------------------------------------------------- Auth (PHP sessions) */
+
+ini_set('session.gc_maxlifetime', (string) (REMEMBER_DAYS * 86400));
+session_set_cookie_params(['path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+session_start();
+
+/** The logged-in, active user row, or null for guests. */
 function current_user(): ?array
 {
     static $user = false;
     if ($user === false) {
-        $role = preview_role();
-        $user = $role === 'guest' ? null : find_user(PREVIEW_ROLE_TO_USER[$role]);
+        $user = find_user($_SESSION['user_id'] ?? null);
+        if ($user && !$user['is_active']) {
+            $user = null;
+            unset($_SESSION['user_id']);
+        }
     }
     return $user;
+}
+
+function login_user(array $user, bool $remember = false): void
+{
+    session_regenerate_id(true);
+    $_SESSION['user_id'] = $user['user_id'];
+    if ($remember) {
+        setcookie(session_name(), session_id(), [
+            'expires' => time() + REMEMBER_DAYS * 86400,
+            'path' => '/', 'httponly' => true, 'samesite' => 'Lax',
+        ]);
+    }
+}
+
+function logout(): void
+{
+    $_SESSION = [];
+    setcookie(session_name(), '', ['expires' => time() - 3600, 'path' => '/']);
+    session_destroy();
+}
+
+/** Validates a registration form and creates the account. Returns field errors; empty means the user was created. */
+function register_user(array $in): array
+{
+    $errors = [];
+    foreach (['first_name', 'last_name'] as $key) {
+        $len = mb_strlen(trim((string) ($in[$key] ?? '')));
+        if ($len === 0)     $errors[$key] = 'This field is required.';
+        elseif ($len > 100) $errors[$key] = 'Must be 100 characters or fewer.';
+    }
+    $email  = mb_strtolower(trim((string) ($in['email'] ?? '')));
+    $domain = substr(strrchr($email, '@') ?: '', 1);
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors['email'] = 'Enter a valid email address.';
+    } elseif (!in_array($domain, ALLOWED_EMAIL_DOMAINS, true)) {
+        $errors['email'] = 'Use your Mapua email (@' . implode(' or @', ALLOWED_EMAIL_DOMAINS) . ').';
+    } elseif (find_user_by_email($email)) {
+        $errors['email'] = 'An account with this email already exists.';
+    }
+    $password = (string) ($in['password'] ?? '');
+    if (strlen($password) < PASSWORD_MIN) {
+        $errors['password'] = 'Password must be at least ' . PASSWORD_MIN . ' characters.';
+    } elseif ($password !== (string) ($in['password_confirm'] ?? '')) {
+        $errors['password_confirm'] = 'Passwords do not match.';
+    }
+    if ($errors) {
+        return $errors;
+    }
+    db()->prepare('INSERT INTO users (first_name, last_name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)')
+        ->execute([trim($in['first_name']), trim($in['last_name']), $email, password_hash($password, PASSWORD_DEFAULT), 'user']);
+    return [];
+}
+
+/** Only same-site paths are safe redirect targets after login. */
+function safe_redirect(string $next): string
+{
+    return ($next !== '' && $next[0] === '/' && !str_starts_with($next, '//')) ? $next : url('/');
 }
 
 function is_logged_in(): bool
@@ -491,7 +552,3 @@ function search_rows(array $rows, string $keyword = '', array $exact = []): arra
         return str_contains($haystack, $keyword);
     }));
 }
-
-/* ---- Boot ---- */
-
-preview_role(); // resolve the mock role (and set its cookie) before any output

@@ -2,17 +2,15 @@
 require_once __DIR__ . '/config/db_connect.php';
 
 /**
- * Homepage / Dashboard.
- *
- *   Guests      → landing page + log-in / register cards (#account). ?next= is kept for after login.
- *   Logged in   → dashboard with tabs:  ?tab=overview (default) | reports | my_claims
- *                 staff: + queue        admin: + users | stats
- *   ?action=logout → clears the (preview) session and returns here as a guest.
+ * Guests      → landing page + log-in / register cards (#account); POST action=login|register handled here.
+ *               ?next= is kept for after login.
+ * Logged in   → dashboard tabs: overview | reports | my_claims   staff: + queue   admin: + users | stats
+ * ?action=logout ends the session.
  */
 
 if (($_GET['action'] ?? '') === 'logout') {
     logout();
-    header('Location: ' . url('/?as=guest'));
+    header('Location: ' . url('/'));
     exit;
 }
 
@@ -21,7 +19,32 @@ $user = current_user();
 /* ---------------------------------------------------------------- Guest */
 if (!$user) {
     $pageTitle = null;
-    $next      = $_GET['next'] ?? '';
+    $next      = $_POST['next'] ?? $_GET['next'] ?? '';
+    $action    = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['action'] ?? '') : '';
+    $errors    = [];
+
+    if ($action === 'login') {
+        $found = find_user_by_email($_POST['email'] ?? '');
+        if (!$found || !password_verify((string) ($_POST['password'] ?? ''), $found['password_hash'])) {
+            $errors['login'] = 'Incorrect email or password.';
+        } elseif (!$found['is_active']) {
+            $errors['login'] = 'This account has been deactivated. Contact the Lost & Found office.';
+        } else {
+            login_user($found, !empty($_POST['remember']));
+            header('Location: ' . safe_redirect($next));
+            exit;
+        }
+    } elseif ($action === 'register') {
+        $errors = register_user($_POST);
+        if (!$errors) {
+            login_user(find_user_by_email($_POST['email']));
+            header('Location: ' . safe_redirect($next));
+            exit;
+        }
+    }
+    $old = fn (string $key) => e($action === 'register' ? ($_POST[$key] ?? '') : '');
+    $err = fn (string $key) => isset($errors[$key]) ? '<span class="form-error">' . e($errors[$key]) . '</span>' : '';
+    $inv = fn (string $key) => isset($errors[$key]) ? ' class="is-invalid"' : '';
 
     $storedCount   = count_where(all_found_items(), 'status', 'stored');
     $returnedCount = count_where(all_found_items(), 'status', 'returned');
@@ -108,12 +131,14 @@ if (!$user) {
         <div class="card">
             <h3>Log in</h3>
             <p class="text-muted text-sm">Use your Mapua email address.</p>
-            <form method="post" action="<?= e(url('/#account')) ?>" class="form" data-validate data-mock>
+            <form method="post" action="<?= e(url('/#account')) ?>" class="form" data-validate>
                 <input type="hidden" name="action" value="login">
                 <input type="hidden" name="next" value="<?= e($next) ?>">
+                <?php if (isset($errors['login'])): ?><div class="alert alert-error" role="alert"><?= e($errors['login']) ?></div><?php endif; ?>
                 <div class="form-group">
                     <label for="login_email">Email <span class="req" aria-hidden="true">*</span></label>
-                    <input type="email" id="login_email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email>
+                    <input type="email" id="login_email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email
+                           value="<?= e($action === 'login' ? ($_POST['email'] ?? '') : '') ?>">
                 </div>
                 <div class="form-group">
                     <label for="login_password">Password <span class="req" aria-hidden="true">*</span></label>
@@ -124,39 +149,42 @@ if (!$user) {
                 </div>
                 <button type="submit" class="btn btn-primary btn-block">Log in</button>
             </form>
-            <p class="text-sm text-muted mt-2 mb-0">
-                Preview tip: use the <strong>Preview as</strong> bar at the bottom to switch roles until real login exists.
-            </p>
         </div>
 
         <div class="card">
             <h3>Create an account</h3>
-            <p class="text-muted text-sm">Open to Mapua students, faculty and staff.</p>
-            <form method="post" action="<?= e(url('/#account')) ?>" class="form" data-validate data-mock>
+            <p class="text-muted text-sm">Open to Mapua students and faculty. Security, maintenance and office accounts are assigned by an administrator.</p>
+            <form method="post" action="<?= e(url('/#account')) ?>" class="form" data-validate>
                 <input type="hidden" name="action" value="register">
+                <input type="hidden" name="next" value="<?= e($next) ?>">
                 <div class="form-row">
                     <div class="form-group">
                         <label for="first_name">First name <span class="req" aria-hidden="true">*</span></label>
-                        <input type="text" id="first_name" name="first_name" required maxlength="100" autocomplete="given-name">
+                        <input type="text" id="first_name" name="first_name" required maxlength="100" autocomplete="given-name" value="<?= $old('first_name') ?>"<?= $inv('first_name') ?>>
+                        <?= $err('first_name') ?>
                     </div>
                     <div class="form-group">
                         <label for="last_name">Last name <span class="req" aria-hidden="true">*</span></label>
-                        <input type="text" id="last_name" name="last_name" required maxlength="100" autocomplete="family-name">
+                        <input type="text" id="last_name" name="last_name" required maxlength="100" autocomplete="family-name" value="<?= $old('last_name') ?>"<?= $inv('last_name') ?>>
+                        <?= $err('last_name') ?>
                     </div>
                 </div>
                 <div class="form-group">
                     <label for="reg_email">Mapua email <span class="req" aria-hidden="true">*</span></label>
-                    <input type="email" id="reg_email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email>
+                    <input type="email" id="reg_email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email value="<?= $old('email') ?>"<?= $inv('email') ?>>
                     <span class="form-hint">Must end in @mymail.mapua.edu.ph or @mapua.edu.ph.</span>
+                    <?= $err('email') ?>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="reg_password">Password <span class="req" aria-hidden="true">*</span></label>
-                        <input type="password" id="reg_password" name="password" required minlength="8" autocomplete="new-password">
+                        <input type="password" id="reg_password" name="password" required minlength="8" autocomplete="new-password"<?= $inv('password') ?>>
+                        <?= $err('password') ?>
                     </div>
                     <div class="form-group">
                         <label for="password_confirm">Confirm <span class="req" aria-hidden="true">*</span></label>
-                        <input type="password" id="password_confirm" name="password_confirm" required minlength="8" autocomplete="new-password" data-match="password">
+                        <input type="password" id="password_confirm" name="password_confirm" required minlength="8" autocomplete="new-password" data-match="password"<?= $inv('password_confirm') ?>>
+                        <?= $err('password_confirm') ?>
                     </div>
                 </div>
                 <div class="form-group">
