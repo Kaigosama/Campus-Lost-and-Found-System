@@ -139,11 +139,11 @@ function initials(array $user): string
     return mb_strtoupper(mb_substr($user['first_name'], 0, 1) . mb_substr($user['last_name'], 0, 1));
 }
 
-/** <img> for an item photo (image_url is relative to public/), or a placeholder block. */
+/** <img> for an item photo (image_url is relative to public/), or a placeholder block. Real photos open in the app.js lightbox. */
 function photo_tag(?string $imageUrl, string $alt, string $class = 'photo'): string
 {
     if ($imageUrl) {
-        return '<img src="' . e(asset($imageUrl)) . '" alt="' . e($alt) . '" class="' . e($class) . '" loading="lazy">';
+        return '<img src="' . e(asset($imageUrl)) . '" alt="' . e($alt) . '" class="' . e($class) . '" loading="lazy" data-lightbox>';
     }
     return '<div class="' . e($class) . ' photo-placeholder" role="img" aria-label="No photo available">'
         . '<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">'

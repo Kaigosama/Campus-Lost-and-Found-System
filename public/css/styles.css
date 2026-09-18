@@ -331,6 +331,23 @@ fieldset.staff-only legend { color: var(--blue-dark); }
 .photo-thumb svg { width: 20px; height: 20px; }
 .photo-thumb span { display: none; }
 
+/* Lightbox (app.js) — photos with data-lightbox that are not links open enlarged in a <dialog> */
+img[data-lightbox]:not(a img) { cursor: zoom-in; }
+.lightbox {
+    border: 0; padding: 0; background: transparent; max-width: min(96vw, 1200px); max-height: 96vh;
+}
+.lightbox::backdrop { background: rgba(16, 24, 40, .85); }
+.lightbox img {
+    max-width: min(96vw, 1200px); max-height: 88vh; width: auto; height: auto;
+    object-fit: contain; border-radius: var(--radius); box-shadow: var(--shadow-lg); margin: 0 auto;
+}
+.lightbox-caption { color: #fff; text-align: center; font-size: .9rem; margin: .6rem 0 0; }
+.lightbox-close {
+    position: fixed; top: .75rem; right: 1rem; width: 44px; height: 44px; border: 0; border-radius: 50%;
+    background: rgba(255, 255, 255, .15); color: #fff; font-size: 1.75rem; line-height: 1; cursor: pointer;
+}
+.lightbox-close:hover { background: rgba(255, 255, 255, .3); }
+
 /* ---------- 10. Tables ---------- */
 .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .table { width: 100%; border-collapse: collapse; font-size: .93rem; }
