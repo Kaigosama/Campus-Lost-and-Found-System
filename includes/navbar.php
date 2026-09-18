@@ -1,6 +1,5 @@
 <?php
 defined('APP_ROOT') || exit;
-/** Role-aware site header. Included by header.php; $type comes from the page (see header.php). */
 $navUser = current_user();
 $navType = $type ?? '';
 ?>

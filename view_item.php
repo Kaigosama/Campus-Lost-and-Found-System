@@ -2,11 +2,8 @@
 require_once __DIR__ . '/config/db_connect.php';
 
 /**
- * Detail view of a single item.
- *   ?type=found&id=N   public item card + (user) inline ownership-claim form
- *                      + (staff) private intake record, every claim on the item with its decision form, hand-over
- *   ?type=lost&id=N    owner's or staff's view of a lost report, with close / match actions
- * Anchors: #claim-<id> jumps to a specific claim in the staff panel.
+ * ?type=found&id=N   item details + claim form (users) / intake record, claim review and hand-over (staff)
+ * ?type=lost&id=N    a lost report, for its owner or staff. #claim-<id> anchors a claim in the staff panel.
  */
 $type = ($_GET['type'] ?? 'found') === 'lost' ? 'lost' : 'found';
 $id   = (int) ($_GET['id'] ?? 0);
@@ -15,7 +12,6 @@ $user = current_user();
 if ($type === 'lost') {
     require_login();
     $report = find_lost_report($id);
-    // Only the owner or staff may view a report.
     if (!$report || ($report['user_id'] !== $user['user_id'] && !is_staff())) {
         abort(404, 'Report not found', 'This lost report does not exist or you do not have access to it.', url('/?tab=reports'), 'Back to my reports');
     }
@@ -25,7 +21,6 @@ if ($type === 'lost') {
     $pageTitle    = $report['item_name'];
 } else {
     $item = find_found_item($id);
-    // Non-staff may only see items that are still in storage.
     if (!$item || (!is_staff() && $item['status'] !== 'stored')) {
         abort(404, 'Item not found', 'This item is no longer listed. It may have been returned to its owner.', url('/browse.php'), 'Back to found items');
     }
@@ -57,7 +52,6 @@ include APP_ROOT . '/includes/header.php';
     <?php if ($isOwner && $report['status'] === 'open'): ?>
         <div class="btn-row">
             <a class="btn btn-outline" href="<?= e(url('/report.php?type=lost&id=' . $report['report_id'])) ?>">Edit</a>
-            <!-- Later: POSTs to api/update_status.php {type:'lost', id, status:'closed'} -->
             <form method="post" action="<?= e(item_url('lost', $report['report_id'])) ?>" data-api="update_status" data-type="lost" data-confirm="Close this report? Do this if you found the item or no longer need help." style="display:inline">
                 <input type="hidden" name="id" value="<?= $report['report_id'] ?>">
                 <input type="hidden" name="status" value="closed">
@@ -181,7 +175,6 @@ include APP_ROOT . '/includes/header.php';
         </div>
 
         <?php if (is_staff()): ?>
-        <!-- Staff-only panel. The backend must not send these fields to non-staff at all. -->
         <div class="card card-staff mt-2">
             <div class="card-header">
                 <h2>Intake record</h2>

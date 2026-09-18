@@ -2,10 +2,9 @@
 require_once __DIR__ . '/config/db_connect.php';
 
 /**
- * Campus inventory — search and filter.
- *   ?type=found (default)   items still in storage; public; card grid
- *   ?type=lost              every lost report; staff only; table used to match new intake
- *   ?manage=1               every found item incl. returned/disposed, with inline status + edit; staff only
+ * ?type=found (default)   items in storage; public card grid
+ * ?type=lost              every lost report; staff only
+ * ?manage=1               every found item with inline status change; staff only
  */
 $manage = !empty($_GET['manage']);
 $type   = $manage ? 'found' : ((($_GET['type'] ?? 'found') === 'lost') ? 'lost' : 'found');
@@ -41,7 +40,6 @@ if ($type === 'lost') {
     }
 } else {
     $pageTitle = 'Found items';
-    // Only items still in storage are shown publicly.
     $rows = search_rows(array_values(all_found_items()), $q, ['status' => 'stored', 'category' => $category]);
     if ($from) $rows = array_values(array_filter($rows, fn ($i) => $i['date_found'] >= $from));
     usort($rows, fn ($a, $b) => $sort === 'oldest'
@@ -167,7 +165,6 @@ include APP_ROOT . '/includes/header.php';
                     <?php else: ?><span class="text-muted">—</span><?php endif; ?>
                 </td>
                 <td>
-                    <!-- Submits through api/update_status.php (see app.js); falls back to a normal POST without JS. -->
                     <form method="post" action="<?= e(url('/browse.php?manage=1')) ?>" data-api="update_status" data-type="found" data-confirm="Change this item's status?">
                         <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
                         <label for="status-<?= $item['item_id'] ?>" class="sr-only">Status</label>

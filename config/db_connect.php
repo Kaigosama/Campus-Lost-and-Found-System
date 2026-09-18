@@ -12,9 +12,7 @@ date_default_timezone_set('Asia/Manila');
 /** '' when the repo root is the web root (php -S localhost:8000); '/clafs' for an Apache alias. */
 const BASE_URL = '';
 
-/* =========================================================================
- * 1. App constants
- * ========================================================================= */
+/* ---------------------------------------------------------------- Constants */
 
 const APP_NAME      = 'CLAFS';
 const APP_FULL_NAME = 'Campus Lost-and-Found System';
@@ -31,8 +29,6 @@ const FOUND_STATUSES = ['stored' => 'In Storage', 'returned' => 'Returned', 'dis
 const CLAIM_STATUSES = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected'];
 
 const ALLOWED_EMAIL_DOMAINS = ['mymail.mapua.edu.ph', 'mapua.edu.ph'];
-
-/** Suggested values for the location <datalist>s on the forms. */
 const CAMPUS_LOCATIONS = ['Library', 'Cafeteria', 'Gymnasium', 'Student Lounge', 'Parking Area', 'North Building', 'South Building', 'Admin Building', 'Chapel', 'Covered Court'];
 
 const MAX_UPLOAD_MB   = 5;
@@ -41,18 +37,12 @@ const IMAGE_TYPES     = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/web
 const PASSWORD_MIN    = 8;
 const REMEMBER_DAYS   = 30;
 
-/* =========================================================================
- * 2. MySQL connection (XAMPP defaults)
- *
- * Per-machine overrides go in config/db_connect.local.php (git-ignored),
- * which may define() any DB_* constant before the defaults apply.
- * Nothing connects during the front-end phase. Schema: docs/schema.sql.
- * ========================================================================= */
+/* ---------------------------------------------------------------- Database */
 
+// Per-machine overrides (git-ignored) may define() any DB_* constant before the defaults apply.
 if (is_file(__DIR__ . '/db_connect.local.php')) {
     require __DIR__ . '/db_connect.local.php';
 }
-
 defined('DB_HOST')    || define('DB_HOST', '127.0.0.1');
 defined('DB_PORT')    || define('DB_PORT', 3306);
 defined('DB_NAME')    || define('DB_NAME', 'clafs');
@@ -60,7 +50,6 @@ defined('DB_USER')    || define('DB_USER', 'root');
 defined('DB_PASS')    || define('DB_PASS', '');
 defined('DB_CHARSET') || define('DB_CHARSET', 'utf8mb4');
 
-/** Shared PDO connection, opened on first use. */
 function db(): PDO
 {
     static $pdo = null;
@@ -81,44 +70,35 @@ function db(): PDO
     return $pdo;
 }
 
-/* =========================================================================
- * 3. Shared helpers
- * ========================================================================= */
+/* ---------------------------------------------------------------- Helpers */
 
-/** Escape a value for safe output inside HTML. Use on every dynamic value. */
 function e(mixed $value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-/** Build an app URL from a path relative to the web root, e.g. url('/browse.php'). */
 function url(string $path = '/'): string
 {
     return BASE_URL . '/' . ltrim($path, '/');
 }
 
-/** URL for a static file inside public/, e.g. asset('css/styles.css'). */
 function asset(string $path): string
 {
     return url('/public/' . ltrim($path, '/'));
 }
 
-/** Detail page for a found item ('found') or a lost report ('lost'). */
 function item_url(string $type, int $id): string
 {
     return url('/view_item.php?type=' . $type . '&id=' . $id);
 }
 
-/**
- * Returns "active" when the current script is $path. $when narrows pages that
- * serve several views, e.g. is_active('/browse.php', $type === 'found').
- */
+/** "active" when the current script is $path and $when holds. */
 function is_active(string $path, bool $when = true): string
 {
     return $when && ($_SERVER['SCRIPT_NAME'] ?? '') === url($path) ? 'active' : '';
 }
 
-/** Current URL with some query parameters replaced — used by filters, pagination and the preview switcher. */
+/** Current URL with some query parameters replaced. */
 function url_with(array $params): string
 {
     $query = array_filter(array_merge($_GET, $params), fn ($v) => $v !== null && $v !== '');
@@ -126,26 +106,22 @@ function url_with(array $params): string
     return $path . ($query ? '?' . http_build_query($query) : '');
 }
 
-/** Human-readable label for any status key. */
 function status_label(string $status): string
 {
     $labels = LOST_STATUSES + FOUND_STATUSES + CLAIM_STATUSES;
     return $labels[$status] ?? ucfirst($status);
 }
 
-/** Coloured status pill. */
 function status_badge(string $status): string
 {
     return '<span class="badge badge-' . e($status) . '">' . e(status_label($status)) . '</span>';
 }
 
-/** "Sep 8, 2026" from a date or datetime string. */
 function format_date(?string $value): string
 {
     return $value ? date('M j, Y', strtotime($value)) : '—';
 }
 
-/** "Sep 8, 2026 · 2:15 PM" */
 function format_datetime(?string $value): string
 {
     return $value ? date('M j, Y · g:i A', strtotime($value)) : '—';
@@ -161,7 +137,7 @@ function initials(array $user): string
     return mb_strtoupper(mb_substr($user['first_name'], 0, 1) . mb_substr($user['last_name'], 0, 1));
 }
 
-/** <img> for an item photo (image_url is relative to public/, e.g. "uploads/abc.jpg"), or a placeholder block. */
+/** <img> for an item photo (image_url is relative to public/), or a placeholder block. */
 function photo_tag(?string $imageUrl, string $alt, string $class = 'photo'): string
 {
     if ($imageUrl) {
@@ -173,7 +149,7 @@ function photo_tag(?string $imageUrl, string $alt, string $class = 'photo'): str
         . '<span>No photo</span></div>';
 }
 
-/** <option> list from an assoc array (value => label) or plain list, with the selected value marked. */
+/** <option> list from an assoc array (value => label) or a plain list. */
 function options(array $items, mixed $selected = null, bool $isAssoc = true): string
 {
     $html = '';
@@ -185,14 +161,13 @@ function options(array $items, mixed $selected = null, bool $isAssoc = true): st
     return $html;
 }
 
-/** Truncate text to $length characters, adding an ellipsis. */
 function excerpt(string $text, int $length = 110): string
 {
     $text = trim(preg_replace('/\s+/', ' ', $text));
     return mb_strlen($text) > $length ? mb_substr($text, 0, $length - 1) . '…' : $text;
 }
 
-/** Split an array into pages; returns [items_on_page, current_page, total_pages]. */
+/** Returns [items_on_page, current_page, total_pages]. */
 function paginate(array $items, int $perPage = 8): array
 {
     $total = max(1, (int) ceil(count($items) / $perPage));
@@ -200,14 +175,12 @@ function paginate(array $items, int $perPage = 8): array
     return [array_slice($items, ($page - 1) * $perPage, $perPage), $page, $total];
 }
 
-/** Sort rows newest-first by a datetime column. */
 function newest_first(array $rows, string $column = 'created_at'): array
 {
     usort($rows, fn ($a, $b) => strcmp($b[$column], $a[$column]));
     return $rows;
 }
 
-/** Centered "nothing here" block with an optional call-to-action. */
 function empty_state(string $title, string $text = '', string $actionUrl = '', string $actionLabel = 'Continue', string $icon = '&#128269;'): string
 {
     $html = '<div class="empty-state"><div class="empty-icon" aria-hidden="true">' . $icon . '</div><h2>' . e($title) . '</h2>';
@@ -220,7 +193,7 @@ function empty_state(string $title, string $text = '', string $actionUrl = '', s
     return $html . '</div>';
 }
 
-/** Found-item card for the browse grid. Only PUBLIC fields — never storage_location or private_details. */
+/** Found-item card for the browse grid. Public fields only. */
 function item_card(array $item): string
 {
     $href = item_url('found', $item['item_id']);
@@ -245,7 +218,6 @@ function item_card(array $item): string
     return ob_get_clean();
 }
 
-/** Prev / 1 2 3 / Next links that keep the current filters. Empty when there is one page. */
 function pagination(int $page, int $totalPages): string
 {
     if ($totalPages <= 1) {
@@ -275,7 +247,7 @@ function pagination(int $page, int $totalPages): string
     return ob_get_clean();
 }
 
-/** Pill tabs from [key => label] with a count per key; $param is the query parameter that selects a tab. */
+/** Filter tabs from [key => label] with a count per key; $param is the query parameter that selects a tab. */
 function pill_tabs(array $tabs, array $counts, string $current, string $param): string
 {
     $html = '<nav class="pill-tabs" aria-label="Filter">';
@@ -314,7 +286,7 @@ function json_error(int $code, string $message, array $extra = []): void
     json_response(['ok' => false, 'error' => $message] + $extra, $code);
 }
 
-/** Request body for the API: decoded JSON when sent as application/json, otherwise the form fields. */
+/** Decoded JSON body when sent as application/json, otherwise the form fields. */
 function json_input(): array
 {
     if (str_starts_with($_SERVER['CONTENT_TYPE'] ?? '', 'application/json')) {
@@ -446,7 +418,6 @@ function is_logged_in(): bool
     return current_user() !== null;
 }
 
-/** True when the current user holds any of the given roles. */
 function has_role(array|string $roles): bool
 {
     $user = current_user();
@@ -473,7 +444,6 @@ function require_login(): void
     }
 }
 
-/** Require login AND one of the given roles; renders a 403 page otherwise. */
 function require_role(array|string $roles): void
 {
     require_login();
@@ -526,13 +496,12 @@ function where(array $rows, string $column, mixed $value): array
     return array_values(array_filter($rows, fn ($row) => $row[$column] === $value));
 }
 
-/** Count of rows whose $column equals $value. */
 function count_where(array $rows, string $column, mixed $value): int
 {
     return count(where($rows, $column, $value));
 }
 
-/** Filter rows by a keyword (matches item_name/description/location) and exact-match fields ('' or null = any). */
+/** Filter rows by a keyword (item_name/description/location) and exact-match fields ('' or null = any). */
 function search_rows(array $rows, string $keyword = '', array $exact = []): array
 {
     $keyword = mb_strtolower(trim($keyword));

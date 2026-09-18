@@ -1,11 +1,6 @@
 <?php
 defined('APP_ROOT') || exit;
-/**
- * Opens the document and renders the navbar. Pages may set before including:
- *   $pageTitle  string       — used in <title>
- *   $flash      array|null   — ['type' => 'success|error|info|warning', 'message' => '...']
- *   $type       string       — 'found'|'lost' on browse.php / report.php, so the navbar highlights the right link
- */
+/** Pages may set $pageTitle, $flash (['type' => …, 'message' => …]) and $type ('found'|'lost', for the navbar) first. */
 $title = !empty($pageTitle) ? $pageTitle . ' · ' . APP_NAME : APP_NAME . ' · ' . APP_FULL_NAME;
 ?>
 <!DOCTYPE html>

@@ -547,7 +547,6 @@ include APP_ROOT . '/includes/header.php';
     if ($itemFilter) {
         $rows = where($rows, 'item_id', $itemFilter);
     }
-    // Oldest pending first so nothing gets buried; otherwise newest first.
     usort($rows, fn ($a, $b) => $status === 'pending'
         ? strcmp($a['created_at'], $b['created_at'])
         : strcmp($b['created_at'], $a['created_at']));
@@ -666,7 +665,6 @@ include APP_ROOT . '/includes/header.php';
 <?php /* ================================================== STATISTICS (admin) */ ?>
 <?php else: ?>
     <?php
-    // ---- Mock aggregates (later: GROUP BY queries) ----
     $items   = all_found_items();
     $reports = all_lost_reports();
     $claims  = all_claims();
@@ -692,7 +690,6 @@ include APP_ROOT . '/includes/header.php';
     arsort($byLocation);
     $maxLocation = max(1, max($byLocation));
 
-    // Recent activity feed: merge intake, reports and claims, newest first.
     $activity = [];
     foreach ($items as $i)   $activity[] = ['at' => $i['created_at'], 'text' => 'Found item logged: ' . $i['item_name'], 'url' => item_url('found', $i['item_id']), 'badge' => 'stored'];
     foreach ($reports as $r) $activity[] = ['at' => $r['created_at'], 'text' => 'Lost report filed: ' . $r['item_name'], 'url' => item_url('lost', $r['report_id']), 'badge' => 'open'];
