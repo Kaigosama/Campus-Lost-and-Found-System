@@ -124,6 +124,9 @@
         if (minLength && value.length < minLength) return 'Must be at least ' + minLength + ' characters.';
         var maxLength = parseInt(field.getAttribute('maxlength'), 10);
         if (maxLength && value.length > maxLength) return 'Must be ' + maxLength + ' characters or fewer.';
+        if (field.hasAttribute('data-name') && !/^\p{L}[\p{L}\p{M} .'\-]*$/u.test(value)) {
+            return 'Use letters only (spaces, hyphens, apostrophes and periods are allowed).';
+        }
         if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email address.';
         if (field.hasAttribute('data-mapua-email') && ALLOWED_DOMAINS.indexOf((value.split('@')[1] || '').toLowerCase()) === -1) {
             return 'Use your Mapua email (@mymail.mapua.edu.ph or @mapua.edu.ph).';

@@ -36,6 +36,8 @@ const UPLOAD_DIR      = APP_ROOT . '/public/uploads';
 const IMAGE_TYPES     = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
 const PASSWORD_MIN    = 8;
 const REMEMBER_DAYS   = 30;
+/** Person names: letters (any script), spaces, hyphens, apostrophes and periods — and must start with a letter. */
+const NAME_PATTERN    = "/^\\p{L}[\\p{L}\\p{M} .'\\-]*$/u";
 
 /* ---------------------------------------------------------------- Database */
 
@@ -423,9 +425,11 @@ function register_user(array $in): array
 {
     $errors = [];
     foreach (['first_name', 'last_name'] as $key) {
-        $len = mb_strlen(trim((string) ($in[$key] ?? '')));
-        if ($len === 0)     $errors[$key] = 'This field is required.';
-        elseif ($len > 100) $errors[$key] = 'Must be 100 characters or fewer.';
+        $name = trim((string) ($in[$key] ?? ''));
+        $len  = mb_strlen($name);
+        if ($len === 0)                           $errors[$key] = 'This field is required.';
+        elseif ($len > 100)                       $errors[$key] = 'Must be 100 characters or fewer.';
+        elseif (!preg_match(NAME_PATTERN, $name)) $errors[$key] = 'Use letters only (spaces, hyphens, apostrophes and periods are allowed).';
     }
     $email  = mb_strtolower(trim((string) ($in['email'] ?? '')));
     $domain = substr(strrchr($email, '@') ?: '', 1);

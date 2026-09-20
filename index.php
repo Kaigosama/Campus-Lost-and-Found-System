@@ -164,12 +164,12 @@ if (!$user) {
                 <div class="form-row">
                     <div class="form-group">
                         <label for="first_name">First name <span class="req" aria-hidden="true">*</span></label>
-                        <input type="text" id="first_name" name="first_name" required maxlength="100" autocomplete="given-name" value="<?= $old('first_name') ?>"<?= $inv('first_name') ?>>
+                        <input type="text" id="first_name" name="first_name" required maxlength="100" data-name autocomplete="given-name" value="<?= $old('first_name') ?>"<?= $inv('first_name') ?>>
                         <?= $err('first_name') ?>
                     </div>
                     <div class="form-group">
                         <label for="last_name">Last name <span class="req" aria-hidden="true">*</span></label>
-                        <input type="text" id="last_name" name="last_name" required maxlength="100" autocomplete="family-name" value="<?= $old('last_name') ?>"<?= $inv('last_name') ?>>
+                        <input type="text" id="last_name" name="last_name" required maxlength="100" data-name autocomplete="family-name" value="<?= $old('last_name') ?>"<?= $inv('last_name') ?>>
                         <?= $err('last_name') ?>
                     </div>
                 </div>
