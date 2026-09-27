@@ -9,7 +9,7 @@ declare(strict_types=1);
 define('APP_ROOT', dirname(__DIR__));
 date_default_timezone_set('Asia/Manila');
 
-/** '' when the repo root is the web root (php -S localhost:8000); '/clafs' for an Apache alias. */
+/** '' when public/ is the web root (php -S localhost:8000 -t public); '/clafs' for an Apache alias. */
 const BASE_URL = '';
 
 /* ---------------------------------------------------------------- Constants */
@@ -96,7 +96,7 @@ function db(): PDO
         } catch (PDOException $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=utf-8');
-            exit("Database connection failed: {$e->getMessage()}\n\nImport docs/schema.sql and set DB_* constants in config/db_connect.local.php (or DB_* / MYSQL_URL environment variables).");
+            exit("Database connection failed: {$e->getMessage()}\n\nImport database/schema.sql and set DB_* constants in config/db_connect.local.php (or DB_* / MYSQL_URL environment variables).");
         }
     }
     return $pdo;
@@ -120,7 +120,7 @@ function asset(string $path): string
     $path = ltrim($path, '/');
     $file = APP_ROOT . '/public/' . $path;
     $version = preg_match('/\.(css|js)$/', $path) && is_file($file) ? '?v=' . filemtime($file) : '';
-    return url('/public/' . $path) . $version;
+    return url('/' . $path) . $version;
 }
 
 function item_url(string $type, int $id): string
@@ -302,9 +302,9 @@ function abort(int $code, string $title, string $text = '', string $backUrl = ''
 {
     http_response_code($code);
     $pageTitle = $title;
-    include APP_ROOT . '/includes/header.php';
+    include APP_ROOT . '/templates/layout/header.php';
     echo empty_state($title, $text, $backUrl, $backLabel, $icon);
-    include APP_ROOT . '/includes/footer.php';
+    include APP_ROOT . '/templates/layout/footer.php';
     exit;
 }
 
@@ -428,7 +428,7 @@ ini_set('session.use_strict_mode', '1');   // never adopt a session id the serve
 session_set_cookie_params(['path' => '/', 'secure' => is_https(), 'httponly' => true, 'samesite' => 'Lax']);
 // Resume a session only when the browser sent its cookie; login_user() starts new ones. A request without the
 // cookie (such as a form posted from another site) then gets no fresh cookie that would log the visitor out.
-if (PHP_SAPI !== 'cli' && isset($_COOKIE[session_name()])) {   // docker/init-db.php loads this file from the command line
+if (PHP_SAPI !== 'cli' && isset($_COOKIE[session_name()])) {   // database/seed.php loads this file from the command line
     session_start();
 }
 

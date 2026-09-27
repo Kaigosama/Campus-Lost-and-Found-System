@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config/db_connect.php';
+require_once __DIR__ . '/../config/db_connect.php';
 
 /**
  * Landing page of an emailed reset link: ?uid=&expires=&sig= (see password_reset_url()).
@@ -33,7 +33,7 @@ $err = fn (string $key) => isset($errors[$key]) ? '<span class="form-error" id="
 $inv = fn (string $key) => isset($errors[$key]) ? ' class="is-invalid" aria-invalid="true"' : '';
 
 $pageTitle = 'Set a new password';
-include APP_ROOT . '/includes/header.php';
+include APP_ROOT . '/templates/layout/header.php';
 ?>
 
 <div class="form-narrow">
@@ -59,4 +59,4 @@ include APP_ROOT . '/includes/header.php';
     </div>
 </div>
 
-<?php include APP_ROOT . '/includes/footer.php'; ?>
+<?php include APP_ROOT . '/templates/layout/footer.php'; ?>

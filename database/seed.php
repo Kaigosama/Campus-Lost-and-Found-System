@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Runs once per container start (docker/entrypoint.sh), before Apache.
- * Waits for MySQL, creates the database if it is missing, and loads docs/schema.sql
+ * Waits for MySQL, creates the database if it is missing, and loads database/schema.sql
  * only when there is no `users` table yet — schema.sql drops tables, so an
  * existing database is never touched.
  */
@@ -48,9 +48,9 @@ if ($pdo->query("SHOW TABLES LIKE 'users'")->fetchColumn() !== false) {
     exit(0);
 }
 
-log_line('Empty database ' . DB_NAME . ': loading docs/schema.sql');
+log_line('Empty database ' . DB_NAME . ': loading database/schema.sql');
 // schema.sql creates and selects its own `clafs` database for XAMPP; here the configured database is used instead.
-$sql = preg_replace('/^\s*(CREATE DATABASE|USE)\b[^;]*;/mi', '', (string) file_get_contents(APP_ROOT . '/docs/schema.sql'));
+$sql = preg_replace('/^\s*(CREATE DATABASE|USE)\b[^;]*;/mi', '', (string) file_get_contents(APP_ROOT . '/database/schema.sql'));
 $stmt = $pdo->query($sql);
 while ($stmt->nextRowset()) {
     // Step through every statement so an error in any of them is raised.

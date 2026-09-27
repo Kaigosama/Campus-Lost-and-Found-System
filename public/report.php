@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config/db_connect.php';
+require_once __DIR__ . '/../config/db_connect.php';
 
 /**
  * ?type=lost            file a lost report (any logged-in user)      ?type=lost&id=N    edit your own open report
@@ -40,7 +40,7 @@ $pageTitle  = match (true) {
     default                       => 'Report a lost item',
 };
 
-include APP_ROOT . '/includes/header.php';
+include APP_ROOT . '/templates/layout/header.php';
 ?>
 
 <?php if ($type === 'found'): ?>
@@ -264,4 +264,4 @@ include APP_ROOT . '/includes/header.php';
 
 <datalist id="campus-locations"><?php foreach (CAMPUS_LOCATIONS as $loc): ?><option value="<?= e($loc) ?>"><?php endforeach; ?></datalist>
 
-<?php include APP_ROOT . '/includes/footer.php'; ?>
+<?php include APP_ROOT . '/templates/layout/footer.php'; ?>

@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/db_connect.php';
+require_once __DIR__ . '/../../config/db_connect.php';
 
 /**
  * POST /api/claims.php   (JSON body or form fields)

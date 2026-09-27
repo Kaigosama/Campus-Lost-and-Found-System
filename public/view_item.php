@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config/db_connect.php';
+require_once __DIR__ . '/../config/db_connect.php';
 
 /**
  * ?type=found&id=N   item details + claim form (users) / intake record, claim review and hand-over (staff)
@@ -35,7 +35,7 @@ if ($type === 'lost') {
     }
 }
 
-include APP_ROOT . '/includes/header.php';
+include APP_ROOT . '/templates/layout/header.php';
 ?>
 
 <?php if ($type === 'lost'): ?>
@@ -382,4 +382,4 @@ include APP_ROOT . '/includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php include APP_ROOT . '/includes/footer.php'; ?>
+<?php include APP_ROOT . '/templates/layout/footer.php'; ?>

@@ -16,7 +16,7 @@ $title = !empty($pageTitle) ? $pageTitle . ' · ' . APP_NAME : APP_NAME . ' · '
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 
-<?php include APP_ROOT . '/includes/navbar.php'; ?>
+<?php include APP_ROOT . '/templates/layout/navbar.php'; ?>
 
 <main id="main" class="container page">
 <?php if (!empty($flash)): ?>

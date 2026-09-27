@@ -321,7 +321,7 @@
         function cardHtml(item) {
             var href = BASE + '/view_item.php?type=found&id=' + item.item_id;
             var photo = item.image_url
-                ? '<img src="' + escapeHtml(BASE + '/public/' + item.image_url) + '" alt="' + escapeHtml(item.item_name) + '" class="photo" loading="lazy">'
+                ? '<img src="' + escapeHtml(BASE + '/' + item.image_url) + '" alt="' + escapeHtml(item.item_name) + '" class="photo" loading="lazy">'
                 : '<div class="photo photo-placeholder" role="img" aria-label="No photo available">'
                   + '<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">'
                   + '<path d="M4 7h3l2-2h6l2 2h3v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>No photo</span></div>';

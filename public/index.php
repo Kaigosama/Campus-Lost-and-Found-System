@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config/db_connect.php';
+require_once __DIR__ . '/../config/db_connect.php';
 
 /**
  * Guests      → landing page. Logging in and registering happen on login.php and register.php;
@@ -30,7 +30,7 @@ if (!$user) {
     $openReports   = count_where(all_lost_reports(), 'status', 'open');
     $recentItems   = array_slice(newest_first(where(all_found_items(), 'status', 'stored'), 'date_found'), 0, 3);
 
-    include APP_ROOT . '/includes/header.php';
+    include APP_ROOT . '/templates/layout/header.php';
     ?>
 
 <section class="hero">
@@ -103,7 +103,7 @@ if (!$user) {
 <?php endif; ?>
 
     <?php
-    include APP_ROOT . '/includes/footer.php';
+    include APP_ROOT . '/templates/layout/footer.php';
     exit;
 }
 
@@ -141,7 +141,7 @@ $myClaims  = newest_first(where(all_claims(), 'user_id', $user['user_id']));
 $storedCount = count_where(all_found_items(), 'status', 'stored');
 
 $pageTitle = $tab === 'overview' ? 'Dashboard' : $allTabs[$tab][0];
-include APP_ROOT . '/includes/header.php';
+include APP_ROOT . '/templates/layout/header.php';
 ?>
 
 <?php if ($tab === 'overview'): ?>
@@ -734,4 +734,4 @@ include APP_ROOT . '/includes/header.php';
     </div>
 <?php endif; ?>
 
-<?php include APP_ROOT . '/includes/footer.php'; ?>
+<?php include APP_ROOT . '/templates/layout/footer.php'; ?>

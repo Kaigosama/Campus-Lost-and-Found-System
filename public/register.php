@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config/db_connect.php';
+require_once __DIR__ . '/../config/db_connect.php';
 
 /**
  * Create a Student / Faculty account (see register_user()); staff and admin roles are assigned by an admin.
@@ -27,7 +27,7 @@ $err = fn (string $key) => isset($errors[$key]) ? '<span class="form-error" id="
 $inv = fn (string $key) => isset($errors[$key]) ? ' class="is-invalid" aria-invalid="true"' : '';
 
 $pageTitle = 'Create an account';
-include APP_ROOT . '/includes/header.php';
+include APP_ROOT . '/templates/layout/header.php';
 ?>
 
 <div class="form-narrow">
@@ -83,4 +83,4 @@ include APP_ROOT . '/includes/header.php';
     </div>
 </div>
 
-<?php include APP_ROOT . '/includes/footer.php'; ?>
+<?php include APP_ROOT . '/templates/layout/footer.php'; ?>

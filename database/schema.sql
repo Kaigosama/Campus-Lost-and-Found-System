@@ -8,7 +8,7 @@
 --  diagram (and trim the UI), or fold those columns into the ERD.
 --  Section 6 seeds the same rows the mock data uses (needs section 5).
 --
---  Usage:  mysql -u root -p < docs/schema.sql
+--  Usage:  mysql -u root -p < database/schema.sql
 -- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS clafs CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

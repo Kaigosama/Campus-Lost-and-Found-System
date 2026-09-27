@@ -11,6 +11,7 @@ accounts. Built by ITS122P AM2 Group 4 with PHP, MySQL, and plain HTML, CSS and 
 - [Background](#background)
 - [Install](#install)
 - [Usage](#usage)
+- [Project structure](#project-structure)
 - [Deployment](#deployment)
 - [API](#api)
 - [Maintainers](#maintainers)
@@ -29,7 +30,7 @@ display case. CLAFS moves that process online.
 | Security & Maintenance | assigned by an admin | Everything above, plus log found items and review claims |
 | Office Administrator | assigned by an admin | Everything above, plus manage users and view statistics |
 
-The database design is in [docs/erd.html](docs/erd.html) and [docs/schema.sql](docs/schema.sql).
+The database design is in [docs/erd.html](docs/erd.html) and [database/schema.sql](database/schema.sql).
 
 ## Install
 
@@ -54,13 +55,13 @@ docker compose down -v
 1. Start MySQL in the XAMPP Control Panel, then create the database (PowerShell):
 
    ```powershell
-   Get-Content docs/schema.sql -Raw | C:\xampp\mysql\bin\mysql.exe -u root
+   Get-Content database/schema.sql -Raw | C:\xampp\mysql\bin\mysql.exe -u root
    ```
 
 2. Start the site and open <http://localhost:8000>:
 
    ```bash
-   C:\xampp\php\php.exe -S localhost:8000 -t .
+   C:\xampp\php\php.exe -S localhost:8000 -t public
    ```
 
 If your MySQL user isn't `root` with no password, create `config/db_connect.local.php`:
@@ -86,6 +87,22 @@ New accounts can register at `/register.php` with a `@mymail.mapua.edu.ph` or `@
 - **Forgot password:** use the link on the login page. On your own computer the reset email isn't sent. It
   appears in the server log instead (the `php -S` window, or `docker compose logs app`).
 
+## Project structure
+
+Only `public/` is served to the browser. Everything else sits beside it, so it can't be opened by URL.
+
+```
+public/              Web root: pages, JSON API and static files
+  api/               JSON endpoints called by public/js/api.js
+  css/ js/ images/   Stylesheet, scripts, logo and sample photos
+  uploads/           Item photos uploaded by users (not in git)
+templates/layout/    Page header, navigation bar and footer
+config/              Settings and the database connection
+database/            schema.sql (tables and sample data) and seed.php (loads it in Docker)
+docker/              Apache, PHP and container start-up configuration
+docs/                ERD and API documentation
+```
+
 ## Deployment
 
 The site deploys to [Railway](https://railway.com) from this repository.
@@ -110,7 +127,7 @@ Every push to `main` redeploys the site, and the data is kept. After the first d
 
 ## API
 
-The pages call JSON endpoints in [`api/`](api/) through [`public/js/api.js`](public/js/api.js).
+The pages call JSON endpoints in [`public/api/`](public/api/) through [`public/js/api.js`](public/js/api.js).
 
 | Endpoint | Purpose |
 |---|---|

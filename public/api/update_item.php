@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/db_connect.php';
+require_once __DIR__ . '/../../config/db_connect.php';
 
 /**
  * POST /api/update_item.php   (multipart/form-data with optional "photo" file, form fields, or JSON)

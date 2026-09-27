@@ -22,6 +22,6 @@ done
 mkdir -p /var/www/html/public/uploads
 chown www-data:www-data /var/www/html/public/uploads
 
-php /var/www/html/docker/init-db.php
+php /var/www/html/database/seed.php
 
 exec "$@"

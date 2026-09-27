@@ -1,6 +1,6 @@
 # Local stack: the app on http://localhost:8080 and its own MySQL 8.
 #   docker compose up --build
-# The database is created and seeded from docs/schema.sql on first start.
+# The database is created and seeded from database/schema.sql on first start.
 # Reset everything (data and uploads): docker compose down -v
 
 services:
