@@ -57,11 +57,8 @@ if (!$user) {
 
 <section class="hero">
     <div class="hero-body">
-        <h1>Lost something on campus?<br>Check here before you check the drawer.</h1>
-        <p>
-            <?= e(APP_FULL_NAME) ?> replaces the Lost &amp; Found office's paper logbook. Browse items that have been
-            turned in, file a report for what you lost, and claim your belongings online.
-        </p>
+        <h1>Lost something on campus?<br>Your stuff might already be waiting for you.</h1>
+        <p>Browse turned-in items, report lost belongings, and manage your claim online with ease.</p>
         <div class="btn-row">
             <a class="btn btn-accent btn-lg" href="<?= e(url('/browse.php')) ?>">Browse found items</a>
             <a class="btn btn-outline btn-lg" href="#account">Log in or register</a>
