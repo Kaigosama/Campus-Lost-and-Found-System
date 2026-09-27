@@ -6,10 +6,10 @@ require_once __DIR__ . '/config/db_connect.php';
  *               old /?next= and /?reset=1 links are forwarded to login.php.
  * Logged in   → dashboard tabs: overview | reports | my_claims   staff: + queue   admin: + users | stats   all: account
  *               POST on ?tab=account changes the password.
- * ?action=logout ends the session.
+ * POST ?action=logout ends the session. It must be a POST so another site can't log visitors out with a link.
  */
 
-if (($_GET['action'] ?? '') === 'logout') {
+if (($_GET['action'] ?? '') === 'logout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     logout();
     header('Location: ' . url('/'));
     exit;

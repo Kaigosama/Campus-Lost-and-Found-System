@@ -133,6 +133,7 @@ code { background: var(--neutral-bg); padding: .1em .35em; border-radius: var(--
 }
 .nav-user-name { display: flex; flex-direction: column; line-height: 1.1; font-size: .9rem; font-weight: 600; }
 .nav-user-name small { color: var(--muted); font-size: .8rem; font-weight: 400; }
+.logout-form { margin: 0; }
 .avatar {
     width: 34px; height: 34px; border-radius: var(--radius-sm); flex-shrink: 0;
     background: var(--blue); color: #fff; font-weight: 700; font-size: .8rem;
@@ -167,7 +168,7 @@ code { background: var(--neutral-bg); padding: .1em .35em; border-radius: var(--
     .nav > a.nav-cta { margin: .4rem 0 0; text-align: center; }
     .dropdown { position: static; box-shadow: none; background: transparent; border: 0; padding: 0 0 .25rem .9rem; }
     .nav-user { border-left: 0; border-top: 1px solid var(--border); margin: .6rem 0 0; padding: .8rem 0 0; }
-    .nav-user .btn { margin-left: auto; }
+    .nav-user .logout-form { margin-left: auto; }
 }
 
 /* ---------- 4. Buttons ---------- */

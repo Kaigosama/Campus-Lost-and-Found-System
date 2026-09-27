@@ -63,7 +63,9 @@ $navType = $type ?? '';
                         <?= e(full_name($navUser)) ?>
                         <small><?= e(ROLES[$navUser['role']] ?? $navUser['role']) ?></small>
                     </span>
-                    <a href="<?= e(url('/?action=logout')) ?>" class="btn btn-ghost btn-sm">Log out</a>
+                    <form method="post" action="<?= e(url('/?action=logout')) ?>" class="logout-form">
+                        <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
+                    </form>
                 </div>
             <?php endif; ?>
         </nav>

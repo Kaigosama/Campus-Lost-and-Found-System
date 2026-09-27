@@ -419,8 +419,11 @@ function is_https(): bool
 }
 
 ini_set('session.gc_maxlifetime', (string) (REMEMBER_DAYS * 86400));
+ini_set('session.use_strict_mode', '1');   // never adopt a session id the server didn't issue
 session_set_cookie_params(['path' => '/', 'secure' => is_https(), 'httponly' => true, 'samesite' => 'Lax']);
-if (PHP_SAPI !== 'cli') {   // docker/init-db.php loads this file from the command line
+// Resume a session only when the browser sent its cookie; login_user() starts new ones. A request without the
+// cookie (such as a form posted from another site) then gets no fresh cookie that would log the visitor out.
+if (PHP_SAPI !== 'cli' && isset($_COOKIE[session_name()])) {   // docker/init-db.php loads this file from the command line
     session_start();
 }
 
@@ -441,6 +444,9 @@ function current_user(): ?array
 
 function login_user(array $user, bool $remember = false): void
 {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
     session_regenerate_id(true);
     $_SESSION['user_id'] = $user['user_id'];
     $_SESSION['password_sig'] = password_sig($user['password_hash']);
@@ -456,7 +462,9 @@ function logout(): void
 {
     $_SESSION = [];
     setcookie(session_name(), '', ['expires' => time() - 3600, 'path' => '/']);
-    session_destroy();
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_destroy();
+    }
 }
 
 /** Validates a registration form and creates the account. Returns field errors; empty means the user was created. */
