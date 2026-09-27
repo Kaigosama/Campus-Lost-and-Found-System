@@ -520,8 +520,6 @@ img[data-lightbox]:not(a img) { cursor: zoom-in; }
 .site-footer { background: var(--surface); border-top: 1px solid var(--border); padding: 1.25rem 0; color: var(--muted); font-size: .85rem; }
 .footer-inner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem 1.5rem; }
 .footer-inner p { margin: 0; }
-.footer-note { max-width: 620px; }
-.footer-links a { display: inline-block; padding: .35rem 0; color: var(--muted); margin-right: 1rem; }
 
 /* ---------- 17. Utilities ---------- */
 .text-muted { color: var(--muted); }
