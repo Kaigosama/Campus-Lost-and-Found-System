@@ -44,8 +44,8 @@ if (!$user) {
         }
     }
     $old = fn (string $key) => e($action === 'register' ? ($_POST[$key] ?? '') : '');
-    $err = fn (string $key) => isset($errors[$key]) ? '<span class="form-error">' . e($errors[$key]) . '</span>' : '';
-    $inv = fn (string $key) => isset($errors[$key]) ? ' class="is-invalid"' : '';
+    $err = fn (string $key) => isset($errors[$key]) ? '<span class="form-error" id="' . $key . '-error">' . e($errors[$key]) . '</span>' : '';
+    $inv = fn (string $key) => isset($errors[$key]) ? ' class="is-invalid" aria-invalid="true"' : '';
 
     $storedCount   = count_where(all_found_items(), 'status', 'stored');
     $returnedCount = count_where(all_found_items(), 'status', 'returned');
@@ -57,14 +57,96 @@ if (!$user) {
 
 <section class="hero">
     <div class="hero-body">
-        <h1>Lost something on campus?<br>Your stuff might already be waiting for you.</h1>
+        <h1>Lost something on campus? Your stuff might already be waiting for you.</h1>
         <p>Browse turned-in items, report lost belongings, and manage your claim online with ease.</p>
         <div class="btn-row">
             <a class="btn btn-accent btn-lg" href="<?= e(url('/browse.php')) ?>">Browse found items</a>
             <a class="btn btn-outline btn-lg" href="#account">Log in or register</a>
         </div>
     </div>
-    <img class="hero-logo" src="<?= e(asset('images/logo.png')) ?>" alt="<?= e(APP_NAME) ?> logo" width="220" height="220">
+    <img class="hero-logo" src="<?= e(asset('images/logo.png')) ?>" alt="" width="220" height="220">
+</section>
+
+<section class="section" id="account">
+    <div class="section-title"><h2>Your account</h2></div>
+    <?php if ($next): ?>
+        <div class="alert alert-info">Please log in to continue.</div>
+    <?php endif; ?>
+    <?php if (isset($_GET['reset'])): ?>
+        <div class="alert alert-success" role="status">Your password has been changed. Log in with your new password.</div>
+    <?php endif; ?>
+    <div class="grid grid-2">
+        <div class="card" id="login">
+            <h3>Log in</h3>
+            <p class="text-muted text-sm">Use your Mapua email address.</p>
+            <form method="post" action="<?= e(url('/#account')) ?>" class="form" data-validate>
+                <input type="hidden" name="action" value="login">
+                <input type="hidden" name="next" value="<?= e($next) ?>">
+                <?php if (isset($errors['login'])): ?><div class="alert alert-error" role="alert" id="login-error"><?= e($errors['login']) ?></div><?php endif; ?>
+                <div class="form-group">
+                    <label for="login_email">Email <span class="req" aria-hidden="true">*</span></label>
+                    <input type="email" id="login_email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email
+                           <?= isset($errors['login']) ? 'aria-invalid="true" aria-describedby="login-error"' : '' ?>
+                           value="<?= e($action === 'login' ? ($_POST['email'] ?? '') : '') ?>">
+                </div>
+                <div class="form-group">
+                    <label for="login_password">Password <span class="req" aria-hidden="true">*</span></label>
+                    <input type="password" id="login_password" name="password" required autocomplete="current-password" minlength="8">
+                    <a class="form-hint" href="<?= e(url('/forgot_password.php')) ?>">Forgot password?</a>
+                </div>
+                <div class="form-group">
+                    <label class="check"><input type="checkbox" name="remember" value="1"> Keep me logged in on this device</label>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Log in</button>
+            </form>
+        </div>
+
+        <div class="card" id="register">
+            <h3>Create an account</h3>
+            <p class="text-muted text-sm">Open to Mapua students and faculty. Security, maintenance and office accounts are assigned by an administrator.</p>
+            <form method="post" action="<?= e(url('/#account')) ?>" class="form" data-validate>
+                <input type="hidden" name="action" value="register">
+                <input type="hidden" name="next" value="<?= e($next) ?>">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="first_name">First name <span class="req" aria-hidden="true">*</span></label>
+                        <input type="text" id="first_name" name="first_name" required maxlength="100" data-name autocomplete="given-name" aria-describedby="first_name-error" value="<?= $old('first_name') ?>"<?= $inv('first_name') ?>>
+                        <?= $err('first_name') ?>
+                    </div>
+                    <div class="form-group">
+                        <label for="last_name">Last name <span class="req" aria-hidden="true">*</span></label>
+                        <input type="text" id="last_name" name="last_name" required maxlength="100" data-name autocomplete="family-name" aria-describedby="last_name-error" value="<?= $old('last_name') ?>"<?= $inv('last_name') ?>>
+                        <?= $err('last_name') ?>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="reg_email">Mapua email <span class="req" aria-hidden="true">*</span></label>
+                    <input type="email" id="reg_email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email aria-describedby="reg_email-hint email-error" value="<?= $old('email') ?>"<?= $inv('email') ?>>
+                    <span class="form-hint" id="reg_email-hint">Must end in @mymail.mapua.edu.ph or @mapua.edu.ph.</span>
+                    <?= $err('email') ?>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="reg_password">Password <span class="req" aria-hidden="true">*</span></label>
+                        <input type="password" id="reg_password" name="password" required minlength="8" autocomplete="new-password" aria-describedby="password-error"<?= $inv('password') ?>>
+                        <?= $err('password') ?>
+                    </div>
+                    <div class="form-group">
+                        <label for="password_confirm">Confirm <span class="req" aria-hidden="true">*</span></label>
+                        <input type="password" id="password_confirm" name="password_confirm" required minlength="8" autocomplete="new-password" data-match="password" aria-describedby="password_confirm-error"<?= $inv('password_confirm') ?>>
+                        <?= $err('password_confirm') ?>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="check">
+                        <input type="checkbox" name="agree" value="1" required>
+                        I understand that false ownership claims may be reported to the university.
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Create account</button>
+            </form>
+        </div>
+    </div>
 </section>
 
 <div class="stat-grid">
@@ -76,7 +158,7 @@ if (!$user) {
     <div class="stat-card success">
         <span class="stat-label">Returned to owners</span>
         <span class="stat-value"><?= $returnedCount ?></span>
-        <span class="stat-note">this semester</span>
+        <span class="stat-note">since CLAFS launched</span>
     </div>
     <div class="stat-card info">
         <span class="stat-label">Open lost reports</span>
@@ -85,9 +167,9 @@ if (!$user) {
     </div>
     <div class="stat-card accent">
         <span class="stat-label">Office hours</span>
-        <span class="stat-value" style="font-size:1.2rem">Mon–Fri</span>
+        <span class="stat-value stat-value-sm">Mon–Fri</span>
         <span class="stat-note">8:00 AM – 5:00 PM, Admin Bldg Rm 104</span>
-        <span class="stat-note" data-next-holiday>Checking holiday schedule…</span>
+        <span class="stat-note" data-next-holiday aria-live="polite">Checking holiday schedule…</span>
     </div>
 </div>
 
@@ -116,94 +198,13 @@ if (!$user) {
 <section class="section">
     <div class="section-title">
         <h2>Recently turned in</h2>
-        <a href="<?= e(url('/browse.php')) ?>">See all &rarr;</a>
+        <a href="<?= e(url('/browse.php')) ?>">See all found items &rarr;</a>
     </div>
     <div class="item-grid">
         <?php foreach ($recentItems as $item) echo item_card($item); ?>
     </div>
 </section>
 <?php endif; ?>
-
-<section class="section" id="account">
-    <div class="section-title"><h2>Your account</h2></div>
-    <?php if ($next): ?>
-        <div class="alert alert-info">Please log in to continue.</div>
-    <?php endif; ?>
-    <?php if (isset($_GET['reset'])): ?>
-        <div class="alert alert-success" role="status">Your password has been changed. Log in with your new password.</div>
-    <?php endif; ?>
-    <div class="grid grid-2">
-        <div class="card">
-            <h3>Log in</h3>
-            <p class="text-muted text-sm">Use your Mapua email address.</p>
-            <form method="post" action="<?= e(url('/#account')) ?>" class="form" data-validate>
-                <input type="hidden" name="action" value="login">
-                <input type="hidden" name="next" value="<?= e($next) ?>">
-                <?php if (isset($errors['login'])): ?><div class="alert alert-error" role="alert"><?= e($errors['login']) ?></div><?php endif; ?>
-                <div class="form-group">
-                    <label for="login_email">Email <span class="req" aria-hidden="true">*</span></label>
-                    <input type="email" id="login_email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email
-                           value="<?= e($action === 'login' ? ($_POST['email'] ?? '') : '') ?>">
-                </div>
-                <div class="form-group">
-                    <label for="login_password">Password <span class="req" aria-hidden="true">*</span></label>
-                    <input type="password" id="login_password" name="password" required autocomplete="current-password" minlength="8">
-                    <a class="form-hint" href="<?= e(url('/forgot_password.php')) ?>">Forgot password?</a>
-                </div>
-                <div class="form-group">
-                    <label class="check"><input type="checkbox" name="remember" value="1"> Keep me logged in on this device</label>
-                </div>
-                <button type="submit" class="btn btn-primary btn-block">Log in</button>
-            </form>
-        </div>
-
-        <div class="card">
-            <h3>Create an account</h3>
-            <p class="text-muted text-sm">Open to Mapua students and faculty. Security, maintenance and office accounts are assigned by an administrator.</p>
-            <form method="post" action="<?= e(url('/#account')) ?>" class="form" data-validate>
-                <input type="hidden" name="action" value="register">
-                <input type="hidden" name="next" value="<?= e($next) ?>">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="first_name">First name <span class="req" aria-hidden="true">*</span></label>
-                        <input type="text" id="first_name" name="first_name" required maxlength="100" data-name autocomplete="given-name" value="<?= $old('first_name') ?>"<?= $inv('first_name') ?>>
-                        <?= $err('first_name') ?>
-                    </div>
-                    <div class="form-group">
-                        <label for="last_name">Last name <span class="req" aria-hidden="true">*</span></label>
-                        <input type="text" id="last_name" name="last_name" required maxlength="100" data-name autocomplete="family-name" value="<?= $old('last_name') ?>"<?= $inv('last_name') ?>>
-                        <?= $err('last_name') ?>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="reg_email">Mapua email <span class="req" aria-hidden="true">*</span></label>
-                    <input type="email" id="reg_email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email value="<?= $old('email') ?>"<?= $inv('email') ?>>
-                    <span class="form-hint">Must end in @mymail.mapua.edu.ph or @mapua.edu.ph.</span>
-                    <?= $err('email') ?>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="reg_password">Password <span class="req" aria-hidden="true">*</span></label>
-                        <input type="password" id="reg_password" name="password" required minlength="8" autocomplete="new-password"<?= $inv('password') ?>>
-                        <?= $err('password') ?>
-                    </div>
-                    <div class="form-group">
-                        <label for="password_confirm">Confirm <span class="req" aria-hidden="true">*</span></label>
-                        <input type="password" id="password_confirm" name="password_confirm" required minlength="8" autocomplete="new-password" data-match="password"<?= $inv('password_confirm') ?>>
-                        <?= $err('password_confirm') ?>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="check">
-                        <input type="checkbox" name="agree" value="1" required>
-                        I understand that false ownership claims may be reported to the university.
-                    </label>
-                </div>
-                <button type="submit" class="btn btn-primary btn-block">Create account</button>
-            </form>
-        </div>
-    </div>
-</section>
 
     <?php
     include APP_ROOT . '/includes/footer.php';
@@ -250,7 +251,7 @@ include APP_ROOT . '/includes/header.php';
 <?php if ($tab === 'overview'): ?>
 <div class="page-header">
     <div>
-        <h1>Hello, <?= e($user['first_name']) ?> 👋</h1>
+        <h1>Hello, <?= e($user['first_name']) ?> <span aria-hidden="true">👋</span></h1>
         <p>
             <?php if (is_admin()): ?>Administrator overview.
             <?php elseif (is_staff()): ?>Here's what needs your attention at the Lost &amp; Found office.
@@ -295,7 +296,7 @@ include APP_ROOT . '/includes/header.php';
 
 <nav class="tab-bar" aria-label="Dashboard sections">
     <?php foreach ($tabs as $key => [$label]): ?>
-        <a href="<?= e(url($key === 'overview' ? '/' : '/?tab=' . $key)) ?>" class="<?= $tab === $key ? 'active' : '' ?>"><?= e($label) ?></a>
+        <a href="<?= e(url($key === 'overview' ? '/' : '/?tab=' . $key)) ?>" <?= $tab === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a>
     <?php endforeach; ?>
 </nav>
 
@@ -330,9 +331,9 @@ include APP_ROOT . '/includes/header.php';
             </div>
             <?php else: ?>
             <div class="stat-card success">
-                <span class="stat-label">Returned this month</span>
+                <span class="stat-label">Returned to owners</span>
                 <span class="stat-value"><?= count_where(all_found_items(), 'status', 'returned') ?></span>
-                <span class="stat-note">items back with owners</span>
+                <span class="stat-note">all time</span>
             </div>
             <?php endif; ?>
         </div>
@@ -360,13 +361,13 @@ include APP_ROOT . '/includes/header.php';
                     </table>
                 </div>
                 <?php else: ?>
-                    <p class="text-muted mb-0">No pending claims. 🎉</p>
+                    <p class="text-muted mb-0">No pending claims. <span aria-hidden="true">🎉</span></p>
                 <?php endif; ?>
             </div>
 
             <div class="card">
                 <h2>Quick actions</h2>
-                <div class="grid" style="gap:.5rem">
+                <div class="grid gap-sm">
                     <a class="btn btn-secondary" href="<?= e(url('/report.php?type=found')) ?>">Log a found item</a>
                     <a class="btn btn-secondary" href="<?= e(url('/browse.php?manage=1')) ?>">Manage found items</a>
                     <a class="btn btn-secondary" href="<?= e(url('/browse.php?type=lost')) ?>">Browse lost reports</a>
@@ -539,7 +540,7 @@ include APP_ROOT . '/includes/header.php';
                 </div>
 
                 <?php if ($claim['status'] === 'pending'): ?>
-                    <div class="form-actions" style="margin-top:1rem;padding-top:.75rem">
+                    <div class="form-actions compact">
                         <form method="post" action="<?= e(url('/?tab=my_claims')) ?>" data-api="withdraw" data-done="remove" data-confirm="Withdraw this claim?">
                             <input type="hidden" name="claim_id" value="<?= $claim['claim_id'] ?>">
                             <button type="submit" class="btn btn-secondary btn-sm">Withdraw claim</button>
@@ -597,7 +598,7 @@ include APP_ROOT . '/includes/header.php';
                         <span class="table-sub"><?= e($item['storage_location']) ?></span>
                     </td>
                     <td><?= e(full_name($claimant)) ?><span class="table-sub"><?= e($claimant['email']) ?></span></td>
-                    <td style="max-width:280px"><?= e(excerpt($claim['proof_description'], 80)) ?></td>
+                    <td class="cell-wide"><?= e(excerpt($claim['proof_description'], 80)) ?></td>
                     <td>
                         <?php if ($claim['report_id']): ?>
                             <a href="<?= e(item_url('lost', $claim['report_id'])) ?>">#<?= $claim['report_id'] ?></a>
@@ -653,19 +654,22 @@ include APP_ROOT . '/includes/header.php';
                     </td>
                     <td><?= e($u['email']) ?></td>
                     <td>
-                        <form method="post" action="<?= e(url('/?tab=users')) ?>" data-api="update_user" data-confirm="Change this user's role?">
+                        <form method="post" action="<?= e(url('/?tab=users')) ?>" class="inline-form" data-api="update_user" data-confirm="Change this user's role?">
                             <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
-                            <label for="role-<?= $u['user_id'] ?>" class="sr-only">Role</label>
-                            <select id="role-<?= $u['user_id'] ?>" name="role" class="inline-select" onchange="this.form.requestSubmit()" <?= $isMe ? 'disabled title="You cannot change your own role"' : '' ?>>
+                            <label for="role-<?= $u['user_id'] ?>" class="sr-only">Role for <?= e(full_name($u)) ?></label>
+                            <select id="role-<?= $u['user_id'] ?>" name="role" class="inline-select" <?= $isMe ? 'disabled title="You cannot change your own role"' : '' ?>>
                                 <?= options(ROLES, $u['role']) ?>
                             </select>
+                            <?php if (!$isMe): ?>
+                                <button type="submit" class="btn btn-secondary btn-sm">Save<span class="sr-only"> role for <?= e(full_name($u)) ?></span></button>
+                            <?php endif; ?>
                         </form>
                     </td>
                     <td><span class="badge badge-<?= $u['is_active'] ? 'active' : 'inactive' ?>" data-status-for="user-<?= $u['user_id'] ?>"><?= $u['is_active'] ? 'Active' : 'Deactivated' ?></span></td>
                     <td class="nowrap"><?= e(format_date($u['created_at'])) ?></td>
                     <td class="actions">
                         <?php if (!$isMe): ?>
-                            <form method="post" action="<?= e(url('/?tab=users')) ?>" style="display:inline" data-api="update_user"
+                            <form method="post" action="<?= e(url('/?tab=users')) ?>" class="inline-form" data-api="update_user"
                                   data-confirm="<?= $u['is_active'] ? 'Deactivate this account? They will no longer be able to log in.' : 'Reactivate this account?' ?>">
                                 <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
                                 <input type="hidden" name="is_active" value="<?= $u['is_active'] ? '0' : '1' ?>">
@@ -683,8 +687,8 @@ include APP_ROOT . '/includes/header.php';
 <?php /* ================================================== ACCOUNT */ ?>
 <?php elseif ($tab === 'account'): ?>
     <?php
-    $err = fn (string $key) => isset($errors[$key]) ? '<span class="form-error">' . e($errors[$key]) . '</span>' : '';
-    $inv = fn (string $key) => isset($errors[$key]) ? ' class="is-invalid"' : '';
+    $err = fn (string $key) => isset($errors[$key]) ? '<span class="form-error" id="' . $key . '-error">' . e($errors[$key]) . '</span>' : '';
+    $inv = fn (string $key) => isset($errors[$key]) ? ' class="is-invalid" aria-invalid="true"' : '';
     ?>
     <?php if (isset($_GET['changed'])): ?>
         <div class="alert alert-success" role="status">Password changed. Any other device signed in to this account has been logged out.</div>
@@ -713,18 +717,18 @@ include APP_ROOT . '/includes/header.php';
                 <input type="email" name="username" value="<?= e($user['email']) ?>" autocomplete="username" hidden>
                 <div class="form-group">
                     <label for="current_password">Current password <span class="req" aria-hidden="true">*</span></label>
-                    <input type="password" id="current_password" name="current_password" required autocomplete="current-password"<?= $inv('current_password') ?>>
+                    <input type="password" id="current_password" name="current_password" required autocomplete="current-password" aria-describedby="current_password-error"<?= $inv('current_password') ?>>
                     <?= $err('current_password') ?>
                 </div>
                 <div class="form-group">
                     <label for="new_password">New password <span class="req" aria-hidden="true">*</span></label>
-                    <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password"<?= $inv('new_password') ?>>
-                    <span class="form-hint">At least <?= PASSWORD_MIN ?> characters.</span>
+                    <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" aria-describedby="new_password-hint new_password-error"<?= $inv('new_password') ?>>
+                    <span class="form-hint" id="new_password-hint">At least <?= PASSWORD_MIN ?> characters.</span>
                     <?= $err('new_password') ?>
                 </div>
                 <div class="form-group">
                     <label for="new_password_confirm">Confirm new password <span class="req" aria-hidden="true">*</span></label>
-                    <input type="password" id="new_password_confirm" name="new_password_confirm" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-match="new_password"<?= $inv('new_password_confirm') ?>>
+                    <input type="password" id="new_password_confirm" name="new_password_confirm" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-match="new_password" aria-describedby="new_password_confirm-error"<?= $inv('new_password_confirm') ?>>
                     <?= $err('new_password_confirm') ?>
                 </div>
                 <button type="submit" class="btn btn-primary">Change password</button>

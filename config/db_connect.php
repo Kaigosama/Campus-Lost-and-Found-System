@@ -119,10 +119,10 @@ function item_url(string $type, int $id): string
     return url('/view_item.php?type=' . $type . '&id=' . $id);
 }
 
-/** "active" when the current script is $path and $when holds. */
+/** ' aria-current="page"' when the current script is $path and $when holds (styled in CSS by that attribute). */
 function is_active(string $path, bool $when = true): string
 {
-    return $when && ($_SERVER['SCRIPT_NAME'] ?? '') === url($path) ? 'active' : '';
+    return $when && ($_SERVER['SCRIPT_NAME'] ?? '') === url($path) ? ' aria-current="page"' : '';
 }
 
 /** Current URL with some query parameters replaced. */
@@ -228,7 +228,7 @@ function item_card(array $item): string
     $href = item_url('found', $item['item_id']);
     ob_start(); ?>
 <article class="item-card">
-    <a class="item-card-photo" href="<?= e($href) ?>"><?= photo_tag($item['image_url'], $item['item_name']) ?></a>
+    <div class="item-card-photo"><?= photo_tag($item['image_url'], $item['item_name']) ?></div>
     <div class="item-card-body">
         <span class="item-card-category"><?= e($item['category']) ?></span>
         <h3 class="item-card-title"><a href="<?= e($href) ?>"><?= e($item['item_name']) ?></a></h3>
@@ -240,7 +240,7 @@ function item_card(array $item): string
     </div>
     <div class="item-card-footer">
         <?= status_badge($item['status']) ?>
-        <a class="btn btn-outline btn-sm" href="<?= e($href) ?>">View details</a>
+        <span class="btn btn-outline btn-sm" aria-hidden="true">View details</span>
     </div>
 </article>
 <?php
@@ -281,7 +281,7 @@ function pill_tabs(array $tabs, array $counts, string $current, string $param): 
 {
     $html = '<nav class="pill-tabs" aria-label="Filter">';
     foreach ($tabs as $key => $label) {
-        $active = $current === $key ? ' class="active"' : '';
+        $active = $current === $key ? ' aria-current="page"' : '';
         $count  = isset($counts[$key]) ? ' <span class="count">' . $counts[$key] . '</span>' : '';
         $html  .= '<a href="' . e(url_with([$param => $key === '' ? null : $key, 'page' => null])) . '"' . $active . '>' . e($label) . $count . '</a>';
     }

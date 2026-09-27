@@ -67,24 +67,25 @@ include APP_ROOT . '/includes/header.php';
         <label for="q">Keyword</label>
         <input type="search" id="q" name="q" value="<?= e($q) ?>" placeholder="Item, description, location…">
     </div>
-    <div class="form-group">
+    <div class="form-group filter-extra">
         <label for="status">Status</label>
         <select id="status" name="status"><option value="">Any</option><?= options(LOST_STATUSES, $status) ?></select>
     </div>
-    <div class="form-group">
+    <div class="form-group filter-extra">
         <label for="category">Category</label>
         <select id="category" name="category"><option value="">Any</option><?= options(CATEGORIES, $category, false) ?></select>
     </div>
-    <div class="form-group">
+    <div class="form-group filter-extra">
         <label for="from">Lost from</label>
         <input type="date" id="from" name="from" value="<?= e($from) ?>">
     </div>
-    <div class="form-group">
+    <div class="form-group filter-extra">
         <label for="to">Lost to</label>
         <input type="date" id="to" name="to" value="<?= e($to) ?>">
     </div>
     <button type="submit" class="btn btn-primary">Filter</button>
     <a class="btn btn-secondary" href="<?= e(url('/browse.php?type=lost')) ?>">Reset</a>
+    <button type="button" class="btn btn-ghost filter-toggle" aria-expanded="true" data-filter-toggle hidden>More filters</button>
 </form>
 
 <p class="result-count"><?= count($rows) ?> report<?= count($rows) === 1 ? '' : 's' ?> found</p>
@@ -135,10 +136,11 @@ include APP_ROOT . '/includes/header.php';
         <input type="hidden" name="manage" value="1">
         <?php if ($status): ?><input type="hidden" name="status" value="<?= e($status) ?>"><?php endif; ?>
         <label for="category" class="sr-only">Category</label>
-        <select id="category" name="category" class="inline-select" onchange="this.form.submit()">
+        <select id="category" name="category" class="inline-select">
             <option value="">All categories</option>
             <?= options(CATEGORIES, $category, false) ?>
         </select>
+        <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
     </form>
     <span class="text-sm text-muted">Showing <span data-filter-count="#itemsTable"><?= count($rows) ?></span></span>
 </div>
@@ -165,12 +167,13 @@ include APP_ROOT . '/includes/header.php';
                     <?php else: ?><span class="text-muted">—</span><?php endif; ?>
                 </td>
                 <td>
-                    <form method="post" action="<?= e(url('/browse.php?manage=1')) ?>" data-api="update_status" data-type="found" data-confirm="Change this item's status?">
+                    <form method="post" action="<?= e(url('/browse.php?manage=1')) ?>" class="inline-form" data-api="update_status" data-type="found" data-confirm="Change this item's status?">
                         <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
-                        <label for="status-<?= $item['item_id'] ?>" class="sr-only">Status</label>
-                        <select id="status-<?= $item['item_id'] ?>" name="status" class="inline-select" onchange="this.form.requestSubmit()">
+                        <label for="status-<?= $item['item_id'] ?>" class="sr-only">Status of <?= e($item['item_name']) ?></label>
+                        <select id="status-<?= $item['item_id'] ?>" name="status" class="inline-select">
                             <?= options(FOUND_STATUSES, $item['status']) ?>
                         </select>
+                        <button type="submit" class="btn btn-secondary btn-sm">Save<span class="sr-only"> status of <?= e($item['item_name']) ?></span></button>
                     </form>
                 </td>
                 <td class="actions"><a class="btn btn-outline btn-sm" href="<?= e(url('/report.php?type=found&id=' . $item['item_id'])) ?>">Edit</a></td>
@@ -205,20 +208,21 @@ include APP_ROOT . '/includes/header.php';
         <label for="q">Search</label>
         <input type="search" id="q" name="q" value="<?= e($q) ?>" placeholder="e.g. calculator, blue bag, ID…" autocomplete="off">
     </div>
-    <div class="form-group">
+    <div class="form-group filter-extra">
         <label for="category">Category</label>
         <select id="category" name="category"><option value="">All categories</option><?= options(CATEGORIES, $category, false) ?></select>
     </div>
-    <div class="form-group">
+    <div class="form-group filter-extra">
         <label for="from">Found since</label>
         <input type="date" id="from" name="from" value="<?= e($from) ?>">
     </div>
-    <div class="form-group">
+    <div class="form-group filter-extra">
         <label for="sort">Sort</label>
         <select id="sort" name="sort"><?= options(['newest' => 'Newest first', 'oldest' => 'Oldest first'], $sort) ?></select>
     </div>
     <button type="submit" class="btn btn-primary">Search</button>
     <a class="btn btn-secondary" href="<?= e(url('/browse.php')) ?>">Reset</a>
+    <button type="button" class="btn btn-ghost filter-toggle" aria-expanded="true" data-filter-toggle hidden>More filters</button>
 </form>
 
 <p class="result-count" data-live-count aria-live="polite">

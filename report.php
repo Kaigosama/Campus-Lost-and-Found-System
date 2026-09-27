@@ -155,7 +155,7 @@ include APP_ROOT . '/includes/header.php';
     <aside>
         <div class="card card-muted">
             <h3>Intake checklist</h3>
-            <ol class="text-sm" style="padding-left:1.2rem;margin:0">
+            <ol class="text-sm list-plain">
                 <li>Tag the item with the ID shown after saving.</li>
                 <li>Photograph it without exposing private details.</li>
                 <li>Note distinguishing marks in the staff-only box.</li>
@@ -252,7 +252,7 @@ include APP_ROOT . '/includes/header.php';
             <h3>Before you submit</h3>
             <p class="text-sm">Check <a href="<?= e(url('/browse.php')) ?>">found items</a> first — your item may already be in storage.</p>
             <h3 class="mt-2">What happens next</h3>
-            <ol class="text-sm" style="padding-left:1.2rem;margin:0">
+            <ol class="text-sm list-plain">
                 <li>Your report is saved with status <?= status_badge('open') ?>.</li>
                 <li>Staff compare new intake items against open reports.</li>
                 <li>If a match is found you'll see it on your dashboard and can submit a claim.</li>

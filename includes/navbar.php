@@ -17,14 +17,14 @@ $navType = $type ?? '';
 
         <nav class="nav" id="main-nav" aria-label="Main navigation">
             <?php if (!$navUser): ?>
-                <a href="<?= e(url('/')) ?>" class="<?= is_active('/index.php') ?>">Home</a>
-                <a href="<?= e(url('/browse.php')) ?>" class="<?= is_active('/browse.php', $navType !== 'lost') ?>">Found Items</a>
-                <a href="<?= e(url('/#account')) ?>">Log in</a>
-                <a href="<?= e(url('/#account')) ?>" class="btn btn-accent btn-sm nav-cta">Register</a>
+                <a href="<?= e(url('/')) ?>"<?= is_active('/index.php') ?>>Home</a>
+                <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php', $navType !== 'lost') ?>>Found Items</a>
+                <a href="<?= e(url('/#login')) ?>">Log in</a>
+                <a href="<?= e(url('/#register')) ?>" class="btn btn-accent btn-sm nav-cta">Register</a>
             <?php else: ?>
-                <a href="<?= e(url('/')) ?>" class="<?= is_active('/index.php') ?>">Dashboard</a>
-                <a href="<?= e(url('/browse.php')) ?>" class="<?= is_active('/browse.php', $navType !== 'lost') ?>">Found Items</a>
-                <a href="<?= e(url('/report.php')) ?>" class="<?= is_active('/report.php', $navType !== 'found') ?>">Report Lost</a>
+                <a href="<?= e(url('/')) ?>"<?= is_active('/index.php') ?>>Dashboard</a>
+                <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php', $navType !== 'lost') ?>>Found Items</a>
+                <a href="<?= e(url('/report.php')) ?>"<?= is_active('/report.php', $navType !== 'found') ?>>Report Lost</a>
 
                 <details class="nav-group">
                     <summary>My Activity</summary>

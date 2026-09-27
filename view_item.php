@@ -53,7 +53,7 @@ include APP_ROOT . '/includes/header.php';
     <?php if ($isOwner && $report['status'] === 'open'): ?>
         <div class="btn-row" data-remove>
             <a class="btn btn-outline" href="<?= e(url('/report.php?type=lost&id=' . $report['report_id'])) ?>">Edit</a>
-            <form method="post" action="<?= e(item_url('lost', $report['report_id'])) ?>" data-api="update_status" data-type="lost" data-done="remove" data-confirm="Close this report? Do this if you found the item or no longer need help." style="display:inline">
+            <form method="post" action="<?= e(item_url('lost', $report['report_id'])) ?>" data-api="update_status" data-type="lost" data-done="remove" data-confirm="Close this report? Do this if you found the item or no longer need help." class="inline-form">
                 <input type="hidden" name="id" value="<?= $report['report_id'] ?>">
                 <input type="hidden" name="status" value="closed">
                 <button type="submit" class="btn btn-secondary">Mark as found / close</button>
@@ -83,7 +83,7 @@ include APP_ROOT . '/includes/header.php';
             </div>
             <hr>
             <h3>Description</h3>
-            <p class="mb-0" style="white-space:pre-line"><?= e($report['description']) ?></p>
+            <p class="mb-0 pre-line"><?= e($report['description']) ?></p>
         </div>
 
         <?php if ($linkedClaims): ?>
@@ -186,7 +186,7 @@ include APP_ROOT . '/includes/header.php';
             </div>
             <hr>
             <h3>Description</h3>
-            <p class="mb-0" style="white-space:pre-line"><?= e($item['description']) ?></p>
+            <p class="mb-0 pre-line"><?= e($item['description']) ?></p>
         </div>
 
         <?php if (is_staff()): ?>
@@ -371,7 +371,7 @@ include APP_ROOT . '/includes/header.php';
         <?php if (!$myClaim): ?>
         <div class="card card-muted mt-2">
             <h3>Tips for a successful claim</h3>
-            <ul class="text-sm" style="padding-left:1.1rem;margin:0">
+            <ul class="text-sm list-plain">
                 <li>Mention contents, scratches, stickers, engravings.</li>
                 <li>Include brand and model if you know them.</li>
                 <li>Link your lost report if you filed one.</li>

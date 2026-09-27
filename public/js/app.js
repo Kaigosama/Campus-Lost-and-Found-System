@@ -7,6 +7,8 @@
  *     data-done="notify|replace|remove"  what to do with the form after success (default: notify)
  *   [data-status-for="found-3"]        badge that is updated in place after a status change
  *   form[data-live-search]             found-items search: results are fetched from api/get_items.php as you type
+ *   [data-filter-toggle]               "More filters" button that collapses .filter-extra groups on phones
+ *   .form-group .form-hint / errors    linked to their field with aria-describedby
  *   [data-next-holiday]                filled with the next office closure from the public-holiday API
  *   input[type=file][data-preview]     image preview
  *   [data-table-filter]                quick text filter for a table
@@ -17,6 +19,7 @@
     var MAX_IMAGE_BYTES = 5 * 1024 * 1024;
     var BASE = document.documentElement.getAttribute('data-base') || '';
     var STATUS_LABELS = (window.CLAFS && window.CLAFS.statusLabels) || {};
+    var REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     function escapeHtml(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
@@ -75,12 +78,25 @@
         var node = alertNode(type, message);
         node.classList.add(className);
         container.insertBefore(node, container.firstChild);
-        node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        node.scrollIntoView({ behavior: REDUCED_MOTION ? 'auto' : 'smooth', block: 'nearest' });
     }
     function notify(type, message) { alertIn(document.getElementById('main'), type, message, 'js-flash'); }
     function formAlert(form, type, message) { alertIn(form, type, message, 'form-alert'); }
 
     function groupOf(field) { return field.closest('.form-group') || field.parentElement; }
+
+    // Add an id to a field's aria-describedby so screen readers read that hint or error on focus.
+    function describeBy(field, node, suffix) {
+        if (!node.id) node.id = (field.id || field.name) + '-' + suffix;
+        var ids = (field.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+        if (ids.indexOf(node.id) === -1) field.setAttribute('aria-describedby', ids.concat(node.id).join(' '));
+    }
+
+    // Link every static hint (e.g. "JPG, PNG or WEBP…") to the field in its group.
+    document.querySelectorAll('.form-group span.form-hint').forEach(function (hint) {
+        var field = groupOf(hint).querySelector('input:not([type="hidden"]), select, textarea');
+        if (field) describeBy(field, hint, 'hint');
+    });
 
     function setError(field, message) {
         var group = groupOf(field);
@@ -91,6 +107,7 @@
             node.setAttribute('aria-live', 'polite');
             group.appendChild(node);
         }
+        describeBy(field, node, 'error');
         node.textContent = message;
         field.classList.add('is-invalid');
         field.setAttribute('aria-invalid', 'true');
@@ -310,7 +327,7 @@
             var desc = String(item.description || '').replace(/\s+/g, ' ').trim();
             if (desc.length > 110) desc = desc.slice(0, 109) + '…';
             return '<article class="item-card">'
-                + '<a class="item-card-photo" href="' + escapeHtml(href) + '">' + photo + '</a>'
+                + '<div class="item-card-photo">' + photo + '</div>'
                 + '<div class="item-card-body">'
                 + '<span class="item-card-category">' + escapeHtml(item.category) + '</span>'
                 + '<h3 class="item-card-title"><a href="' + escapeHtml(href) + '">' + escapeHtml(item.item_name) + '</a></h3>'
@@ -319,7 +336,7 @@
                 + '<div><dt>Where</dt><dd>' + escapeHtml(item.location_found) + '</dd></div></dl>'
                 + '</div>'
                 + '<div class="item-card-footer"><span class="badge badge-' + escapeHtml(item.status) + '">' + escapeHtml(STATUS_LABELS[item.status] || item.status) + '</span>'
-                + '<a class="btn btn-outline btn-sm" href="' + escapeHtml(href) + '">View details</a></div>'
+                + '<span class="btn btn-outline btn-sm" aria-hidden="true">View details</span></div>'
                 + '</article>';
         }
 
@@ -358,6 +375,27 @@
         liveForm.addEventListener('change', function () { clearTimeout(liveTimer); runSearch(); });
         liveForm.addEventListener('submit', function (event) { event.preventDefault(); clearTimeout(liveTimer); runSearch(); });
     }
+
+    /* ---- "More filters" toggle: on phones, hide the secondary filters unless one is in use ---- */
+    document.querySelectorAll('[data-filter-toggle]').forEach(function (button) {
+        var bar = button.closest('.filter-bar');
+        var extras = bar.querySelectorAll('.filter-extra');
+        if (!extras.length) return;
+        extras.forEach(function (group, i) { group.id = group.id || 'filter-extra-' + i; });
+        button.setAttribute('aria-controls', Array.prototype.map.call(extras, function (g) { return g.id; }).join(' '));
+
+        var inUse = Array.prototype.some.call(bar.querySelectorAll('.filter-extra input, .filter-extra select'), function (f) {
+            return f.value !== '' && !(f.name === 'sort' && f.value === 'newest');
+        });
+        function set(open) {
+            bar.classList.toggle('is-collapsed', !open);
+            button.setAttribute('aria-expanded', open ? 'true' : 'false');
+            button.textContent = open ? 'Fewer filters' : 'More filters';
+        }
+        set(inUse);
+        button.hidden = false;
+        button.addEventListener('click', function () { set(bar.classList.contains('is-collapsed')); });
+    });
 
     /* ---- Next office closure (external public-holiday API) ---- */
     var holidayNodes = document.querySelectorAll('[data-next-holiday]');
