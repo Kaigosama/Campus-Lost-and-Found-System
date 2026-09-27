@@ -25,7 +25,7 @@ if ($type === 'found') {
     $rows = search_rows(array_values(all_found_items()), $q, ['status' => $status, 'category' => $category]);
     $dateColumn = 'date_found';
     if (!is_staff()) {
-        $rows = array_map(fn ($i) => array_diff_key($i, ['storage_location' => 1, 'private_details' => 1]), $rows);
+        $rows = array_map(fn ($i) => array_diff_key($i, ['user_id' => 1, 'storage_location' => 1, 'private_details' => 1]), $rows);
     }
 } else {
     if (!is_logged_in()) {

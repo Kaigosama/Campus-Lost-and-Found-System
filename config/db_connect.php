@@ -109,9 +109,13 @@ function url(string $path = '/'): string
     return BASE_URL . '/' . ltrim($path, '/');
 }
 
+/** CSS and JS get ?v=<mtime> so browsers fetch the new file after a deploy instead of a cached copy. */
 function asset(string $path): string
 {
-    return url('/public/' . ltrim($path, '/'));
+    $path = ltrim($path, '/');
+    $file = APP_ROOT . '/public/' . $path;
+    $version = preg_match('/\.(css|js)$/', $path) && is_file($file) ? '?v=' . filemtime($file) : '';
+    return url('/public/' . $path) . $version;
 }
 
 function item_url(string $type, int $id): string

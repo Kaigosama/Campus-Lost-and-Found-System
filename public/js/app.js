@@ -18,7 +18,8 @@
     var IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
     var MAX_IMAGE_BYTES = 5 * 1024 * 1024;
     var BASE = document.documentElement.getAttribute('data-base') || '';
-    var STATUS_LABELS = (window.CLAFS && window.CLAFS.statusLabels) || {};
+    var CONFIG_NODE = document.getElementById('clafs-config');   // JSON data block from footer.php (CSP forbids inline scripts)
+    var STATUS_LABELS = (CONFIG_NODE && JSON.parse(CONFIG_NODE.textContent).statusLabels) || {};
     var REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     function escapeHtml(value) {
@@ -503,5 +504,10 @@
         }
         input.addEventListener('input', apply);
         apply();
+    });
+
+    /* ---- Bar widths (CSP blocks inline style attributes) ---- */
+    document.querySelectorAll('[data-width]').forEach(function (bar) {
+        bar.style.width = bar.dataset.width + '%';
     });
 })();
