@@ -15,12 +15,21 @@ if (is_logged_in()) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $found = find_user_by_email($_POST['email'] ?? '');
-    if (!$found || !password_verify((string) ($_POST['password'] ?? ''), $found['password_hash'])) {
+    // Failed tries are counted per email (stops guessing one account) and per IP (stops trying many accounts).
+    $emailBucket = 'login-email:' . mb_strtolower(trim((string) ($_POST['email'] ?? '')));
+    $ipBucket    = 'login-ip:' . client_ip();
+    $found       = null;
+    if (rate_limited($emailBucket, LOGIN_MAX_PER_EMAIL) || rate_limited($ipBucket, LOGIN_MAX_PER_IP)) {
+        http_response_code(429);
+        $error = 'Too many failed log-in attempts. Try again in ' . LIMIT_WINDOW_MINUTES . ' minutes.';
+    } elseif (!($found = find_user_by_email($_POST['email'] ?? '')) || !password_verify((string) ($_POST['password'] ?? ''), $found['password_hash'])) {
+        record_attempt($emailBucket);
+        record_attempt($ipBucket);
         $error = 'Incorrect email or password.';
     } elseif (!$found['is_active']) {
         $error = 'This account has been deactivated. Contact the Lost & Found office.';
     } else {
+        clear_attempts($emailBucket);
         login_user($found, !empty($_POST['remember']));
         header('Location: ' . safe_redirect($next));
         exit;

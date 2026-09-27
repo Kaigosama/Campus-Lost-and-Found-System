@@ -14,9 +14,15 @@ if (is_logged_in()) {
 $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
+    $ipBucket = 'reset-ip:' . client_ip();
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors['email'] = 'Enter a valid email address.';
+    } elseif (rate_limited($ipBucket, RESET_MAX_PER_IP)) {
+        // Per IP, so it says nothing about whether the email has an account.
+        http_response_code(429);
+        $errors['email'] = 'Too many reset requests. Try again in ' . LIMIT_WINDOW_MINUTES . ' minutes.';
     } else {
+        record_attempt($ipBucket);
         request_password_reset($email);
         header('Location: ' . url('/forgot_password.php?sent=1'));
         exit;
