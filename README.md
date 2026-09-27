@@ -1,292 +1,142 @@
-# Group 4: Campus Lost-and-Found System
+# Campus Lost-and-Found System
 
-ITS122P - AM2
-Group Members:
+A web app that replaces Mapua University's paper lost-and-found logbook.
+
+CLAFS lets students and faculty browse items turned in to the Lost & Found office, report what they lost, and
+claim their belongings online. Staff log found items and verify ownership claims, and administrators manage
+accounts. Built by ITS122P AM2 Group 4 with PHP, MySQL, and plain HTML, CSS and JavaScript.
+
+## Table of Contents
+
+- [Background](#background)
+- [Install](#install)
+- [Usage](#usage)
+- [Deployment](#deployment)
+- [API](#api)
+- [Maintainers](#maintainers)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Background
+
+Mapua University records lost items in a paper logbook. A turned-in item is written down and put in a drawer,
+and a student who loses something has to visit the office in person to describe it or look through the
+display case. CLAFS moves that process online.
+
+| Role | Who | Can do |
+|---|---|---|
+| Student / Faculty | anyone who registers | Browse found items, report lost items, claim items |
+| Security & Maintenance | assigned by an admin | Everything above, plus log found items and review claims |
+| Office Administrator | assigned by an admin | Everything above, plus manage users and view statistics |
+
+The database design is in [docs/erd.html](docs/erd.html) and [docs/schema.sql](docs/schema.sql).
+
+## Install
+
+### With Docker (recommended)
+
+Needs [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+```bash
+docker compose up --build
+```
+
+Open <http://localhost:8080>. The database is created and filled with sample data on the first start.
+
+To wipe all data and start fresh:
+
+```bash
+docker compose down -v
+```
+
+### With XAMPP
+
+1. Start MySQL in the XAMPP Control Panel, then create the database (PowerShell):
+
+   ```powershell
+   Get-Content docs/schema.sql -Raw | C:\xampp\mysql\bin\mysql.exe -u root
+   ```
+
+2. Start the site and open <http://localhost:8000>:
+
+   ```bash
+   C:\xampp\php\php.exe -S localhost:8000 -t .
+   ```
+
+If your MySQL user isn't `root` with no password, create `config/db_connect.local.php`:
+
+```php
+<?php
+define('DB_PASS', 'your-password');
+```
+
+## Usage
+
+Log in with a sample account. The password for each is `password123`.
+
+| Email | Role |
+|---|---|
+| `admin@mapua.edu.ph` | Office Administrator |
+| `staff@mapua.edu.ph` | Security & Maintenance |
+| `student1@mymail.mapua.edu.ph` | Student / Faculty |
+
+New accounts can register with a `@mymail.mapua.edu.ph` or `@mapua.edu.ph` email.
+
+- **Change password:** My Activity → Account & Password.
+- **Forgot password:** use the link on the login card. On your own computer the reset email isn't sent. It
+  appears in the server log instead (the `php -S` window, or `docker compose logs app`).
+
+## Deployment
+
+The site deploys to [Railway](https://railway.com) from this repository.
+
+1. In Railway, create a project with **Deploy from GitHub repo** and choose this repo.
+2. Add a database: **+ Create → Database → MySQL**.
+3. On the app service, open **Variables** and add:
+
+   | Variable | Value |
+   |---|---|
+   | `MYSQL_URL` | `${{MySQL.MYSQL_URL}}` |
+   | `SEED_PASSWORD` | a private password for the sample accounts, replacing `password123` |
+   | `BREVO_API_KEY` | API key from [Brevo](https://www.brevo.com), for password-reset emails |
+   | `MAIL_FROM` | a sender address you verified in Brevo |
+
+4. Right-click the app service → **Attach volume**, mount path `/var/www/html/public/uploads`, so uploaded
+   photos survive redeploys.
+5. **Settings → Networking → Generate Domain** gives you the public link.
+
+Every push to `main` redeploys the site, and the data is kept. After the first deploy, log in with your
+`SEED_PASSWORD` and change the sample accounts' passwords.
+
+## API
+
+The pages call JSON endpoints in [`api/`](api/) through [`public/js/api.js`](public/js/api.js).
+
+| Endpoint | Purpose |
+|---|---|
+| `GET api/get_items.php` | List found items or lost reports (search and filters) |
+| `POST api/add_item.php` | Add a found item or lost report, with an optional photo |
+| `POST api/update_item.php` | Edit a found item or lost report |
+| `POST api/update_status.php` | Change a status, or match a report to an item |
+| `POST api/claims.php` | Submit, approve, reject or withdraw a claim |
+| `POST api/update_user.php` | Admin: change a user's role or deactivate an account |
+
+Full details: [docs/Group4_API_Documentation.pdf](docs/Group4_API_Documentation.pdf).
+
+## Maintainers
+
+ITS122P AM2 Group 4:
 
 - Samuela Ysebelle Adame
 - Kervin Del Rosario
 - Mariah Kate Guiang
 - Kendrick Sebastian
 
-## Problem Statement
+## Contributing
 
-Mapua University utilizes a manual and traditional paper and pen logbook for
-lost items. An item is turned in to the lost and found office. Written into a
-logbook and shoved in a drawer. A student who loses something must physically
-visit the office and describe the item or look at the displayed casing.
+This is a class project, so pull requests are only accepted from group members. For questions or bug
+reports, [open an issue](https://github.com/Kaigosama/Campus-Lost-and-Found-System/issues).
 
-## Target Users
+## License
 
-- Students and Faculty
-- Security and Maintenance staff
-- Office Administrators
-
-## Proposed Features
-
-- Secure user registration and role-based access
-- List item reporting form
-- Found item intake logging with physical storage tracking
-- Ownership verification
-
-## User Roles
-
-| Role (DB value) | Label in the app         | Can do                                                        |
-|-----------------|--------------------------|---------------------------------------------------------------|
-| `user`          | Student / Faculty        | Browse found items, file lost reports, submit ownership claims|
-| `staff`         | Security & Maintenance   | Everything above + log found items, review claims, hand over  |
-| `admin`         | Office Administrator     | Everything above + manage users and roles, view statistics    |
-
-New registrations always start as **Student / Faculty**; an administrator promotes accounts.
-
-## System Architecture
-
-- Responsive Web UI
-- User Authentication
-- Relational Database
-
-## Tech Stack
-
-- Frontend: Blade templates and Tailwind CSS
-- Backend: PHP with the Laravel Framework
-- Database: MySQL
-
-## Project Structure
-
-```text
-CLAFS/
-├── api/                    # JSON endpoints called from public/js/api.js
-│   ├── get_items.php       # GET  list found items / lost reports (filters, sort, role-aware fields) — powers the live search
-│   ├── add_item.php        # POST validate + insert a found item or lost report; multipart "photo" saved to public/uploads
-│   ├── update_item.php     # POST edit a found item / lost report (optionally replace the photo)
-│   ├── update_status.php   # POST change a found item's / lost report's status; match a report to an item
-│   ├── claims.php          # POST create / review (approve, reject) / withdraw an ownership claim
-│   └── update_user.php     # POST admin: change a user's role, deactivate / reactivate
-├── config/
-│   └── db_connect.php      # App core: constants, PDO connection, helpers, session auth, data layer
-│   └── db_connect.local.php  (git-ignored) per-machine DB_* overrides
-├── docker/                 # container setup (not web-accessible)
-│   ├── entrypoint.sh       # binds Apache to $PORT, prepares uploads, runs init-db.php
-│   ├── init-db.php         # waits for MySQL; loads schema.sql into an empty database only
-│   ├── apache.conf         # denies config/, includes/, docker/ and script execution in uploads
-│   └── php.ini             # upload limits, production error handling
-├── Dockerfile              # PHP 8.3 + Apache image (used by Docker Compose and Railway)
-├── docker-compose.yml      # local stack: app on :8080 + MySQL 8
-├── railway.json            # Railway build/deploy settings
-├── docs/
-│   ├── API_Documentation.docx  # Phase 3 API notes: APIs used, purpose, endpoints, data, integration
-│   ├── schema.sql          # MySQL tables (ERD) + UI-required additions + seed rows
-│   └── erd.html            # Mermaid.js ERD
-├── includes/
-│   ├── header.php          # <head>, opens <main>, flash message
-│   ├── navbar.php          # role-aware navigation
-│   └── footer.php          # footer, scripts
-├── public/
-│   ├── css/styles.css
-│   ├── js/app.js           # nav, validation, image preview, table filter, live search, API-backed forms, holiday widget
-│   ├── js/api.js           # fetch() wrappers for api/ and for the Nager.Date public-holiday API
-│   ├── images/             # static icons and logos
-│   └── uploads/            # user-uploaded item photos (git-ignored)
-├── index.php               # Homepage + login/register (guests) · tabbed dashboard (users, staff, admin) · account/password
-├── forgot_password.php     # "Forgot password?" — emails a reset link
-├── reset_password.php      # Opened from the emailed link; sets a new password
-├── report.php              # Report a lost item / log a found item; ?id= edits
-├── browse.php              # Found items (public) · ?type=lost lost reports (staff) · ?manage=1 inventory (staff)
-└── view_item.php           # Item / report detail, ownership claims, staff review and hand-over
-```
-
-### Running locally
-
-1. Create the database (drops and recreates the tables, then seeds test rows). Make sure MySQL is
-   started in the XAMPP Control Panel first.
-
-   PowerShell (the default terminal in VS Code — `<` does not work there, so pipe the file in):
-
-   ```powershell
-   Get-Content docs/schema.sql -Raw | C:\xampp\mysql\bin\mysql.exe -u root
-   ```
-
-   Command Prompt or Git Bash:
-
-   ```bash
-   C:\xampp\mysql\bin\mysql.exe -u root < docs/schema.sql
-   ```
-
-2. If your MySQL is not `root` with no password on `127.0.0.1:3306`, create `config/db_connect.local.php`:
-
-   ```php
-   <?php
-   define('DB_PASS', 'your-password');   // any of DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
-   ```
-
-3. Start the server and open <http://localhost:8000>:
-
-   ```bash
-   C:\xampp\php\php.exe -S localhost:8000 -t .
-   ```
-
-Seeded accounts (password for all: `password123`):
-
-| Email                          | Role                   |
-|--------------------------------|------------------------|
-| `admin@mapua.edu.ph`           | Office Administrator   |
-| `staff@mapua.edu.ph`           | Security & Maintenance |
-| `student1@mymail.mapua.edu.ph` | Student / Faculty      |
-
-Registration is open to `@mymail.mapua.edu.ph` and `@mapua.edu.ph` addresses.
-
-**Forgot-password emails, locally.** With no email settings, the reset email is written to the PHP error log
-instead of being sent: the `php -S` terminal window, or `docker compose logs app` for Docker. Copy the link from
-there to test the flow. To send real emails, see [Password-reset emails](#password-reset-emails); on XAMPP put the
-settings in `config/db_connect.local.php`, e.g. `define('BREVO_API_KEY', '…');`.
-
-### Running with Docker
-
-Needs Docker Desktop. XAMPP isn't used, and both can run at the same time.
-
-```bash
-docker compose up --build
-```
-
-Open <http://localhost:8080>. On first start the app creates the tables and seed rows from
-`docs/schema.sql`; later starts leave the data alone. Uploaded photos and the database live in Docker
-volumes, so they survive restarts. MySQL is also reachable at `127.0.0.1:3307` (user `clafs`, password
-`clafs`) for Workbench. `docker compose down` stops the app; `docker compose down -v` also wipes the
-database and uploads, so the next start reseeds.
-
-### Deploying to Railway
-
-The same `Dockerfile` runs on Railway (`railway.json` selects it and health-checks `/`).
-
-1. Push this repository to GitHub.
-2. In Railway: **New Project → Deploy from GitHub repo** → pick the repo. This creates the app service.
-3. In the same project: **+ Create → Database → MySQL**.
-4. App service → **Variables** → add:
-   - `MYSQL_URL` = `${{MySQL.MYSQL_URL}}` (a reference to the MySQL service; use its actual name if you renamed it)
-   - `SEED_PASSWORD` = a password of your choice. The seeded accounts get this password instead of the
-     public `password123`, so they're never open to anyone who has read this README. It only applies when the
-     database is first seeded.
-   - `BREVO_API_KEY` and `MAIL_FROM` for password-reset emails (see [Password-reset emails](#password-reset-emails)).
-5. App service → **Settings → Volumes** (or right-click the service → *Attach volume*) → mount path
-   `/var/www/html/public/uploads`. Without it, uploaded photos disappear on every redeploy.
-6. App service → **Settings → Networking → Generate Domain**. Railway serves it over HTTPS.
-
-On first boot the app waits for MySQL and seeds the empty `railway` database; the deploy log shows
-`[init-db] Schema and seed data loaded.` Every later push redeploys without touching the data.
-
-Sign in with the seeded emails and your `SEED_PASSWORD`, then give each account its own password under
-**My Activity → Account & Password**. Before sharing the link, the admin may want to deactivate the sample
-student accounts.
-
-**Configuration.** Outside XAMPP the app reads its database settings from the environment: either
-`MYSQL_URL` / `DATABASE_URL` (`mysql://user:pass@host:port/name`) or `DB_HOST`, `DB_PORT`, `DB_NAME`,
-`DB_USER` and `DB_PASS`. The individual variables override the URL, and `config/db_connect.local.php`
-overrides both.
-
-### Password-reset emails
-
-"Forgot password?" on the login card emails a link that sets a new password. The link works once and
-expires after 60 minutes. The site sends email through [Brevo](https://www.brevo.com)'s HTTPS API, because
-Railway blocks ordinary SMTP email on its Free, Trial and Hobby plans. Brevo's free plan sends 300 emails a
-day and only needs one verified sender address, not your own domain.
-
-1. Create a free Brevo account.
-2. **Senders, Domains & Dedicated IPs → Senders → Add a sender**: enter the address emails should come from
-   (a group Gmail works) and click the confirmation link Brevo sends to it.
-3. **SMTP & API → API Keys → Generate a new API key**. Copy it; Brevo shows it only once.
-4. Set these variables (Railway: app service → Variables; Docker: a `.env` file copied from `.env.example`):
-
-| Variable | Value |
-|---|---|
-| `BREVO_API_KEY` | the key from step 3 |
-| `MAIL_FROM` | the sender address verified in step 2 |
-| `MAIL_FROM_NAME` | optional, the name shown as sender (default `CLAFS`) |
-| `APP_URL` | optional on Railway, which supplies its domain itself. Set it (e.g. `https://clafs.example.com`) if you add a custom domain. |
-
-Test it by using "Forgot password?" with an account whose inbox you can open. If no email arrives, the app's
-log (Railway: the service's **Deploy Logs**) has a `[mail]` line with Brevo's reason. Emails from a Gmail sender
-can land in spam; verifying a domain you own in Brevo avoids that.
-
-The seeded accounts use made-up inboxes, so they can't receive reset emails. Change their passwords from
-**Account & Password** instead.
-
-### What is wired up
-
-- Login, registration, logout and "keep me logged in" — plain PHP form handling in `index.php`, PHP sessions
-- Changing your password (`index.php?tab=account`); it also signs that account out on every other device
-- Forgot password: an emailed, single-use reset link (`forgot_password.php`, `reset_password.php`) sent through the Brevo email API
-- Creating and editing lost reports and found items with a photo (`api/add_item.php`, `api/update_item.php`)
-- Live search on Found Items — results are fetched from `api/get_items.php` as you type, no reload
-- Changing item / report status and matching a report to an item (`api/update_status.php`)
-- Submitting, approving/rejecting and withdrawing claims, and the hand-over step (`api/claims.php`, `api/update_status.php`)
-- Admin role changes and account deactivation (`api/update_user.php`)
-- Next office closure from the external Nager.Date public-holiday API (landing page and item pickup details)
-- Every page reads from MySQL
-
-The `api/` files are PHP endpoints that return JSON; `public/js/api.js` is the browser client that calls
-them with `fetch()`, and `app.js` updates the page in place from the response. The endpoints accept ordinary
-form fields too, so any page could post to them directly. Full notes: `docs/API_Documentation.docx`.
-
-## ERD
-
-Interactive version: [docs/erd.html](docs/erd.html). Created by [docs/schema.sql](docs/schema.sql).
-
-```mermaid
-erDiagram
-    users {
-        int      user_id     PK
-        varchar  first_name
-        varchar  last_name
-        varchar  email       UK
-        enum     role        "user | staff | admin"
-        datetime created_at
-        datetime updated_at
-    }
-
-    lost_reports {
-        int      report_id      PK
-        int      user_id        FK "reporter"
-        varchar  category
-        text     description
-        varchar  location_lost
-        date     date_lost
-        varchar  image_url
-        enum     status         "open | matched | closed"
-        datetime created_at
-        datetime updated_at
-    }
-
-    found_items {
-        int      item_id           PK
-        int      user_id           FK "staff who logged it"
-        varchar  category
-        text     description
-        varchar  location_found
-        varchar  storage_location
-        date     date_found
-        varchar  image_url
-        enum     status            "stored | returned | disposed"
-        datetime created_at
-        datetime updated_at
-    }
-
-    claims {
-        int      claim_id      PK
-        int      item_id       FK
-        int      user_id       FK "claimant"
-        int      report_id     FK "optional"
-        enum     status        "pending | approved | rejected"
-        date     date_claimed
-        datetime created_at
-        datetime updated_at
-    }
-
-    users        ||--o{ lost_reports : "files"
-    users        ||--o{ found_items  : "logs"
-    users        ||--o{ claims       : "makes"
-    found_items  ||--o{ claims       : "receives"
-    lost_reports |o--o{ claims       : "is linked to"
-```
-
-The front-end also uses a few columns not in the diagram (`item_name`, `matched_item_id`, `private_details`,
-`proof_description`, `review_*`, `is_active`, `password_hash`); they are added in a separate,
-removable section of `schema.sql` until the group decides whether to adopt them into the ERD.
+© 2026 ITS122P AM2 Group 4. All rights reserved.
