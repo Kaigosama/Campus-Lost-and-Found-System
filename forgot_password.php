@@ -44,8 +44,9 @@ include APP_ROOT . '/includes/header.php';
             <div class="form-group">
                 <label for="email">Email <span class="req" aria-hidden="true">*</span></label>
                 <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph"
-                       value="<?= e($_POST['email'] ?? '') ?>"<?= isset($errors['email']) ? ' class="is-invalid"' : '' ?>>
-                <?php if (isset($errors['email'])): ?><span class="form-error"><?= e($errors['email']) ?></span><?php endif; ?>
+                       aria-describedby="email-error"
+                       value="<?= e($_POST['email'] ?? '') ?>"<?= isset($errors['email']) ? ' class="is-invalid" aria-invalid="true"' : '' ?>>
+                <?php if (isset($errors['email'])): ?><span class="form-error" id="email-error"><?= e($errors['email']) ?></span><?php endif; ?>
             </div>
             <button type="submit" class="btn btn-primary btn-block">Send reset link</button>
         </form>

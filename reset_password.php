@@ -29,8 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
-$err = fn (string $key) => isset($errors[$key]) ? '<span class="form-error">' . e($errors[$key]) . '</span>' : '';
-$inv = fn (string $key) => isset($errors[$key]) ? ' class="is-invalid"' : '';
+$err = fn (string $key) => isset($errors[$key]) ? '<span class="form-error" id="' . $key . '-error">' . e($errors[$key]) . '</span>' : '';
+$inv = fn (string $key) => isset($errors[$key]) ? ' class="is-invalid" aria-invalid="true"' : '';
 
 $pageTitle = 'Set a new password';
 include APP_ROOT . '/includes/header.php';
@@ -45,13 +45,13 @@ include APP_ROOT . '/includes/header.php';
             <input type="email" name="username" value="<?= e($resetUser['email']) ?>" autocomplete="username" hidden>
             <div class="form-group">
                 <label for="new_password">New password <span class="req" aria-hidden="true">*</span></label>
-                <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password"<?= $inv('new_password') ?>>
-                <span class="form-hint">At least <?= PASSWORD_MIN ?> characters.</span>
+                <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" aria-describedby="new_password-hint new_password-error"<?= $inv('new_password') ?>>
+                <span class="form-hint" id="new_password-hint">At least <?= PASSWORD_MIN ?> characters.</span>
                 <?= $err('new_password') ?>
             </div>
             <div class="form-group">
                 <label for="new_password_confirm">Confirm new password <span class="req" aria-hidden="true">*</span></label>
-                <input type="password" id="new_password_confirm" name="new_password_confirm" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-match="new_password"<?= $inv('new_password_confirm') ?>>
+                <input type="password" id="new_password_confirm" name="new_password_confirm" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-match="new_password" aria-describedby="new_password_confirm-error"<?= $inv('new_password_confirm') ?>>
                 <?= $err('new_password_confirm') ?>
             </div>
             <button type="submit" class="btn btn-primary btn-block">Save new password</button>
