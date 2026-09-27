@@ -1,0 +1,50 @@
+# Local stack: the app on http://localhost:8080 and its own MySQL 8.
+#   docker compose up --build
+# The database is created and seeded from docs/schema.sql on first start.
+# Reset everything (data and uploads): docker compose down -v
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:80"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: clafs
+      DB_USER: clafs
+      DB_PASS: clafs
+      # Password-reset emails. Put real values in a .env file next to this one (see .env.example);
+      # without BREVO_API_KEY the emails are printed in `docker compose logs app` instead.
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-CLAFS}
+    volumes:
+      - uploads:/var/www/html/public/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: clafs
+      MYSQL_USER: clafs
+      MYSQL_PASSWORD: clafs
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"   # for MySQL Workbench etc.; 3307 so it doesn't clash with XAMPP's 3306
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+volumes:
+  uploads:
+  db-data:

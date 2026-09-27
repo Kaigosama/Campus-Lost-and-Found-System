@@ -1,6 +1,8 @@
 # ---- Local configuration ----
 # Per-machine DB credentials: define() any DB_* constant here; config/db_connect.php applies defaults for the rest.
 config/db_connect.local.php
+# Docker Compose secrets (BREVO_API_KEY, …); .env.example is the template.
+.env
 
 # ---- User uploads ----
 # Item photos are runtime data, not source. Keep the folder's .htaccess (blocks script execution) and .gitkeep.

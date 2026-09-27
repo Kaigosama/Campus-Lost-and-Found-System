@@ -1,0 +1,25 @@
+.git
+.gitignore
+.gitattributes
+.dockerignore
+.claude
+.vscode
+.idea
+Dockerfile
+docker-compose.yml
+railway.json
+
+# Per-machine XAMPP credentials must not override the container's environment.
+config/db_connect.local.php
+.env
+.env.example
+
+# Runtime data lives in a volume, not the image.
+public/uploads/*
+!public/uploads/.gitkeep
+!public/uploads/.htaccess
+
+docs/*.docx
+docs/*.pdf
+*.log
+*.tmp
