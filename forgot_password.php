@@ -50,7 +50,7 @@ include APP_ROOT . '/includes/header.php';
             </div>
             <button type="submit" class="btn btn-primary btn-block">Send reset link</button>
         </form>
-        <p class="text-sm mt-2 mb-0"><a href="<?= e(url('/#account')) ?>">&larr; Back to log in</a></p>
+        <p class="text-sm mt-2 mb-0"><a href="<?= e(url('/login.php')) ?>">&larr; Back to log in</a></p>
     </div>
 </div>
 

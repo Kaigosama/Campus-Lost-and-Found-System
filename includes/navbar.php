@@ -19,8 +19,8 @@ $navType = $type ?? '';
             <?php if (!$navUser): ?>
                 <a href="<?= e(url('/')) ?>"<?= is_active('/index.php') ?>>Home</a>
                 <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php', $navType !== 'lost') ?>>Found Items</a>
-                <a href="<?= e(url('/#login')) ?>">Log in</a>
-                <a href="<?= e(url('/#register')) ?>" class="btn btn-accent btn-sm nav-cta">Register</a>
+                <a href="<?= e(url('/login.php')) ?>"<?= is_active('/login.php') ?>>Log in</a>
+                <a href="<?= e(url('/register.php')) ?>" class="btn btn-accent btn-sm nav-cta"<?= is_active('/register.php') ?>>Register</a>
             <?php else: ?>
                 <a href="<?= e(url('/')) ?>"<?= is_active('/index.php') ?>>Dashboard</a>
                 <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php', $navType !== 'lost') ?>>Found Items</a>

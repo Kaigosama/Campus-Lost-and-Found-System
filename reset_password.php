@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $errors = new_password_errors($_POST);
     if (!$errors) {
         set_password($resetUser, (string) $_POST['new_password']);
-        header('Location: ' . url('/?reset=1#account'));
+        header('Location: ' . url('/login.php?reset=1'));
         exit;
     }
 }

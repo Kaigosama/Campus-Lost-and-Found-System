@@ -309,7 +309,7 @@ include APP_ROOT . '/includes/header.php';
             <div class="card">
                 <h3>Is this yours?</h3>
                 <p class="text-sm">Log in with your Mapua account to submit an ownership claim.</p>
-                <a class="btn btn-primary btn-block" href="<?= e(url('/?next=' . rawurlencode(item_url('found', $item['item_id'])) . '#account')) ?>">Log in to claim</a>
+                <a class="btn btn-primary btn-block" href="<?= e(url('/login.php?next=' . rawurlencode(item_url('found', $item['item_id'])))) ?>">Log in to claim</a>
             </div>
         <?php elseif ($myClaim): ?>
             <div class="card">

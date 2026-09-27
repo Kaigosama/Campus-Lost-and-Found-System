@@ -239,7 +239,7 @@ include APP_ROOT . '/includes/header.php';
     <?= empty_state(
         'No items match your search',
         "Don't see yours? File a lost report so staff can match it when it's turned in.",
-        is_logged_in() ? url('/report.php') : url('/#account'),
+        is_logged_in() ? url('/report.php') : url('/login.php?next=' . rawurlencode(url('/report.php'))),
         is_logged_in() ? 'Report a lost item' : 'Log in to report a lost item'
     ) ?>
 <?php endif; ?>

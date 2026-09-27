@@ -72,7 +72,7 @@ define('DB_PASS', 'your-password');
 
 ## Usage
 
-Log in with a sample account. The password for each is `password123`.
+Log in at `/login.php` with a sample account. The password for each is `password123`.
 
 | Email | Role |
 |---|---|
@@ -80,10 +80,10 @@ Log in with a sample account. The password for each is `password123`.
 | `staff@mapua.edu.ph` | Security & Maintenance |
 | `student1@mymail.mapua.edu.ph` | Student / Faculty |
 
-New accounts can register with a `@mymail.mapua.edu.ph` or `@mapua.edu.ph` email.
+New accounts can register at `/register.php` with a `@mymail.mapua.edu.ph` or `@mapua.edu.ph` email.
 
 - **Change password:** My Activity → Account & Password.
-- **Forgot password:** use the link on the login card. On your own computer the reset email isn't sent. It
+- **Forgot password:** use the link on the login page. On your own computer the reset email isn't sent. It
   appears in the server log instead (the `php -S` window, or `docker compose logs app`).
 
 ## Deployment

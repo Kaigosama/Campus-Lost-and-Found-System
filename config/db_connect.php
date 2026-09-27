@@ -659,12 +659,12 @@ function is_admin(): bool
     return has_role('admin');
 }
 
-/** Send guests to the login card on the homepage. */
+/** Send guests to the login page, then back here. */
 function require_login(): void
 {
     if (!is_logged_in()) {
         $next = $_SERVER['REQUEST_URI'] ?? url('/');
-        header('Location: ' . url('/') . '?next=' . rawurlencode($next) . '#account');
+        header('Location: ' . url('/login.php') . '?next=' . rawurlencode($next));
         exit;
     }
 }

@@ -2,8 +2,8 @@
 require_once __DIR__ . '/config/db_connect.php';
 
 /**
- * Guests      → landing page + log-in / register cards (#account); POST action=login|register handled here.
- *               ?next= is kept for after login. ?reset=1 confirms a password reset (reset_password.php).
+ * Guests      → landing page. Logging in and registering happen on login.php and register.php;
+ *               old /?next= and /?reset=1 links are forwarded to login.php.
  * Logged in   → dashboard tabs: overview | reports | my_claims   staff: + queue   admin: + users | stats   all: account
  *               POST on ?tab=account changes the password.
  * ?action=logout ends the session.
@@ -19,33 +19,11 @@ $user = current_user();
 
 /* ---------------------------------------------------------------- Guest */
 if (!$user) {
-    $pageTitle = null;
-    $next      = $_POST['next'] ?? $_GET['next'] ?? '';
-    $action    = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['action'] ?? '') : '';
-    $errors    = [];
-
-    if ($action === 'login') {
-        $found = find_user_by_email($_POST['email'] ?? '');
-        if (!$found || !password_verify((string) ($_POST['password'] ?? ''), $found['password_hash'])) {
-            $errors['login'] = 'Incorrect email or password.';
-        } elseif (!$found['is_active']) {
-            $errors['login'] = 'This account has been deactivated. Contact the Lost & Found office.';
-        } else {
-            login_user($found, !empty($_POST['remember']));
-            header('Location: ' . safe_redirect($next));
-            exit;
-        }
-    } elseif ($action === 'register') {
-        $errors = register_user($_POST);
-        if (!$errors) {
-            login_user(find_user_by_email($_POST['email']));
-            header('Location: ' . safe_redirect($next));
-            exit;
-        }
+    if (isset($_GET['next']) || isset($_GET['reset'])) {
+        header('Location: ' . url('/login.php') . '?' . http_build_query(array_intersect_key($_GET, ['next' => 1, 'reset' => 1])));
+        exit;
     }
-    $old = fn (string $key) => e($action === 'register' ? ($_POST[$key] ?? '') : '');
-    $err = fn (string $key) => isset($errors[$key]) ? '<span class="form-error" id="' . $key . '-error">' . e($errors[$key]) . '</span>' : '';
-    $inv = fn (string $key) => isset($errors[$key]) ? ' class="is-invalid" aria-invalid="true"' : '';
+    $pageTitle = null;
 
     $storedCount   = count_where(all_found_items(), 'status', 'stored');
     $returnedCount = count_where(all_found_items(), 'status', 'returned');
@@ -61,92 +39,10 @@ if (!$user) {
         <p>Browse turned-in items, report lost belongings, and manage your claim online with ease.</p>
         <div class="btn-row">
             <a class="btn btn-accent btn-lg" href="<?= e(url('/browse.php')) ?>">Browse found items</a>
-            <a class="btn btn-outline btn-lg" href="#account">Log in or register</a>
+            <a class="btn btn-outline btn-lg" href="<?= e(url('/register.php')) ?>">Create an account</a>
         </div>
     </div>
     <img class="hero-logo" src="<?= e(asset('images/logo.png')) ?>" alt="" width="220" height="220">
-</section>
-
-<section class="section" id="account">
-    <div class="section-title"><h2>Your account</h2></div>
-    <?php if ($next): ?>
-        <div class="alert alert-info">Please log in to continue.</div>
-    <?php endif; ?>
-    <?php if (isset($_GET['reset'])): ?>
-        <div class="alert alert-success" role="status">Your password has been changed. Log in with your new password.</div>
-    <?php endif; ?>
-    <div class="grid grid-2">
-        <div class="card" id="login">
-            <h3>Log in</h3>
-            <p class="text-muted text-sm">Use your Mapua email address.</p>
-            <form method="post" action="<?= e(url('/#account')) ?>" class="form" data-validate>
-                <input type="hidden" name="action" value="login">
-                <input type="hidden" name="next" value="<?= e($next) ?>">
-                <?php if (isset($errors['login'])): ?><div class="alert alert-error" role="alert" id="login-error"><?= e($errors['login']) ?></div><?php endif; ?>
-                <div class="form-group">
-                    <label for="login_email">Email <span class="req" aria-hidden="true">*</span></label>
-                    <input type="email" id="login_email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email
-                           <?= isset($errors['login']) ? 'aria-invalid="true" aria-describedby="login-error"' : '' ?>
-                           value="<?= e($action === 'login' ? ($_POST['email'] ?? '') : '') ?>">
-                </div>
-                <div class="form-group">
-                    <label for="login_password">Password <span class="req" aria-hidden="true">*</span></label>
-                    <input type="password" id="login_password" name="password" required autocomplete="current-password" minlength="8">
-                    <a class="form-hint" href="<?= e(url('/forgot_password.php')) ?>">Forgot password?</a>
-                </div>
-                <div class="form-group">
-                    <label class="check"><input type="checkbox" name="remember" value="1"> Keep me logged in on this device</label>
-                </div>
-                <button type="submit" class="btn btn-primary btn-block">Log in</button>
-            </form>
-        </div>
-
-        <div class="card" id="register">
-            <h3>Create an account</h3>
-            <p class="text-muted text-sm">Open to Mapua students and faculty. Security, maintenance and office accounts are assigned by an administrator.</p>
-            <form method="post" action="<?= e(url('/#account')) ?>" class="form" data-validate>
-                <input type="hidden" name="action" value="register">
-                <input type="hidden" name="next" value="<?= e($next) ?>">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="first_name">First name <span class="req" aria-hidden="true">*</span></label>
-                        <input type="text" id="first_name" name="first_name" required maxlength="100" data-name autocomplete="given-name" aria-describedby="first_name-error" value="<?= $old('first_name') ?>"<?= $inv('first_name') ?>>
-                        <?= $err('first_name') ?>
-                    </div>
-                    <div class="form-group">
-                        <label for="last_name">Last name <span class="req" aria-hidden="true">*</span></label>
-                        <input type="text" id="last_name" name="last_name" required maxlength="100" data-name autocomplete="family-name" aria-describedby="last_name-error" value="<?= $old('last_name') ?>"<?= $inv('last_name') ?>>
-                        <?= $err('last_name') ?>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="reg_email">Mapua email <span class="req" aria-hidden="true">*</span></label>
-                    <input type="email" id="reg_email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email aria-describedby="reg_email-hint email-error" value="<?= $old('email') ?>"<?= $inv('email') ?>>
-                    <span class="form-hint" id="reg_email-hint">Must end in @mymail.mapua.edu.ph or @mapua.edu.ph.</span>
-                    <?= $err('email') ?>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="reg_password">Password <span class="req" aria-hidden="true">*</span></label>
-                        <input type="password" id="reg_password" name="password" required minlength="8" autocomplete="new-password" aria-describedby="password-error"<?= $inv('password') ?>>
-                        <?= $err('password') ?>
-                    </div>
-                    <div class="form-group">
-                        <label for="password_confirm">Confirm <span class="req" aria-hidden="true">*</span></label>
-                        <input type="password" id="password_confirm" name="password_confirm" required minlength="8" autocomplete="new-password" data-match="password" aria-describedby="password_confirm-error"<?= $inv('password_confirm') ?>>
-                        <?= $err('password_confirm') ?>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="check">
-                        <input type="checkbox" name="agree" value="1" required>
-                        I understand that false ownership claims may be reported to the university.
-                    </label>
-                </div>
-                <button type="submit" class="btn btn-primary btn-block">Create account</button>
-            </form>
-        </div>
-    </div>
 </section>
 
 <div class="stat-grid">
