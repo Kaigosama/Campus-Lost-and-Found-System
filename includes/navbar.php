@@ -31,6 +31,7 @@ $navType = $type ?? '';
                     <div class="dropdown">
                         <a href="<?= e(url('/?tab=reports')) ?>">My Lost Reports</a>
                         <a href="<?= e(url('/?tab=my_claims')) ?>">My Claims</a>
+                        <a href="<?= e(url('/?tab=account')) ?>">Account &amp; Password</a>
                     </div>
                 </details>
 

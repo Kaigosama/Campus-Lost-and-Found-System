@@ -36,6 +36,7 @@ const UPLOAD_DIR      = APP_ROOT . '/public/uploads';
 const IMAGE_TYPES     = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
 const PASSWORD_MIN    = 8;
 const REMEMBER_DAYS   = 30;
+const RESET_LINK_MINUTES = 60;
 /** Person names: letters (any script), spaces, hyphens, apostrophes and periods — and must start with a letter. */
 const NAME_PATTERN    = "/^\\p{L}[\\p{L}\\p{M} .'\\-]*$/u";
 
@@ -45,12 +46,36 @@ const NAME_PATTERN    = "/^\\p{L}[\\p{L}\\p{M} .'\\-]*$/u";
 if (is_file(__DIR__ . '/db_connect.local.php')) {
     require __DIR__ . '/db_connect.local.php';
 }
+// Containers (Docker, Railway) set the environment instead: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS,
+// or a single MYSQL_URL / DATABASE_URL (mysql://user:pass@host:port/name). Individual DB_* win over the URL.
+$dbUrlString = (string) (getenv('MYSQL_URL') ?: getenv('DATABASE_URL'));
+$dbUrl = $dbUrlString !== '' ? (parse_url($dbUrlString) ?: []) : [];
+$dbFromUrl = [
+    'DB_HOST' => $dbUrl['host'] ?? null,
+    'DB_PORT' => $dbUrl['port'] ?? null,
+    'DB_NAME' => isset($dbUrl['path']) && $dbUrl['path'] !== '/' ? ltrim($dbUrl['path'], '/') : null,
+    'DB_USER' => isset($dbUrl['user']) ? rawurldecode($dbUrl['user']) : null,
+    'DB_PASS' => isset($dbUrl['pass']) ? rawurldecode($dbUrl['pass']) : null,
+];
+foreach ($dbFromUrl as $name => $fromUrl) {
+    $value = getenv($name);
+    if (!defined($name) && ($value !== false || $fromUrl !== null)) {
+        define($name, $value !== false ? $value : $fromUrl);
+    }
+}
+unset($dbUrlString, $dbUrl, $dbFromUrl, $name, $fromUrl, $value);
 defined('DB_HOST')    || define('DB_HOST', '127.0.0.1');
 defined('DB_PORT')    || define('DB_PORT', 3306);
 defined('DB_NAME')    || define('DB_NAME', 'clafs');
 defined('DB_USER')    || define('DB_USER', 'root');
 defined('DB_PASS')    || define('DB_PASS', '');
 defined('DB_CHARSET') || define('DB_CHARSET', 'utf8mb4');
+
+/** A setting from a define() in db_connect.local.php, else the environment; '' when unset. */
+function setting(string $name): string
+{
+    return defined($name) ? (string) constant($name) : (string) getenv($name);
+}
 
 function db(): PDO
 {
@@ -66,7 +91,7 @@ function db(): PDO
         } catch (PDOException $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=utf-8');
-            exit("Database connection failed: {$e->getMessage()}\n\nImport docs/schema.sql and set DB_* constants in config/db_connect.local.php.");
+            exit("Database connection failed: {$e->getMessage()}\n\nImport docs/schema.sql and set DB_* constants in config/db_connect.local.php (or DB_* / MYSQL_URL environment variables).");
         }
     }
     return $pdo;
@@ -383,9 +408,17 @@ function save_photo(?array $file, ?string &$error): ?string
 
 /* ---------------------------------------------------------------- Auth (PHP sessions) */
 
+/** True over HTTPS, including behind a TLS-terminating proxy such as Railway's. */
+function is_https(): bool
+{
+    return ($_SERVER['HTTPS'] ?? '') === 'on' || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+}
+
 ini_set('session.gc_maxlifetime', (string) (REMEMBER_DAYS * 86400));
-session_set_cookie_params(['path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
-session_start();
+session_set_cookie_params(['path' => '/', 'secure' => is_https(), 'httponly' => true, 'samesite' => 'Lax']);
+if (PHP_SAPI !== 'cli') {   // docker/init-db.php loads this file from the command line
+    session_start();
+}
 
 /** The logged-in, active user row, or null for guests. */
 function current_user(): ?array
@@ -393,7 +426,8 @@ function current_user(): ?array
     static $user = false;
     if ($user === false) {
         $user = find_user($_SESSION['user_id'] ?? null);
-        if ($user && !$user['is_active']) {
+        $staleSession = $user && isset($_SESSION['password_sig']) && !hash_equals($_SESSION['password_sig'], password_sig($user['password_hash']));
+        if ($user && (!$user['is_active'] || $staleSession)) {
             $user = null;
             unset($_SESSION['user_id']);
         }
@@ -405,10 +439,11 @@ function login_user(array $user, bool $remember = false): void
 {
     session_regenerate_id(true);
     $_SESSION['user_id'] = $user['user_id'];
+    $_SESSION['password_sig'] = password_sig($user['password_hash']);
     if ($remember) {
         setcookie(session_name(), session_id(), [
             'expires' => time() + REMEMBER_DAYS * 86400,
-            'path' => '/', 'httponly' => true, 'samesite' => 'Lax',
+            'path' => '/', 'secure' => is_https(), 'httponly' => true, 'samesite' => 'Lax',
         ]);
     }
 }
@@ -452,6 +487,149 @@ function register_user(array $in): array
     db()->prepare('INSERT INTO users (first_name, last_name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)')
         ->execute([trim($in['first_name']), trim($in['last_name']), $email, password_hash($password, PASSWORD_DEFAULT), 'user']);
     return [];
+}
+
+/** Fingerprint of a password hash kept in the session, so changing the password ends every other session. */
+function password_sig(string $passwordHash): string
+{
+    return substr(hash('sha256', $passwordHash), 0, 16);
+}
+
+/** Rules for the new_password / new_password_confirm fields. Returns field errors. */
+function new_password_errors(array $in, ?string $current = null): array
+{
+    $new = (string) ($in['new_password'] ?? '');
+    if (strlen($new) < PASSWORD_MIN) {
+        return ['new_password' => 'Password must be at least ' . PASSWORD_MIN . ' characters.'];
+    }
+    if ($current !== null && $new === $current) {
+        return ['new_password' => 'Choose a password different from your current one.'];
+    }
+    if ($new !== (string) ($in['new_password_confirm'] ?? '')) {
+        return ['new_password_confirm' => 'Passwords do not match.'];
+    }
+    return [];
+}
+
+/** Saves a new password. Every session of this user fails the check in current_user() from now on. */
+function set_password(array $user, string $password): string
+{
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+    db()->prepare('UPDATE users SET password_hash = ? WHERE user_id = ?')->execute([$hash, $user['user_id']]);
+    return $hash;
+}
+
+/** Validates the change-password form for the logged-in user and saves it. Returns field errors; empty means it changed. */
+function change_password(array $user, array $in): array
+{
+    $current = (string) ($in['current_password'] ?? '');
+    $errors  = new_password_errors($in, $current);
+    if (!password_verify($current, $user['password_hash'])) {
+        $errors = ['current_password' => 'Your current password is incorrect.'] + $errors;
+    }
+    if ($errors) {
+        return $errors;
+    }
+    $_SESSION['password_sig'] = password_sig(set_password($user, (string) $in['new_password']));   // keep this session only
+    return [];
+}
+
+/* ---- Forgot password: emailed reset links ---- */
+
+/**
+ * Absolute site URL for links in emails. Taken from APP_URL (or Railway's RAILWAY_PUBLIC_DOMAIN) rather than
+ * the request, so a forged Host header can't point a reset link at someone else's site.
+ */
+function app_base_url(): string
+{
+    $configured = setting('APP_URL') ?: (setting('RAILWAY_PUBLIC_DOMAIN') !== '' ? 'https://' . setting('RAILWAY_PUBLIC_DOMAIN') : '');
+    if ($configured !== '') {
+        return rtrim($configured, '/');
+    }
+    return (is_https() ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');   // local development
+}
+
+/**
+ * Reset links need no table: the signature is keyed with the user's current password hash, so a link stops
+ * working once the password changes (it is single-use) and can't be forged without the database.
+ */
+function password_reset_sig(array $user, int $expires): string
+{
+    return hash_hmac('sha256', $user['user_id'] . '|' . $expires, $user['password_hash'] . setting('APP_KEY'));
+}
+
+function password_reset_url(array $user): string
+{
+    $expires = time() + RESET_LINK_MINUTES * 60;
+    $query   = http_build_query(['uid' => $user['user_id'], 'expires' => $expires, 'sig' => password_reset_sig($user, $expires)]);
+    return app_base_url() . url('/reset_password.php?' . $query);
+}
+
+/** The active user a reset link belongs to, or null when it is invalid, expired or already used. */
+function user_from_reset_link(array $query): ?array
+{
+    $user    = find_user((int) ($query['uid'] ?? 0));
+    $expires = (int) ($query['expires'] ?? 0);
+    if (!$user || !$user['is_active'] || $expires < time() || $expires > time() + RESET_LINK_MINUTES * 60) {
+        return null;
+    }
+    return hash_equals(password_reset_sig($user, $expires), (string) ($query['sig'] ?? '')) ? $user : null;
+}
+
+/** Emails a reset link when $email belongs to an active account. Says nothing either way, so emails can't be probed. */
+function request_password_reset(string $email): void
+{
+    $user = find_user_by_email($email);
+    if (!$user || !$user['is_active']) {
+        return;
+    }
+    $stamp = sys_get_temp_dir() . '/clafs-reset-' . $user['user_id'];
+    if (is_file($stamp) && filemtime($stamp) > time() - 60) {
+        return;   // at most one email per account per minute
+    }
+    touch($stamp);
+    $text = "Hi {$user['first_name']},\n\n"
+        . "Someone asked to reset the password for your " . APP_NAME . " account. Open this link to choose a new one:\n\n"
+        . password_reset_url($user) . "\n\n"
+        . 'The link works once and expires in ' . RESET_LINK_MINUTES . " minutes. If you didn't ask for this, ignore this email; your password stays the same.\n\n"
+        . '— ' . APP_FULL_NAME;
+    send_mail($user['email'], full_name($user), 'Reset your ' . APP_NAME . ' password', $text);
+}
+
+/**
+ * Sends a plain-text email through Brevo's HTTPS API (Railway blocks SMTP on its Free and Hobby plans).
+ * Without BREVO_API_KEY the email is written to the PHP error log instead, which is enough for local testing.
+ */
+function send_mail(string $toEmail, string $toName, string $subject, string $text): bool
+{
+    $apiKey = setting('BREVO_API_KEY');
+    if ($apiKey === '') {
+        // One log call per line: Apache folds a multi-line message into one line and the link becomes hard to copy.
+        foreach (explode("\n", "BREVO_API_KEY is not set, so this email was only logged.\nTo: $toEmail\nSubject: $subject\n\n$text") as $line) {
+            error_log("[mail] $line");
+        }
+        return true;
+    }
+    $payload = json_encode([
+        'sender'      => ['name' => setting('MAIL_FROM_NAME') ?: APP_NAME, 'email' => setting('MAIL_FROM')],
+        'to'          => [['email' => $toEmail, 'name' => $toName]],
+        'subject'     => $subject,
+        'textContent' => $text,
+    ]);
+    $context = stream_context_create(['http' => [
+        'method'        => 'POST',
+        'header'        => "api-key: $apiKey\r\nContent-Type: application/json\r\nAccept: application/json\r\n",
+        'content'       => $payload,
+        'timeout'       => 10,
+        'ignore_errors' => true,   // read Brevo's error body instead of a bare warning
+    ]]);
+    $response = @file_get_contents('https://api.brevo.com/v3/smtp/email', false, $context);
+    $status   = preg_match('#^HTTP/\S+ (\d{3})#', $http_response_header[0] ?? '', $m) ? (int) $m[1] : 0;
+    if ($status >= 200 && $status < 300) {
+        return true;
+    }
+    error_log("[mail] Brevo did not send the email to $toEmail (HTTP $status): " . ($response ?: 'no response'));
+    return false;
 }
 
 /** Only same-site paths are safe redirect targets after login. */

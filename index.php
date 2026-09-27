@@ -3,8 +3,9 @@ require_once __DIR__ . '/config/db_connect.php';
 
 /**
  * Guests      → landing page + log-in / register cards (#account); POST action=login|register handled here.
- *               ?next= is kept for after login.
- * Logged in   → dashboard tabs: overview | reports | my_claims   staff: + queue   admin: + users | stats
+ *               ?next= is kept for after login. ?reset=1 confirms a password reset (reset_password.php).
+ * Logged in   → dashboard tabs: overview | reports | my_claims   staff: + queue   admin: + users | stats   all: account
+ *               POST on ?tab=account changes the password.
  * ?action=logout ends the session.
  */
 
@@ -131,6 +132,9 @@ if (!$user) {
     <?php if ($next): ?>
         <div class="alert alert-info">Please log in to continue.</div>
     <?php endif; ?>
+    <?php if (isset($_GET['reset'])): ?>
+        <div class="alert alert-success" role="status">Your password has been changed. Log in with your new password.</div>
+    <?php endif; ?>
     <div class="grid grid-2">
         <div class="card">
             <h3>Log in</h3>
@@ -147,6 +151,7 @@ if (!$user) {
                 <div class="form-group">
                     <label for="login_password">Password <span class="req" aria-hidden="true">*</span></label>
                     <input type="password" id="login_password" name="password" required autocomplete="current-password" minlength="8">
+                    <a class="form-hint" href="<?= e(url('/forgot_password.php')) ?>">Forgot password?</a>
                 </div>
                 <div class="form-group">
                     <label class="check"><input type="checkbox" name="remember" value="1"> Keep me logged in on this device</label>
@@ -217,6 +222,7 @@ $allTabs = [ // key => [label, required role(s) or null]
     'queue'     => ['Claims Queue', ['staff', 'admin']],
     'users'     => ['Users', 'admin'],
     'stats'     => ['Statistics', 'admin'],
+    'account'   => ['Account', null],
 ];
 $tab = $_GET['tab'] ?? 'overview';
 if (!isset($allTabs[$tab])) {
@@ -226,6 +232,15 @@ if ($allTabs[$tab][1] !== null) {
     require_role($allTabs[$tab][1]);
 }
 $tabs = array_filter($allTabs, fn ($t) => $t[1] === null || has_role($t[1]));
+
+$errors = [];
+if ($tab === 'account' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $errors = change_password($user, $_POST);
+    if (!$errors) {
+        header('Location: ' . url('/?tab=account&changed=1'));
+        exit;
+    }
+}
 
 $myReports = newest_first(where(all_lost_reports(), 'user_id', $user['user_id']));
 $myClaims  = newest_first(where(all_claims(), 'user_id', $user['user_id']));
@@ -269,6 +284,10 @@ include APP_ROOT . '/includes/header.php';
 <?php elseif ($tab === 'users'): ?>
 <div class="page-header">
     <div><h1>Manage users</h1><p>Assign roles and deactivate accounts. New registrations start as <strong><?= e(ROLES['user']) ?></strong>.</p></div>
+</div>
+<?php elseif ($tab === 'account'): ?>
+<div class="page-header">
+    <div><h1>Account</h1><p>Your profile and password.</p></div>
 </div>
 <?php else: ?>
 <div class="page-header">
@@ -663,6 +682,58 @@ include APP_ROOT . '/includes/header.php';
         </table>
     </div>
     <p class="filter-empty" data-filter-empty hidden>No users match that search.</p>
+
+<?php /* ================================================== ACCOUNT */ ?>
+<?php elseif ($tab === 'account'): ?>
+    <?php
+    $err = fn (string $key) => isset($errors[$key]) ? '<span class="form-error">' . e($errors[$key]) . '</span>' : '';
+    $inv = fn (string $key) => isset($errors[$key]) ? ' class="is-invalid"' : '';
+    ?>
+    <?php if (isset($_GET['changed'])): ?>
+        <div class="alert alert-success" role="status">Password changed. Any other device signed in to this account has been logged out.</div>
+    <?php endif; ?>
+
+    <div class="grid grid-2">
+        <div class="card">
+            <h2>Profile</h2>
+            <div class="flex items-center gap-2 mb-3">
+                <span class="avatar" aria-hidden="true"><?= e(initials($user)) ?></span>
+                <div>
+                    <div class="fw-600"><?= e(full_name($user)) ?></div>
+                    <div class="text-sm text-muted"><?= e($user['email']) ?></div>
+                </div>
+            </div>
+            <dl class="item-card-meta">
+                <div><dt>Role</dt><dd><?= e(ROLES[$user['role']] ?? $user['role']) ?></dd></div>
+                <div><dt>Member since</dt><dd><?= e(format_date($user['created_at'])) ?></dd></div>
+            </dl>
+            <p class="text-sm text-muted mb-0">To change your name or role, contact the Lost &amp; Found office.</p>
+        </div>
+
+        <div class="card">
+            <h2>Change password</h2>
+            <form method="post" action="<?= e(url('/?tab=account')) ?>" class="form" data-validate>
+                <input type="email" name="username" value="<?= e($user['email']) ?>" autocomplete="username" hidden>
+                <div class="form-group">
+                    <label for="current_password">Current password <span class="req" aria-hidden="true">*</span></label>
+                    <input type="password" id="current_password" name="current_password" required autocomplete="current-password"<?= $inv('current_password') ?>>
+                    <?= $err('current_password') ?>
+                </div>
+                <div class="form-group">
+                    <label for="new_password">New password <span class="req" aria-hidden="true">*</span></label>
+                    <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password"<?= $inv('new_password') ?>>
+                    <span class="form-hint">At least <?= PASSWORD_MIN ?> characters.</span>
+                    <?= $err('new_password') ?>
+                </div>
+                <div class="form-group">
+                    <label for="new_password_confirm">Confirm new password <span class="req" aria-hidden="true">*</span></label>
+                    <input type="password" id="new_password_confirm" name="new_password_confirm" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-match="new_password"<?= $inv('new_password_confirm') ?>>
+                    <?= $err('new_password_confirm') ?>
+                </div>
+                <button type="submit" class="btn btn-primary">Change password</button>
+            </form>
+        </div>
+    </div>
 
 <?php /* ================================================== STATISTICS (admin) */ ?>
 <?php else: ?>
