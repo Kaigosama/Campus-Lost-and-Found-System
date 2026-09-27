@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../../config/db_connect.php';
+require_once __DIR__ . '/../../src/bootstrap.php';
 
 /**
  * GET /api/get_items.php   type=found|lost  q=  category=  status=  from=  to=  sort=newest|oldest  limit=1..100

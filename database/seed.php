@@ -8,7 +8,7 @@ declare(strict_types=1);
  * existing database is never touched.
  */
 
-require dirname(__DIR__) . '/config/db_connect.php';
+require dirname(__DIR__) . '/src/bootstrap.php';
 
 const ATTEMPTS = 30;
 

@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/db_connect.php';
+require_once __DIR__ . '/../src/bootstrap.php';
 
 /**
  * Create a Student / Faculty account (see register_user()); staff and admin roles are assigned by an admin.

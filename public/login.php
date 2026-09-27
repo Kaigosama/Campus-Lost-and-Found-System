@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/db_connect.php';
+require_once __DIR__ . '/../src/bootstrap.php';
 
 /**
  * Log in. ?next= (a same-site path) is where to go afterwards; require_login() sets it.

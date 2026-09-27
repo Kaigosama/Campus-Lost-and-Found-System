@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/db_connect.php';
+require_once __DIR__ . '/../src/bootstrap.php';
 
 /**
  * Landing page of an emailed reset link: ?uid=&expires=&sig= (see password_reset_url()).

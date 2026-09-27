@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/db_connect.php';
+require_once __DIR__ . '/../src/bootstrap.php';
 
 /**
  * Guests      → landing page. Logging in and registering happen on login.php and register.php;

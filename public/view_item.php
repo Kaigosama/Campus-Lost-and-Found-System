@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/db_connect.php';
+require_once __DIR__ . '/../src/bootstrap.php';
 
 /**
  * ?type=found&id=N   item details + claim form (users) / intake record, claim review and hand-over (staff)

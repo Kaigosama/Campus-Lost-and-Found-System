@@ -96,8 +96,9 @@ public/              Web root: pages, JSON API and static files
   api/               JSON endpoints called by public/js/api.js
   css/ js/ images/   Stylesheet, scripts, logo and sample photos
   uploads/           Item photos uploaded by users (not in git)
+src/                 PHP logic shared by every page: bootstrap.php loads it all
 templates/layout/    Page header, navigation bar and footer
-config/              Settings and the database connection
+config/              Settings: constants and database credentials
 database/            schema.sql (tables and sample data) and seed.php (loads it in Docker)
 docker/              Apache, PHP and container start-up configuration
 docs/                ERD and API documentation

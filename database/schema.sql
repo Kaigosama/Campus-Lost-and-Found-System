@@ -39,7 +39,7 @@ CREATE TABLE users (
 CREATE TABLE lost_reports (
     report_id      INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     user_id        INT UNSIGNED  NOT NULL,                        -- who reported it
-    category       VARCHAR(50)   NOT NULL,                        -- one of CATEGORIES in config/db_connect.php
+    category       VARCHAR(50)   NOT NULL,                        -- one of CATEGORIES in config/config.php
     description    TEXT          NOT NULL,
     location_lost  VARCHAR(150)  NOT NULL,
     date_lost      DATE          NOT NULL,
@@ -135,7 +135,7 @@ ALTER TABLE claims
         ON UPDATE CASCADE ON DELETE SET NULL;
 
 -- =====================================================================
--- 6. Seed data — the same rows as the mock data layer in config/db_connect.php.
+-- 6. Seed data — sample accounts, found items, lost reports and claims.
 --    Every password is "password123" (bcrypt); change before any real use.
 -- =====================================================================
 

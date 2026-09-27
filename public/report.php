@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/db_connect.php';
+require_once __DIR__ . '/../src/bootstrap.php';
 
 /**
  * ?type=lost            file a lost report (any logged-in user)      ?type=lost&id=N    edit your own open report
