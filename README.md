@@ -64,6 +64,14 @@ CLAFS/
 ├── config/
 │   └── db_connect.php      # App core: constants, PDO connection, helpers, session auth, data layer
 │   └── db_connect.local.php  (git-ignored) per-machine DB_* overrides
+├── docker/                 # container setup (not web-accessible)
+│   ├── entrypoint.sh       # binds Apache to $PORT, prepares uploads, runs init-db.php
+│   ├── init-db.php         # waits for MySQL; loads schema.sql into an empty database only
+│   ├── apache.conf         # denies config/, includes/, docker/ and script execution in uploads
+│   └── php.ini             # upload limits, production error handling
+├── Dockerfile              # PHP 8.3 + Apache image (used by Docker Compose and Railway)
+├── docker-compose.yml      # local stack: app on :8080 + MySQL 8
+├── railway.json            # Railway build/deploy settings
 ├── docs/
 │   ├── API_Documentation.docx  # Phase 3 API notes: APIs used, purpose, endpoints, data, integration
 │   ├── schema.sql          # MySQL tables (ERD) + UI-required additions + seed rows
@@ -78,7 +86,9 @@ CLAFS/
 │   ├── js/api.js           # fetch() wrappers for api/ and for the Nager.Date public-holiday API
 │   ├── images/             # static icons and logos
 │   └── uploads/            # user-uploaded item photos (git-ignored)
-├── index.php               # Homepage + login/register (guests) · tabbed dashboard (users, staff, admin)
+├── index.php               # Homepage + login/register (guests) · tabbed dashboard (users, staff, admin) · account/password
+├── forgot_password.php     # "Forgot password?" — emails a reset link
+├── reset_password.php      # Opened from the emailed link; sets a new password
 ├── report.php              # Report a lost item / log a found item; ?id= edits
 ├── browse.php              # Found items (public) · ?type=lost lost reports (staff) · ?manage=1 inventory (staff)
 └── view_item.php           # Item / report detail, ownership claims, staff review and hand-over
@@ -124,9 +134,86 @@ Seeded accounts (password for all: `password123`):
 
 Registration is open to `@mymail.mapua.edu.ph` and `@mapua.edu.ph` addresses.
 
+**Forgot-password emails, locally.** With no email settings, the reset email is written to the PHP error log
+instead of being sent: the `php -S` terminal window, or `docker compose logs app` for Docker. Copy the link from
+there to test the flow. To send real emails, see [Password-reset emails](#password-reset-emails); on XAMPP put the
+settings in `config/db_connect.local.php`, e.g. `define('BREVO_API_KEY', '…');`.
+
+### Running with Docker
+
+Needs Docker Desktop. XAMPP isn't used, and both can run at the same time.
+
+```bash
+docker compose up --build
+```
+
+Open <http://localhost:8080>. On first start the app creates the tables and seed rows from
+`docs/schema.sql`; later starts leave the data alone. Uploaded photos and the database live in Docker
+volumes, so they survive restarts. MySQL is also reachable at `127.0.0.1:3307` (user `clafs`, password
+`clafs`) for Workbench. `docker compose down` stops the app; `docker compose down -v` also wipes the
+database and uploads, so the next start reseeds.
+
+### Deploying to Railway
+
+The same `Dockerfile` runs on Railway (`railway.json` selects it and health-checks `/`).
+
+1. Push this repository to GitHub.
+2. In Railway: **New Project → Deploy from GitHub repo** → pick the repo. This creates the app service.
+3. In the same project: **+ Create → Database → MySQL**.
+4. App service → **Variables** → add:
+   - `MYSQL_URL` = `${{MySQL.MYSQL_URL}}` (a reference to the MySQL service; use its actual name if you renamed it)
+   - `SEED_PASSWORD` = a password of your choice. The seeded accounts get this password instead of the
+     public `password123`, so they're never open to anyone who has read this README. It only applies when the
+     database is first seeded.
+   - `BREVO_API_KEY` and `MAIL_FROM` for password-reset emails (see [Password-reset emails](#password-reset-emails)).
+5. App service → **Settings → Volumes** (or right-click the service → *Attach volume*) → mount path
+   `/var/www/html/public/uploads`. Without it, uploaded photos disappear on every redeploy.
+6. App service → **Settings → Networking → Generate Domain**. Railway serves it over HTTPS.
+
+On first boot the app waits for MySQL and seeds the empty `railway` database; the deploy log shows
+`[init-db] Schema and seed data loaded.` Every later push redeploys without touching the data.
+
+Sign in with the seeded emails and your `SEED_PASSWORD`, then give each account its own password under
+**My Activity → Account & Password**. Before sharing the link, the admin may want to deactivate the sample
+student accounts.
+
+**Configuration.** Outside XAMPP the app reads its database settings from the environment: either
+`MYSQL_URL` / `DATABASE_URL` (`mysql://user:pass@host:port/name`) or `DB_HOST`, `DB_PORT`, `DB_NAME`,
+`DB_USER` and `DB_PASS`. The individual variables override the URL, and `config/db_connect.local.php`
+overrides both.
+
+### Password-reset emails
+
+"Forgot password?" on the login card emails a link that sets a new password. The link works once and
+expires after 60 minutes. The site sends email through [Brevo](https://www.brevo.com)'s HTTPS API, because
+Railway blocks ordinary SMTP email on its Free, Trial and Hobby plans. Brevo's free plan sends 300 emails a
+day and only needs one verified sender address, not your own domain.
+
+1. Create a free Brevo account.
+2. **Senders, Domains & Dedicated IPs → Senders → Add a sender**: enter the address emails should come from
+   (a group Gmail works) and click the confirmation link Brevo sends to it.
+3. **SMTP & API → API Keys → Generate a new API key**. Copy it; Brevo shows it only once.
+4. Set these variables (Railway: app service → Variables; Docker: a `.env` file copied from `.env.example`):
+
+| Variable | Value |
+|---|---|
+| `BREVO_API_KEY` | the key from step 3 |
+| `MAIL_FROM` | the sender address verified in step 2 |
+| `MAIL_FROM_NAME` | optional, the name shown as sender (default `CLAFS`) |
+| `APP_URL` | optional on Railway, which supplies its domain itself. Set it (e.g. `https://clafs.example.com`) if you add a custom domain. |
+
+Test it by using "Forgot password?" with an account whose inbox you can open. If no email arrives, the app's
+log (Railway: the service's **Deploy Logs**) has a `[mail]` line with Brevo's reason. Emails from a Gmail sender
+can land in spam; verifying a domain you own in Brevo avoids that.
+
+The seeded accounts use made-up inboxes, so they can't receive reset emails. Change their passwords from
+**Account & Password** instead.
+
 ### What is wired up
 
 - Login, registration, logout and "keep me logged in" — plain PHP form handling in `index.php`, PHP sessions
+- Changing your password (`index.php?tab=account`); it also signs that account out on every other device
+- Forgot password: an emailed, single-use reset link (`forgot_password.php`, `reset_password.php`) sent through the Brevo email API
 - Creating and editing lost reports and found items with a photo (`api/add_item.php`, `api/update_item.php`)
 - Live search on Found Items — results are fetched from `api/get_items.php` as you type, no reload
 - Changing item / report status and matching a report to an item (`api/update_status.php`)
