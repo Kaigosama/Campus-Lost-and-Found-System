@@ -26,9 +26,15 @@ display case. CLAFS moves that process online.
 
 | Role | Who | Can do |
 |---|---|---|
-| Student / Faculty | anyone who registers | Browse found items, report lost items, claim items |
-| Security & Maintenance | assigned by an admin | Everything above, plus log found items and review claims |
-| Office Administrator | assigned by an admin | Everything above, plus manage users and view statistics |
+| Student / Faculty | anyone who registers and confirms their email | Browse found items, report lost items, claim items, post items they found (staff approve them before they are public) |
+| Security & Maintenance | assigned by an admin | Log found items at intake, review claims and student posts, manage found items |
+| Office Administrator | assigned by the master admin | Review claims and posts, manage student and staff accounts, view account activity, security logs and statistics. Does not log found items. One device at a time: a new login ends the older session |
+| Master Administrator | one seeded account | Everything an administrator does, plus manage administrator accounts. Never locked out by failed log-ins (failures are logged and emailed instead); recovers access through password reset |
+
+Account security: email verification on sign-up, Cloudflare Turnstile on log-in and registration, a password
+policy (8+ characters with upper and lower case, a number and a symbol), a 15-minute lock after 3 wrong passwords
+in a row, sessions that end after 30 minutes without activity, and a log of every log-in, failure, lockout and
+logout that admins can read under **Admin → Security Logs**.
 
 The database design is in [docs/erd.html](docs/erd.html) and [database/schema.sql](database/schema.sql).
 
@@ -52,10 +58,11 @@ docker compose down -v
 
 ### With XAMPP
 
-1. Start MySQL in the XAMPP Control Panel, then create the database (PowerShell):
+1. Start MySQL in the XAMPP Control Panel, then create the database, or bring an existing one up to date
+   (it never deletes data; it applies any new file in `database/migrations/`):
 
    ```powershell
-   Get-Content database/schema.sql -Raw | C:\xampp\mysql\bin\mysql.exe -u root
+   C:\xampp\php\php.exe database/seed.php
    ```
 
 2. Start the site and open <http://localhost:8000>:
@@ -77,15 +84,19 @@ Log in at `/login.php` with a sample account. The password for each is `password
 
 | Email | Role |
 |---|---|
-| `admin@mapua.edu.ph` | Office Administrator |
+| `masteradmin@mapua.edu.ph` | Master Administrator |
+| `admin@mapua.edu.ph`, `admin2@mapua.edu.ph` | Office Administrator |
 | `staff@mapua.edu.ph` | Security & Maintenance |
 | `student1@mymail.mapua.edu.ph` | Student / Faculty |
 
-New accounts can register at `/register.php` with a `@mymail.mapua.edu.ph` or `@mapua.edu.ph` email.
+New accounts can register at `/register.php` with a `@mymail.mapua.edu.ph` or `@mapua.edu.ph` email, then
+confirm it through the emailed link before logging in.
 
 - **Change password:** My Activity → Account & Password.
-- **Forgot password:** use the link on the login page. On your own computer the reset email isn't sent. It
-  appears in the server log instead (the `php -S` window, or `docker compose logs app`).
+- **Emails on your own computer:** verification, password-reset and security emails aren't sent without
+  `BREVO_API_KEY`. They appear in the server log instead (the `php -S` window, or `docker compose logs app`).
+- **CAPTCHA on your own computer:** without Turnstile keys, Cloudflare's test keys are used and always pass.
+  The check still goes to Cloudflare, so log-in needs an internet connection.
 
 ## Project structure
 
@@ -116,15 +127,17 @@ The site deploys to [Railway](https://railway.com) from this repository.
    |---|---|
    | `MYSQL_URL` | `${{MySQL.MYSQL_URL}}` |
    | `SEED_PASSWORD` | a private password for the sample accounts, replacing `password123` |
-   | `BREVO_API_KEY` | API key from [Brevo](https://www.brevo.com), for password-reset emails |
-   | `MAIL_FROM` | a sender address you verified in Brevo |
+   | `APP_URL` | the site's `https://` address, used in emailed links |
+   | `BREVO_API_KEY` | API key from [Brevo](https://www.brevo.com), for verification, reset and security emails |
+   | `MAIL_FROM` | a dedicated sender address for system mail, verified in Brevo |
+   | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | from Cloudflare dashboard → Turnstile → Add widget, with your domain. **Required**: without them every log-in and registration is refused |
 
 4. Right-click the app service → **Attach volume**, mount path `/var/www/html/public/uploads`, so uploaded
    photos survive redeploys.
 5. **Settings → Networking → Generate Domain** gives you the public link.
 
-Every push to `main` redeploys the site, and the data is kept. After the first deploy, log in with your
-`SEED_PASSWORD` and change the sample accounts' passwords.
+Every push to `main` redeploys the site, and the data is kept; new files in `database/migrations/` are applied
+on start. After the first deploy, log in with your `SEED_PASSWORD` and change the sample accounts' passwords.
 
 ## API
 
@@ -135,9 +148,9 @@ The pages call JSON endpoints in [`public/api/`](public/api/) through [`public/j
 | `GET api/get_items.php` | List found items or lost reports (search and filters) |
 | `POST api/add_item.php` | Add a found item or lost report, with an optional photo |
 | `POST api/update_item.php` | Edit a found item or lost report |
-| `POST api/update_status.php` | Change a status, or match a report to an item |
+| `POST api/update_status.php` | Change a status, match a report to an item, or approve/reject a student's post |
 | `POST api/claims.php` | Submit, approve, reject or withdraw a claim |
-| `POST api/update_user.php` | Admin: change a user's role or deactivate an account |
+| `POST api/update_user.php` | Admin: change a user's role, deactivate or unlock an account |
 
 Full details: [docs/Group4_API_Documentation.pdf](docs/Group4_API_Documentation.pdf).
 
