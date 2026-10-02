@@ -20,7 +20,7 @@ $navType = $type ?? '';
                 <a href="<?= e(url('/')) ?>"<?= is_active('/index.php') ?>>Home</a>
                 <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php', $navType !== 'lost') ?>>Found Items</a>
                 <a href="<?= e(url('/login.php')) ?>"<?= is_active('/login.php') ?>>Log in</a>
-                <a href="<?= e(url('/register.php')) ?>" class="btn btn-accent btn-sm nav-cta"<?= is_active('/register.php') ?>>Register</a>
+                <a href="<?= e(url('/register.php')) ?>"<?= is_active('/register.php') ?>>Register</a>
             <?php else: ?>
                 <a href="<?= e(url('/')) ?>"<?= is_active('/index.php') ?>>Dashboard</a>
                 <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php', $navType !== 'lost') ?>>Found Items</a>
@@ -31,6 +31,10 @@ $navType = $type ?? '';
                     <div class="dropdown">
                         <a href="<?= e(url('/?tab=reports')) ?>">My Lost Reports</a>
                         <a href="<?= e(url('/?tab=my_claims')) ?>">My Claims</a>
+                        <?php if (has_role('user')): ?>
+                            <a href="<?= e(url('/report.php?type=found')) ?>">Post a Found Item</a>
+                            <a href="<?= e(url('/?tab=posts')) ?>">My Found Posts</a>
+                        <?php endif; ?>
                         <a href="<?= e(url('/?tab=account')) ?>">Account &amp; Password</a>
                     </div>
                 </details>
@@ -39,9 +43,12 @@ $navType = $type ?? '';
                     <details class="nav-group">
                         <summary>Staff</summary>
                         <div class="dropdown">
-                            <a href="<?= e(url('/report.php?type=found')) ?>">Log Found Item</a>
+                            <?php if (has_role('staff')): ?>
+                                <a href="<?= e(url('/report.php?type=found')) ?>">Log Found Item</a>
+                            <?php endif; ?>
                             <a href="<?= e(url('/browse.php?manage=1')) ?>">Manage Found Items</a>
                             <a href="<?= e(url('/?tab=queue')) ?>">Claims Queue</a>
+                            <a href="<?= e(url('/?tab=moderation')) ?>">Post Review</a>
                             <a href="<?= e(url('/browse.php?type=lost')) ?>">All Lost Reports</a>
                         </div>
                     </details>
@@ -51,7 +58,8 @@ $navType = $type ?? '';
                     <details class="nav-group">
                         <summary>Admin</summary>
                         <div class="dropdown">
-                            <a href="<?= e(url('/?tab=users')) ?>">Manage Users</a>
+                            <a href="<?= e(url('/?tab=users')) ?>">Users &amp; Activity</a>
+                            <a href="<?= e(url('/?tab=logs')) ?>">Security Logs</a>
                             <a href="<?= e(url('/?tab=stats')) ?>">Statistics</a>
                         </div>
                     </details>

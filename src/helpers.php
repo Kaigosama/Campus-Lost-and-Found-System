@@ -66,6 +66,35 @@ function format_datetime(?string $value): string
     return $value ? date('M j, Y · g:i A', strtotime($value)) : '—';
 }
 
+/** "Active now", "Active 5 minutes ago", "Last active yesterday"… from the last authenticated request. */
+function activity_label(?string $lastActivity, int $onlineSessions): string
+{
+    if (!$lastActivity) {
+        return 'Never';
+    }
+    $at  = strtotime($lastActivity);
+    $ago = max(0, time() - $at);
+    $plural = fn (int $n, string $unit) => "$n $unit" . ($n === 1 ? '' : 's');
+    return match (true) {
+        $onlineSessions > 0 && $ago < 120             => 'Active now',
+        $ago < 3600                                   => 'Active ' . $plural(max(1, intdiv($ago, 60)), 'minute') . ' ago',
+        $ago < 86400                                  => 'Active ' . $plural(intdiv($ago, 3600), 'hour') . ' ago',
+        date('Y-m-d', $at) === date('Y-m-d', strtotime('-1 day')) => 'Last active yesterday',
+        default                                       => 'Last active ' . format_date($lastActivity),
+    };
+}
+
+/** Badge colour class for a security event type. */
+function event_badge(string $type): string
+{
+    return match (true) {
+        in_array($type, ['login_success', 'email_verified', 'account_unlocked', 'account_reactivated', 'register'], true) => 'approved',
+        in_array($type, ['account_locked', 'login_blocked_locked', 'session_revoked', 'account_deactivated', 'captcha_failed'], true) => 'rejected',
+        str_starts_with($type, 'login_') => 'pending',
+        default => 'closed',
+    };
+}
+
 function full_name(array $user): string
 {
     return trim($user['first_name'] . ' ' . $user['last_name']);

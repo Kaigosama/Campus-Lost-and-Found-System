@@ -4,7 +4,8 @@ require_once __DIR__ . '/../src/bootstrap.php';
 /**
  * Guests      → landing page. Logging in and registering happen on login.php and register.php;
  *               old /?next= and /?reset=1 links are forwarded to login.php.
- * Logged in   → dashboard tabs: overview | reports | my_claims   staff: + queue   admin: + users | stats   all: account
+ * Logged in   → dashboard tabs: overview | reports | my_claims   students/faculty: + posts
+ *               staff & admins: + queue | moderation   admins: + users (with account activity) | stats | logs   all: account
  *               POST on ?tab=account changes the password.
  * POST ?action=logout ends the session. It must be a POST so another site can't log visitors out with a link.
  */
@@ -25,10 +26,10 @@ if (!$user) {
     }
     $pageTitle = null;
 
-    $storedCount   = count_where(all_found_items(), 'status', 'stored');
+    $storedCount   = count(public_found_items());
     $returnedCount = count_where(all_found_items(), 'status', 'returned');
     $openReports   = count_where(all_lost_reports(), 'status', 'open');
-    $recentItems   = array_slice(newest_first(where(all_found_items(), 'status', 'stored'), 'date_found'), 0, 3);
+    $recentItems   = array_slice(newest_first(array_values(public_found_items()), 'date_found'), 0, 3);
 
     include APP_ROOT . '/templates/layout/header.php';
     ?>
@@ -113,9 +114,12 @@ $allTabs = [ // key => [label, required role(s) or null]
     'overview'  => ['Overview', null],
     'reports'   => ['My Lost Reports', null],
     'my_claims' => ['My Claims', null],
-    'queue'     => ['Claims Queue', ['staff', 'admin']],
-    'users'     => ['Users', 'admin'],
-    'stats'     => ['Statistics', 'admin'],
+    'posts'     => ['My Found Posts', 'user'],
+    'queue'     => ['Claims Queue', REVIEWER_ROLES],
+    'moderation' => ['Post Review', REVIEWER_ROLES],
+    'users'     => ['Users & Activity', ADMIN_ROLES],
+    'stats'     => ['Statistics', ADMIN_ROLES],
+    'logs'      => ['Security Logs', ADMIN_ROLES],
     'account'   => ['Account', null],
 ];
 $tab = $_GET['tab'] ?? 'overview';
@@ -138,7 +142,8 @@ if ($tab === 'account' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $myReports = newest_first(where(all_lost_reports(), 'user_id', $user['user_id']));
 $myClaims  = newest_first(where(all_claims(), 'user_id', $user['user_id']));
-$storedCount = count_where(all_found_items(), 'status', 'stored');
+$storedCount = count(public_found_items());
+$pendingPosts = newest_first(where(all_found_items(), 'moderation_status', 'pending'));
 
 $pageTitle = $tab === 'overview' ? 'Dashboard' : $allTabs[$tab][0];
 include APP_ROOT . '/templates/layout/header.php';
@@ -155,11 +160,28 @@ include APP_ROOT . '/templates/layout/header.php';
         </p>
     </div>
     <div class="btn-row">
-        <?php if (is_staff()): ?>
+        <?php if (has_role('staff')): ?>
             <a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a>
+        <?php elseif (has_role('user')): ?>
+            <a class="btn btn-outline" href="<?= e(url('/report.php?type=found')) ?>">+ I found something</a>
         <?php endif; ?>
-        <a class="btn <?= is_staff() ? 'btn-outline' : 'btn-primary' ?>" href="<?= e(url('/report.php')) ?>">+ Report lost item</a>
+        <?php if (!is_admin()): ?>
+            <a class="btn <?= is_staff() ? 'btn-outline' : 'btn-primary' ?>" href="<?= e(url('/report.php')) ?>">+ Report lost item</a>
+        <?php endif; ?>
     </div>
+</div>
+<?php elseif ($tab === 'posts'): ?>
+<div class="page-header">
+    <div><h1>My found posts</h1><p>Items you found and posted. Staff approve each one before it is listed publicly.</p></div>
+    <a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Post a found item</a>
+</div>
+<?php elseif ($tab === 'moderation'): ?>
+<div class="page-header">
+    <div><h1>Post review</h1><p>Found-item posts from students and faculty. Approve them once the item is at the office.</p></div>
+</div>
+<?php elseif ($tab === 'logs'): ?>
+<div class="page-header">
+    <div><h1>Security logs</h1><p>Log-ins, failures, lockouts and session history. Session tokens are never shown.</p></div>
 </div>
 <?php elseif ($tab === 'reports'): ?>
 <div class="page-header">
@@ -177,7 +199,8 @@ include APP_ROOT . '/templates/layout/header.php';
 </div>
 <?php elseif ($tab === 'users'): ?>
 <div class="page-header">
-    <div><h1>Manage users</h1><p>Assign roles and deactivate accounts. New registrations start as <strong><?= e(ROLES['user']) ?></strong>.</p></div>
+    <div><h1>Users &amp; activity</h1><p>Roles, account status and recent activity. New registrations start as <strong><?= e(ROLES['user']) ?></strong>.
+        <?= has_role('master_admin') ? 'As master administrator you can also manage administrator accounts.' : 'Only the master administrator can change administrator accounts.' ?></p></div>
 </div>
 <?php elseif ($tab === 'account'): ?>
 <div class="page-header">
@@ -203,6 +226,12 @@ include APP_ROOT . '/templates/layout/header.php';
         $pendingClaims = newest_first(where(all_claims(), 'status', 'pending'));
         $openReports   = count_where(all_lost_reports(), 'status', 'open');
         ?>
+        <?php if ($pendingPosts): ?>
+            <div class="alert alert-warning">
+                <strong><?= count($pendingPosts) ?> found-item post<?= count($pendingPosts) === 1 ? '' : 's' ?></strong> from students and faculty
+                <?= count($pendingPosts) === 1 ? 'is' : 'are' ?> waiting for review. <a href="<?= e(url('/?tab=moderation')) ?>">Review posts</a>
+            </div>
+        <?php endif; ?>
         <div class="stat-grid">
             <div class="stat-card warning">
                 <span class="stat-label">Pending claims</span>
@@ -264,7 +293,10 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="card">
                 <h2>Quick actions</h2>
                 <div class="grid gap-sm">
-                    <a class="btn btn-secondary" href="<?= e(url('/report.php?type=found')) ?>">Log a found item</a>
+                    <?php if (has_role('staff')): ?>
+                        <a class="btn btn-secondary" href="<?= e(url('/report.php?type=found')) ?>">Log a found item</a>
+                    <?php endif; ?>
+                    <a class="btn btn-secondary" href="<?= e(url('/?tab=moderation')) ?>">Review student posts</a>
                     <a class="btn btn-secondary" href="<?= e(url('/browse.php?manage=1')) ?>">Manage found items</a>
                     <a class="btn btn-secondary" href="<?= e(url('/browse.php?type=lost')) ?>">Browse lost reports</a>
                     <?php if (is_admin()): ?>
@@ -529,6 +561,13 @@ include APP_ROOT . '/templates/layout/header.php';
         $counts[$key] = count_where(all_users(), 'role', $key);
     }
     echo pill_tabs(['' => 'All'] + ROLES, $counts, $roleFilter, 'role');
+
+    // Sessions with authenticated activity inside the idle window count as online.
+    $stmt = db()->prepare('SELECT user_id, COUNT(*) FROM user_sessions WHERE status = "active" AND last_activity_at > NOW() - INTERVAL ? MINUTE GROUP BY user_id');
+    $stmt->execute([SESSION_IDLE_MINUTES]);
+    $online     = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    $isMaster   = has_role('master_admin');
+    $assignable = array_intersect_key(ROLES, array_flip($isMaster ? ['user', 'staff', 'admin'] : ['user', 'staff']));
     ?>
 
     <div class="table-tools">
@@ -538,35 +577,56 @@ include APP_ROOT . '/templates/layout/header.php';
 
     <div class="table-wrap">
         <table class="table" id="usersTable">
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th class="actions"></th></tr></thead>
+            <thead><tr><th>Name</th><th>Role</th><th>Account</th><th>Last login</th><th>Activity</th><th>Session</th><th class="actions"></th></tr></thead>
             <tbody>
-            <?php foreach ($rows as $u): $isMe = $u['user_id'] === $user['user_id']; ?>
+            <?php foreach ($rows as $u):
+                $isMe     = $u['user_id'] === $user['user_id'];
+                // Mirrors api/update_user.php: admins are changed only by the master admin; the master admin not here.
+                $canEdit  = !$isMe && $u['role'] !== 'master_admin' && ($isMaster || !in_array($u['role'], ADMIN_ROLES, true));
+                $sessions = (int) ($online[$u['user_id']] ?? 0);
+                $locked   = account_locked($u);
+            ?>
                 <tr>
                     <td>
                         <div class="flex items-center gap-1">
                             <span class="avatar" aria-hidden="true"><?= e(initials($u)) ?></span>
-                            <span class="table-title"><?= e(full_name($u)) ?><?= $isMe ? ' <small class="text-muted">(you)</small>' : '' ?></span>
+                            <span class="table-title"><?= e(full_name($u)) ?><?= $isMe ? ' <small class="text-muted">(you)</small>' : '' ?>
+                                <span class="table-sub"><?= e($u['email']) ?></span></span>
                         </div>
                     </td>
-                    <td><?= e($u['email']) ?></td>
                     <td>
+                        <?php if ($canEdit): ?>
                         <form method="post" action="<?= e(url('/?tab=users')) ?>" class="inline-form" data-api="update_user" data-confirm="Change this user's role?">
                             <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
                             <label for="role-<?= $u['user_id'] ?>" class="sr-only">Role for <?= e(full_name($u)) ?></label>
-                            <select id="role-<?= $u['user_id'] ?>" name="role" class="inline-select" <?= $isMe ? 'disabled title="You cannot change your own role"' : '' ?>>
-                                <?= options(ROLES, $u['role']) ?>
+                            <select id="role-<?= $u['user_id'] ?>" name="role" class="inline-select">
+                                <?= options($assignable, $u['role']) ?>
                             </select>
-                            <?php if (!$isMe): ?>
-                                <button type="submit" class="btn btn-secondary btn-sm">Save<span class="sr-only"> role for <?= e(full_name($u)) ?></span></button>
-                            <?php endif; ?>
+                            <button type="submit" class="btn btn-secondary btn-sm">Save<span class="sr-only"> role for <?= e(full_name($u)) ?></span></button>
                         </form>
+                        <?php else: ?>
+                            <?= e(ROLES[$u['role']] ?? $u['role']) ?>
+                        <?php endif; ?>
                     </td>
-                    <td><span class="badge badge-<?= $u['is_active'] ? 'active' : 'inactive' ?>" data-status-for="user-<?= $u['user_id'] ?>"><?= $u['is_active'] ? 'Active' : 'Deactivated' ?></span></td>
-                    <td class="nowrap"><?= e(format_date($u['created_at'])) ?></td>
+                    <td>
+                        <span class="badge badge-<?= $u['is_active'] ? 'active' : 'inactive' ?>" data-status-for="user-<?= $u['user_id'] ?>"><?= $u['is_active'] ? 'Active' : 'Deactivated' ?></span>
+                        <?php if (!$u['email_verified']): ?><span class="badge badge-pending">Unverified</span><?php endif; ?>
+                        <?php if ($locked): ?><span class="badge badge-rejected" data-locked-for="<?= $u['user_id'] ?>">Locked until <?= e(date('g:i A', strtotime($u['locked_until']))) ?></span><?php endif; ?>
+                    </td>
+                    <td class="nowrap"><?= e(format_datetime($u['last_login_at'])) ?></td>
+                    <td class="nowrap"><?= e(activity_label($u['last_activity_at'], $sessions)) ?></td>
+                    <td class="nowrap"><?= $sessions ? '<span class="badge badge-active">Online</span>' . ($sessions > 1 ? ' <small>' . $sessions . ' devices</small>' : '') : '<span class="badge">Offline</span>' ?></td>
                     <td class="actions">
-                        <?php if (!$isMe): ?>
+                        <?php if ($canEdit && $locked): ?>
+                            <form method="post" action="<?= e(url('/?tab=users')) ?>" class="inline-form" data-api="update_user" data-done="remove" data-confirm="Unlock this account now?">
+                                <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
+                                <input type="hidden" name="unlock" value="1">
+                                <button type="submit" class="btn btn-sm btn-outline">Unlock</button>
+                            </form>
+                        <?php endif; ?>
+                        <?php if ($canEdit): ?>
                             <form method="post" action="<?= e(url('/?tab=users')) ?>" class="inline-form" data-api="update_user"
-                                  data-confirm="<?= $u['is_active'] ? 'Deactivate this account? They will no longer be able to log in.' : 'Reactivate this account?' ?>">
+                                  data-confirm="<?= $u['is_active'] ? 'Deactivate this account? They will be logged out and no longer able to log in.' : 'Reactivate this account?' ?>">
                                 <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
                                 <input type="hidden" name="is_active" value="<?= $u['is_active'] ? '0' : '1' ?>">
                                 <button type="submit" class="btn btn-sm <?= $u['is_active'] ? 'btn-secondary' : 'btn-success' ?>" data-toggle-active><?= $u['is_active'] ? 'Deactivate' : 'Reactivate' ?></button>
@@ -579,6 +639,119 @@ include APP_ROOT . '/templates/layout/header.php';
         </table>
     </div>
     <p class="filter-empty" data-filter-empty hidden>No users match that search.</p>
+    <p class="text-sm text-muted mt-1">Activity is the last authenticated request. A session counts as online until <?= SESSION_IDLE_MINUTES ?> minutes without one.</p>
+
+<?php /* ================================================== MY FOUND POSTS (students / faculty) */ ?>
+<?php elseif ($tab === 'posts'): ?>
+    <?php $myPosts = newest_first(where(all_found_items(), 'user_id', $user['user_id'])); ?>
+    <?php if ($myPosts): ?>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th></th><th>Item</th><th>Found on</th><th>Review</th><th>Item status</th><th class="actions"></th></tr></thead>
+            <tbody>
+            <?php foreach ($myPosts as $post): ?>
+                <tr>
+                    <td><?= photo_tag($post['image_url'], $post['item_name'], 'photo-thumb') ?></td>
+                    <td>
+                        <a class="table-title" href="<?= e(item_url('found', $post['item_id'])) ?>"><?= e($post['item_name']) ?></a>
+                        <?php if ($post['moderation_status'] === 'rejected' && $post['moderation_note']): ?><span class="table-sub"><?= e($post['moderation_note']) ?></span><?php endif; ?>
+                    </td>
+                    <td class="nowrap"><?= e(format_date($post['date_found'])) ?></td>
+                    <td><?= status_badge($post['moderation_status']) ?></td>
+                    <td><?= $post['moderation_status'] === 'approved' ? status_badge($post['status']) : '<span class="text-muted">—</span>' ?></td>
+                    <td class="actions"><a class="btn btn-outline btn-sm" href="<?= e(item_url('found', $post['item_id'])) ?>">View</a></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php else: ?>
+        <?= empty_state('No posts yet', 'Found something on campus? Post it and bring it to the Lost & Found office.', url('/report.php?type=found'), 'Post a found item') ?>
+    <?php endif; ?>
+
+<?php /* ================================================== POST REVIEW (staff) */ ?>
+<?php elseif ($tab === 'moderation'): ?>
+    <?php if ($pendingPosts): ?>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>#</th><th>Item</th><th>Posted by</th><th>Found</th><th>Submitted</th><th class="actions"></th></tr></thead>
+            <tbody>
+            <?php foreach (array_reverse($pendingPosts) as $post): $poster = find_user($post['user_id']); ?>
+                <tr>
+                    <td class="text-muted"><?= $post['item_id'] ?></td>
+                    <td>
+                        <a class="table-title" href="<?= e(item_url('found', $post['item_id'])) ?>"><?= e($post['item_name']) ?></a>
+                        <span class="table-sub"><?= e($post['category']) ?></span>
+                    </td>
+                    <td><?= e(full_name($poster)) ?><span class="table-sub"><?= e($poster['email']) ?></span></td>
+                    <td><?= e($post['location_found']) ?><span class="table-sub"><?= e(format_date($post['date_found'])) ?></span></td>
+                    <td class="nowrap"><?= e(format_datetime($post['created_at'])) ?></td>
+                    <td class="actions"><a class="btn btn-primary btn-sm" href="<?= e(item_url('found', $post['item_id'])) ?>">Review</a></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php else: ?>
+        <?= empty_state('Nothing to review', 'There are no student or faculty posts waiting for approval.') ?>
+    <?php endif; ?>
+
+<?php /* ================================================== SECURITY LOGS (admin) */ ?>
+<?php elseif ($tab === 'logs'): ?>
+    <?php
+    $events = db()->query('SELECT e.*, u.first_name, u.last_name, u.role FROM security_events e LEFT JOIN users u ON u.user_id = e.user_id ORDER BY e.event_id DESC LIMIT 300')->fetchAll();
+    $sessionRows = db()->query('SELECT s.session_id, s.user_id, s.status, s.ip_address, s.user_agent, s.created_at, s.last_activity_at, s.expires_at, s.ended_at,
+                                       u.first_name, u.last_name, u.email, u.role
+                                FROM user_sessions s JOIN users u ON u.user_id = s.user_id ORDER BY s.session_id DESC LIMIT 150')->fetchAll();
+    $sessionBadge = ['active' => 'active', 'logged_out' => 'closed', 'expired' => 'pending', 'revoked' => 'rejected'];
+    ?>
+    <h2>Login sessions</h2>
+    <div class="table-wrap mb-3">
+        <table class="table">
+            <thead><tr><th>#</th><th>Account</th><th>Status</th><th>Logged in</th><th>Last activity</th><th>Ended / expires</th><th>IP</th><th>Device</th></tr></thead>
+            <tbody>
+            <?php foreach ($sessionRows as $s): ?>
+                <tr>
+                    <td class="text-muted"><?= $s['session_id'] ?></td>
+                    <td><?= e(full_name($s)) ?><span class="table-sub"><?= e($s['email']) ?> &middot; <?= e(ROLES[$s['role']] ?? $s['role']) ?></span></td>
+                    <td><span class="badge badge-<?= $sessionBadge[$s['status']] ?>"><?= e(ucwords(str_replace('_', ' ', $s['status']))) ?></span></td>
+                    <td class="nowrap"><?= e(format_datetime($s['created_at'])) ?></td>
+                    <td class="nowrap"><?= e(format_datetime($s['last_activity_at'])) ?></td>
+                    <td class="nowrap"><?= e($s['ended_at'] ? format_datetime($s['ended_at']) : 'expires ' . date('g:i A', strtotime($s['expires_at']))) ?></td>
+                    <td class="nowrap"><?= e($s['ip_address'] ?? '—') ?></td>
+                    <td class="cell-wide text-sm" title="<?= e($s['user_agent']) ?>"><?= e(excerpt((string) $s['user_agent'], 60)) ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>Security events</h2>
+    <div class="table-tools">
+        <input type="search" placeholder="Filter events, accounts, IPs…" aria-label="Filter security events" data-table-filter="#eventsTable">
+        <span class="text-sm text-muted">Showing <span data-filter-count="#eventsTable"><?= count($events) ?></span> (latest 300)</span>
+    </div>
+    <div class="table-wrap">
+        <table class="table" id="eventsTable">
+            <thead><tr><th>When</th><th>Event</th><th>Account</th><th>Details</th><th>IP</th><th>Device</th></tr></thead>
+            <tbody>
+            <?php foreach ($events as $ev): $meta = json_decode((string) $ev['metadata'], true) ?: []; ?>
+                <tr>
+                    <td class="nowrap"><?= e(format_datetime($ev['created_at'])) ?></td>
+                    <td class="nowrap"><span class="badge badge-<?= e(event_badge($ev['event_type'])) ?>"><?= e(str_replace('_', ' ', $ev['event_type'])) ?></span></td>
+                    <td>
+                        <?= $ev['user_id'] ? e(full_name($ev)) : '<span class="text-muted">Unknown account</span>' ?>
+                        <span class="table-sub"><?= e($ev['email'] ?? '') ?><?= $ev['role'] ? ' &middot; ' . e(ROLES[$ev['role']] ?? $ev['role']) : '' ?></span>
+                    </td>
+                    <td class="text-sm"><?php foreach ($meta as $k => $v): ?><?= e(str_replace('_', ' ', (string) $k)) ?>: <?= e(is_scalar($v) ? (string) $v : json_encode($v)) ?><br><?php endforeach; ?><?= $ev['session_id'] ? '<span class="text-muted">session #' . (int) $ev['session_id'] . '</span>' : '' ?></td>
+                    <td class="nowrap"><?= e($ev['ip_address'] ?? '—') ?></td>
+                    <td class="cell-wide text-sm" title="<?= e($ev['user_agent']) ?>"><?= e(excerpt((string) $ev['user_agent'], 50)) ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <p class="filter-empty" data-filter-empty hidden>No events match that filter.</p>
 
 <?php /* ================================================== ACCOUNT */ ?>
 <?php elseif ($tab === 'account'): ?>
@@ -618,13 +791,12 @@ include APP_ROOT . '/templates/layout/header.php';
                 </div>
                 <div class="form-group">
                     <label for="new_password">New password <span class="req" aria-hidden="true">*</span></label>
-                    <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" aria-describedby="new_password-hint new_password-error"<?= $inv('new_password') ?>>
-                    <span class="form-hint" id="new_password-hint">At least <?= PASSWORD_MIN ?> characters.</span>
+                    <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-label="New password" data-password-policy<?= $inv('new_password') ?>>
                     <?= $err('new_password') ?>
                 </div>
                 <div class="form-group">
                     <label for="new_password_confirm">Confirm new password <span class="req" aria-hidden="true">*</span></label>
-                    <input type="password" id="new_password_confirm" name="new_password_confirm" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-match="new_password" aria-describedby="new_password_confirm-error"<?= $inv('new_password_confirm') ?>>
+                    <input type="password" id="new_password_confirm" name="new_password_confirm" required autocomplete="new-password" data-match="new_password" data-label="Confirm new password" data-no-paste<?= $inv('new_password_confirm') ?>>
                     <?= $err('new_password_confirm') ?>
                 </div>
                 <button type="submit" class="btn btn-primary">Change password</button>

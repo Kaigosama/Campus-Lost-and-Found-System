@@ -31,6 +31,10 @@ window.ClafsApi = (function () {
 
         return fetch(url, init).then(function (response) {
             return response.json().catch(function () { return {}; }).then(function (data) {
+                // The server ended the session (idle timeout, logout elsewhere): go log in again, then come back.
+                if (response.status === 401 && url.indexOf(base) === 0) {
+                    window.location.href = base.replace(/api\/$/, '') + 'login.php?next=' + encodeURIComponent(window.location.pathname + window.location.search);
+                }
                 if (!response.ok || data.ok === false) {
                     var error = new Error(data.error || ('Request failed (' + response.status + ')'));
                     error.status = response.status;
@@ -67,6 +71,7 @@ window.ClafsApi = (function () {
         updateItem:   function (type, id, fields)         { return post('update_item.php', withType(type, fields, { id: id })); },
         updateStatus: function (type, id, status, itemId) { return post('update_status.php', { type: type, id: id, status: status, item_id: itemId }); },
         createClaim:  function (fields)                   { return post('claims.php', Object.assign({ action: 'create' }, fields)); },
+        moderateItem: function (id, decision, note, storage) { return post('update_status.php', { type: 'found', id: id, moderation: decision, review_note: note, storage_location: storage }); },
         reviewClaim:  function (claimId, decision, note)  { return post('claims.php', { action: 'review', claim_id: claimId, decision: decision, review_note: note }); },
         withdrawClaim: function (claimId)                 { return post('claims.php', { action: 'withdraw', claim_id: claimId }); },
         updateUser:   function (userId, changes)          { return post('update_user.php', Object.assign({ user_id: userId }, changes)); },

@@ -93,10 +93,10 @@
         if (ids.indexOf(node.id) === -1) field.setAttribute('aria-describedby', ids.concat(node.id).join(' '));
     }
 
-    // Link every static hint (e.g. "JPG, PNG or WEBP…") to the field in its group.
-    document.querySelectorAll('.form-group span.form-hint').forEach(function (hint) {
-        var field = groupOf(hint).querySelector('input:not([type="hidden"]), select, textarea');
-        if (field) describeBy(field, hint, 'hint');
+    // Link every static hint (e.g. "JPG, PNG or WEBP…") and server-rendered error to the field in its group.
+    document.querySelectorAll('.form-group span.form-hint, .form-group .form-error').forEach(function (node) {
+        var field = groupOf(node).querySelector('input:not([type="hidden"]), select, textarea');
+        if (field) describeBy(field, node, node.classList.contains('form-error') ? 'error' : 'hint');
     });
 
     function setError(field, message) {
@@ -120,10 +120,70 @@
         if (node) node.textContent = '';
     }
 
+    /* ---- Password policy (same rules as password_error() in src/validation.php) ---- */
+    var PASSWORD_MIN = 8;
+    var PASSWORD_RULES = [
+        { test: function (v) { return v.length >= PASSWORD_MIN; }, label: 'At least ' + PASSWORD_MIN + ' characters', error: 'Password must be at least ' + PASSWORD_MIN + ' characters.' },
+        { test: function (v) { return /[a-z]/.test(v); }, label: 'Contains a lowercase letter', error: 'Password must contain at least one lowercase letter.' },
+        { test: function (v) { return /[A-Z]/.test(v); }, label: 'Contains an uppercase letter', error: 'Password must contain at least one uppercase letter.' },
+        { test: function (v) { return /[0-9]/.test(v); }, label: 'Contains a number', error: 'Password must contain at least one number.' },
+        { test: function (v) { return /[^A-Za-z0-9]/.test(v); }, label: 'Contains a special character', error: 'Password must contain at least one special character.' }
+    ];
+    function passwordError(value) {
+        for (var i = 0; i < PASSWORD_RULES.length; i++) {
+            if (!PASSWORD_RULES[i].test(value)) return PASSWORD_RULES[i].error;
+        }
+        return value.length > 72 ? 'Password must be 72 characters or fewer.' : '';
+    }
+
+    // Live checklist and Weak / Moderate / Strong label under input[data-password-policy]. A UI aid only:
+    // the server rejects any password that misses a rule.
+    document.querySelectorAll('input[data-password-policy]').forEach(function (input) {
+        var meter = document.createElement('div');
+        meter.className = 'password-meter';
+        meter.id = input.id + '-meter';
+        meter.innerHTML = '<div class="password-strength"><span>Password strength: <span class="strength-label" aria-live="polite">—</span></span>'
+            + '<span class="strength-bar" aria-hidden="true"><span></span></span></div>'
+            + '<ul class="password-rules">' + PASSWORD_RULES.map(function (rule) {
+                return '<li><span class="sr-only">Not met: </span>' + escapeHtml(rule.label) + '</li>';
+            }).join('') + '</ul>';
+        groupOf(input).insertBefore(meter, input.nextSibling);
+        describeBy(input, meter, 'meter');
+        var items = meter.querySelectorAll('li');
+
+        function update() {
+            var met = 0;
+            PASSWORD_RULES.forEach(function (rule, i) {
+                var ok = rule.test(input.value);
+                if (ok) met++;
+                items[i].classList.toggle('met', ok);
+                items[i].firstChild.textContent = ok ? 'Met: ' : 'Not met: ';
+            });
+            var level = !input.value ? '' : met <= 2 ? 'weak' : met < PASSWORD_RULES.length ? 'moderate' : 'strong';
+            meter.className = 'password-meter' + (level ? ' strength-' + level : '');
+            meter.querySelector('.strength-label').textContent = level ? level.charAt(0).toUpperCase() + level.slice(1) : '—';
+        }
+        input.addEventListener('input', update);
+        update();
+    });
+
+    // Confirm-password fields must be typed: block paste, cut and drag-and-drop. UX only, not a security control.
+    document.querySelectorAll('input[data-no-paste]').forEach(function (input) {
+        ['paste', 'cut', 'drop'].forEach(function (type) {
+            input.addEventListener(type, function (event) {
+                event.preventDefault();
+                setError(input, 'Please type your password again instead of pasting it.');
+            });
+        });
+    });
+
     /* ---- Validation ---- */
+    function labelOf(field) { return field.dataset.label || ''; }
+
     function validateField(field) {
         if (field.disabled || field.type === 'hidden' || field.type === 'submit' || field.type === 'button') return '';
         var value = (field.value || '').trim();
+        var label = labelOf(field);
 
         if (field.type === 'checkbox') return field.required && !field.checked ? 'Please tick this box to continue.' : '';
         if (field.type === 'file') {
@@ -135,11 +195,14 @@
             }
             return '';
         }
-        if (field.required && !value) return 'This field is required.';
+        if (field.required && !value) return label ? label + ' is required.' : 'This field is required.';
         if (!value) return '';
 
+        if (field.hasAttribute('data-password-policy')) return passwordError(field.value);
         var minLength = parseInt(field.getAttribute('minlength'), 10);
-        if (minLength && value.length < minLength) return 'Must be at least ' + minLength + ' characters.';
+        if (minLength && value.length < minLength) {
+            return label ? label + ' must contain at least ' + minLength + ' characters.' : 'Must be at least ' + minLength + ' characters.';
+        }
         var maxLength = parseInt(field.getAttribute('maxlength'), 10);
         if (maxLength && value.length > maxLength) return 'Must be ' + maxLength + ' characters or fewer.';
         if (field.hasAttribute('data-name') && !/^\p{L}[\p{L}\p{M} .'\-]*$/u.test(value)) {
@@ -171,13 +234,23 @@
         return !firstInvalid;
     }
 
+    function check(field) {
+        var message = validateField(field);
+        message ? setError(field, message) : clearError(field);
+    }
+
     document.querySelectorAll('form[data-validate]').forEach(function (form) {
         form.setAttribute('novalidate', '');
+        // Leaving a field (Tab, click elsewhere) validates it; focus is never trapped in an invalid field.
+        form.addEventListener('focusout', function (event) {
+            if (event.target.matches('input, select, textarea')) check(event.target);
+        });
         form.addEventListener('input', function (event) {
-            if (event.target.classList.contains('is-invalid')) {
-                var message = validateField(event.target);
-                message ? setError(event.target, message) : clearError(event.target);
-            }
+            var field = event.target;
+            if (field.classList.contains('is-invalid')) check(field);
+            // Re-check "confirm password" as soon as either password changes, once something is typed there.
+            var confirm = field.dataset.match ? field : form.querySelector('[data-match="' + field.name + '"]');
+            if (confirm && confirm.value) check(confirm);
         });
     });
 
@@ -250,6 +323,10 @@
         claim: function (form, data) {
             return ClafsApi.createClaim(data).then(function (result) { finish(form, result.message); });
         },
+        moderate: function (form, data) {
+            return ClafsApi.moderateItem(parseInt(data.id, 10), data.moderation, data.review_note, data.storage_location)
+                .then(function (result) { finish(form, result.message); });
+        },
         review: function (form, data) {
             return ClafsApi.reviewClaim(parseInt(data.claim_id, 10), data.decision, data.review_note)
                 .then(function (result) {
@@ -267,8 +344,13 @@
             var changes = {};
             if ('role' in data) changes.role = data.role;
             if ('is_active' in data) changes.is_active = data.is_active;
+            if ('unlock' in data) changes.unlock = data.unlock;
             return ClafsApi.updateUser(parseInt(data.user_id, 10), changes).then(function (result) {
                 setBadge('user-' + result.user_id, result.is_active ? 'active' : 'inactive');
+                if (!result.locked) {
+                    var lockBadge = document.querySelector('[data-locked-for="' + result.user_id + '"]');
+                    if (lockBadge) lockBadge.remove();
+                }
                 var toggle = form.querySelector('[data-toggle-active]');
                 if (toggle) { // flip the Deactivate / Reactivate button so it can be used again without a reload
                     var active = !!result.is_active;
@@ -505,6 +587,52 @@
         input.addEventListener('input', apply);
         apply();
     });
+
+    /* ---- Cookie consent: the choice lives in localStorage (it is not itself a cookie) ---- */
+    var CONSENT_KEY = 'clafs-cookie-consent';
+    var banner = document.querySelector('[data-cookie-banner]');
+    function readConsent() { try { return localStorage.getItem(CONSENT_KEY); } catch (e) { return null; } }
+    function applyConsent(choice) {
+        // Logging in sets the necessary session cookie, so after "Reject" the log-in form explains that instead of submitting.
+        document.querySelectorAll('form[data-needs-cookies]').forEach(function (form) {
+            var note = form.querySelector('.js-cookie-note');
+            var button = form.querySelector('button[type="submit"]');
+            if (choice === 'rejected') {
+                if (!note) {
+                    note = alertNode('warning', 'You rejected cookies. Logging in needs one necessary session cookie, so accept cookies to log in.');
+                    note.classList.add('js-cookie-note');
+                    var accept = document.createElement('button');
+                    accept.type = 'button';
+                    accept.className = 'btn btn-secondary btn-sm mt-1';
+                    accept.textContent = 'Accept necessary cookie';
+                    accept.setAttribute('data-cookie-choice', 'accepted');
+                    note.appendChild(document.createElement('br'));
+                    note.appendChild(accept);
+                    form.insertBefore(note, form.firstChild);
+                }
+                button.disabled = true;
+            } else {
+                if (note) note.remove();
+                button.disabled = false;
+            }
+        });
+    }
+    if (banner) {
+        var consent = readConsent();
+        banner.hidden = !!consent;
+        applyConsent(consent);
+        document.addEventListener('click', function (event) {
+            var choice = event.target.closest('[data-cookie-choice]');
+            if (choice) {
+                try { localStorage.setItem(CONSENT_KEY, choice.dataset.cookieChoice); } catch (e) { /* private mode: ask again next visit */ }
+                banner.hidden = true;
+                applyConsent(choice.dataset.cookieChoice);
+            } else if (event.target.closest('[data-cookie-settings]')) {
+                banner.hidden = false;
+                banner.querySelector('[data-cookie-choice]').focus();
+            }
+        });
+    }
 
     /* ---- Bar widths (CSP blocks inline style attributes) ---- */
     document.querySelectorAll('[data-width]').forEach(function (bar) {
