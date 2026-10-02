@@ -24,7 +24,11 @@ $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $errors = new_password_errors($_POST);
     if (!$errors) {
-        set_password($resetUser, (string) $_POST['new_password']);
+        set_password($resetUser, (string) $_POST['new_password']);   // also clears a lockout: the recovery path
+        if (!$resetUser['email_verified']) {
+            mark_email_verified($resetUser);   // the link proved they own the address
+        }
+        log_event('password_reset', $resetUser);
         header('Location: ' . url('/login.php?reset=1'));
         exit;
     }
@@ -45,13 +49,12 @@ include APP_ROOT . '/templates/layout/header.php';
             <input type="email" name="username" value="<?= e($resetUser['email']) ?>" autocomplete="username" hidden>
             <div class="form-group">
                 <label for="new_password">New password <span class="req" aria-hidden="true">*</span></label>
-                <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" aria-describedby="new_password-hint new_password-error"<?= $inv('new_password') ?>>
-                <span class="form-hint" id="new_password-hint">At least <?= PASSWORD_MIN ?> characters.</span>
+                <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-label="New password" data-password-policy<?= $inv('new_password') ?>>
                 <?= $err('new_password') ?>
             </div>
             <div class="form-group">
                 <label for="new_password_confirm">Confirm new password <span class="req" aria-hidden="true">*</span></label>
-                <input type="password" id="new_password_confirm" name="new_password_confirm" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-match="new_password" aria-describedby="new_password_confirm-error"<?= $inv('new_password_confirm') ?>>
+                <input type="password" id="new_password_confirm" name="new_password_confirm" required autocomplete="new-password" data-match="new_password" data-label="Confirm new password" data-no-paste<?= $inv('new_password_confirm') ?>>
                 <?= $err('new_password_confirm') ?>
             </div>
             <button type="submit" class="btn btn-primary btn-block">Save new password</button>

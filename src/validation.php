@@ -7,9 +7,10 @@ declare(strict_types=1);
 
 /**
  * Validates the fields of a lost report ('lost') or found item ('found') from add_item / update_item.
+ * A student's found-item post has no storage location yet ($needsStorage false); staff add it when approving.
  * Returns [errors (field => message), values (trimmed, keyed by column)].
  */
-function validate_item_input(array $in, string $type): array
+function validate_item_input(array $in, string $type, bool $needsStorage = true): array
 {
     $field = fn (string $key) => trim((string) ($in[$key] ?? ''));
     $rules = [
@@ -17,7 +18,7 @@ function validate_item_input(array $in, string $type): array
         'description' => [$type === 'found' ? 15 : 20, 2000],
     ];
     if ($type === 'found') {
-        $rules += ['location_found' => [1, 150], 'storage_location' => [1, 150], 'private_details' => [15, 2000]];
+        $rules += ['location_found' => [1, 150], 'storage_location' => [$needsStorage ? 1 : 0, 150], 'private_details' => [15, 2000]];
         $dateKey = 'date_found';
     } else {
         $rules += ['location_lost' => [1, 150]];
@@ -29,7 +30,7 @@ function validate_item_input(array $in, string $type): array
     foreach ($rules as $key => [$min, $max]) {
         $values[$key] = $field($key);
         $len = mb_strlen($values[$key]);
-        if ($len === 0)     $errors[$key] = 'This field is required.';
+        if ($len === 0 && $min) $errors[$key] = 'This field is required.';
         elseif ($len < $min) $errors[$key] = "Must be at least $min characters.";
         elseif ($len > $max) $errors[$key] = "Must be $max characters or fewer.";
     }
@@ -46,12 +47,53 @@ function validate_item_input(array $in, string $type): array
     return [$errors, $values];
 }
 
+/** A person's name: required, at least $min characters, letters (any script) plus spaces, hyphens, apostrophes, periods. */
+function name_error(string $name, string $label, int $min): ?string
+{
+    $len = mb_strlen($name);
+    return match (true) {
+        $len === 0                       => "$label is required.",
+        $len < $min                      => "$label must contain at least $min characters.",
+        $len > 100                       => "$label must be 100 characters or fewer.",
+        !preg_match(NAME_PATTERN, $name) => "$label: use letters only (spaces, hyphens, apostrophes and periods are allowed).",
+        default                          => null,
+    };
+}
+
+/** Password policy; public/js/app.js shows the same rules as a live checklist. */
+const PASSWORD_RULES = [
+    '/[a-z]/'        => 'Password must contain at least one lowercase letter.',
+    '/[A-Z]/'        => 'Password must contain at least one uppercase letter.',
+    '/[0-9]/'        => 'Password must contain at least one number.',
+    '/[^A-Za-z0-9]/' => 'Password must contain at least one special character.',
+];
+
+/** The first rule $password breaks, or null when it meets the policy. */
+function password_error(string $password): ?string
+{
+    if ($password === '') {
+        return 'Password is required.';
+    }
+    if (strlen($password) < PASSWORD_MIN) {
+        return 'Password must be at least ' . PASSWORD_MIN . ' characters.';
+    }
+    if (strlen($password) > 72) {   // bcrypt ignores everything after 72 bytes
+        return 'Password must be 72 characters or fewer.';
+    }
+    foreach (PASSWORD_RULES as $pattern => $message) {
+        if (!preg_match($pattern, $password)) {
+            return $message;
+        }
+    }
+    return null;
+}
+
 /** Rules for the new_password / new_password_confirm fields. Returns field errors. */
 function new_password_errors(array $in, ?string $current = null): array
 {
     $new = (string) ($in['new_password'] ?? '');
-    if (strlen($new) < PASSWORD_MIN) {
-        return ['new_password' => 'Password must be at least ' . PASSWORD_MIN . ' characters.'];
+    if ($message = password_error($new)) {
+        return ['new_password' => $message];
     }
     if ($current !== null && $new === $current) {
         return ['new_password' => 'Choose a password different from your current one.'];

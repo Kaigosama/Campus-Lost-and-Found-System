@@ -39,8 +39,3 @@ function record_attempt(string $bucket): void
     $times[] = time();
     file_put_contents(attempts_file($bucket), implode("\n", $times), LOCK_EX);
 }
-
-function clear_attempts(string $bucket): void
-{
-    @unlink(attempts_file($bucket));
-}

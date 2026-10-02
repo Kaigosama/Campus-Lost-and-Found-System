@@ -15,5 +15,10 @@ require_once __DIR__ . '/validation.php';
 require_once __DIR__ . '/uploads.php';
 require_once __DIR__ . '/rate_limit.php';
 require_once __DIR__ . '/password_reset.php';
+require_once __DIR__ . '/email_verification.php';
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/repository.php';
 require_once __DIR__ . '/auth.php';
+
+reject_cross_site_post();
+redirect_ended_session();

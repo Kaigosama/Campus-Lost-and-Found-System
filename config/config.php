@@ -20,10 +20,14 @@ const APP_FULL_NAME = 'Campus Lost-and-Found System';
 const CATEGORIES = ['Electronics', 'IDs & Cards', 'Bags', 'Clothing', 'Books & Notes', 'Keys', 'Accessories', 'Other'];
 
 const ROLES = [
-    'user'  => 'Student / Faculty',
-    'staff' => 'Security & Maintenance',
-    'admin' => 'Office Administrator',
+    'user'         => 'Student / Faculty',
+    'staff'        => 'Security & Maintenance',
+    'admin'        => 'Office Administrator',
+    'master_admin' => 'Master Administrator',
 ];
+const ADMIN_ROLES = ['admin', 'master_admin'];
+/** Who reviews claims and student posts. Logging found items at intake is 'staff' only. */
+const REVIEWER_ROLES = ['staff', 'admin', 'master_admin'];
 const LOST_STATUSES  = ['open' => 'Open', 'matched' => 'Matched', 'closed' => 'Closed'];
 const FOUND_STATUSES = ['stored' => 'In Storage', 'returned' => 'Returned', 'disposed' => 'Disposed'];
 const CLAIM_STATUSES = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected'];
@@ -35,10 +39,15 @@ const MAX_UPLOAD_MB   = 5;
 const UPLOAD_DIR      = APP_ROOT . '/public/uploads';
 const IMAGE_TYPES     = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
 const PASSWORD_MIN    = 8;
-const REMEMBER_DAYS   = 30;
+const NAME_MIN        = 2;   // first name
 const RESET_LINK_MINUTES = 60;
-/** Failed log-ins and reset requests allowed per LIMIT_WINDOW_MINUTES before further tries are refused. */
-const LOGIN_MAX_PER_EMAIL  = 5;
+const VERIFY_LINK_HOURS  = 24;
+/** A session ends after this long without an authenticated request. */
+const SESSION_IDLE_MINUTES = 30;
+/** Consecutive wrong passwords that lock an account (not the master admin) for LOCKOUT_MINUTES. */
+const LOCKOUT_ATTEMPTS = 3;
+const LOCKOUT_MINUTES  = 15;
+/** Requests allowed per LIMIT_WINDOW_MINUTES before further tries from that IP are refused. */
 const LOGIN_MAX_PER_IP     = 20;
 const RESET_MAX_PER_IP     = 5;
 const LIMIT_WINDOW_MINUTES = 15;

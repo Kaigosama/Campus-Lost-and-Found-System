@@ -49,20 +49,36 @@ function user_from_reset_link(array $query): ?array
 function request_password_reset(string $email): void
 {
     $user = find_user_by_email($email);
-    if (!$user || !$user['is_active']) {
+    if (!$user || !$user['is_active'] || mail_throttled('reset', $user)) {
         return;
     }
-    $stamp = sys_get_temp_dir() . '/clafs-reset-' . $user['user_id'];
-    if (is_file($stamp) && filemtime($stamp) > time() - 60) {
-        return;   // at most one email per account per minute
-    }
-    touch($stamp);
+    log_event('password_reset_requested', $user);
     $text = "Hi {$user['first_name']},\n\n"
         . "Someone asked to reset the password for your " . APP_NAME . " account. Open this link to choose a new one:\n\n"
         . password_reset_url($user) . "\n\n"
         . 'The link works once and expires in ' . RESET_LINK_MINUTES . " minutes. If you didn't ask for this, ignore this email; your password stays the same.\n\n"
         . '— ' . APP_FULL_NAME;
     send_mail($user['email'], full_name($user), 'Reset your ' . APP_NAME . ' password', $text);
+}
+
+/** True when an email of this $kind already went to $user in the last minute; otherwise records this one. */
+function mail_throttled(string $kind, array $user): bool
+{
+    $stamp = sys_get_temp_dir() . "/clafs-$kind-" . $user['user_id'];
+    if (is_file($stamp) && filemtime($stamp) > time() - 60) {
+        return true;
+    }
+    touch($stamp);
+    return false;
+}
+
+/** An account-security email (lockout, repeated failed log-ins). */
+function send_security_notice(array $user, string $message): void
+{
+    if (mail_throttled('security', $user)) {
+        return;
+    }
+    send_mail($user['email'], full_name($user), APP_NAME . ' security alert', "Hi {$user['first_name']},\n\n$message\n\n— " . APP_FULL_NAME);
 }
 
 /**
