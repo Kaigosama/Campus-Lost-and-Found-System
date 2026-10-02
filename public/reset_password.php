@@ -24,7 +24,7 @@ $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $errors = new_password_errors($_POST);
     if (!$errors) {
-        set_password($resetUser, (string) $_POST['new_password']);   // also clears a lockout: the recovery path
+        set_password($resetUser, (string) $_POST['new_password']);   // a lockout stays until an admin unlocks it
         if (!$resetUser['email_verified']) {
             mark_email_verified($resetUser);   // the link proved they own the address
         }

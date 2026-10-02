@@ -32,8 +32,8 @@ display case. CLAFS moves that process online.
 | Master Administrator | one seeded account | Everything an administrator does, plus manage administrator accounts. Never locked out by failed log-ins (failures are logged and emailed instead); recovers access through password reset |
 
 Account security: email verification on sign-up, Cloudflare Turnstile on log-in and registration, a password
-policy (8+ characters with upper and lower case, a number and a symbol), a 15-minute lock after 3 wrong passwords
-in a row, sessions that end after 30 minutes without activity, and a log of every log-in, failure, lockout and
+policy (8+ characters with upper and lower case, a number and a symbol), a lock after 3 wrong passwords in a row
+that only an admin can lift (the user visits the Lost & Found office; Admin → Users & Activity → Unlock), sessions that end after 30 minutes without activity, and a log of every log-in, failure, lockout and
 logout that admins can read under **Admin → Security Logs**.
 
 The database design is in [docs/erd.html](docs/erd.html) and [database/schema.sql](database/schema.sql).

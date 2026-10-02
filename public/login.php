@@ -18,8 +18,7 @@ if (is_logged_in()) {
 $notice = $_SESSION['auth_notice'] ?? '';
 unset($_SESSION['auth_notice']);
 
-$lockedMessage = 'Too many failed log-in attempts. This account is temporarily locked; try again in ' . LOCKOUT_MINUTES
-    . ' minutes or reset your password.';
+$lockedMessage = LOCKED_MESSAGE;
 $error = '';
 $unverified = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -37,6 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_event('login_rate_limited', $found, [], $email ?: null);
     } elseif (!$found) {
         // Unknown emails get the same answers, at the same point, as real accounts, so nobody can probe which exist.
+        // ponytail: this fake lock lasts LIMIT_WINDOW_MINUTES while a real one lasts until unlocked; a prober who
+        // waits that long can tell them apart. Store unknown-email locks in a table if that matters.
         $emailBucket = 'login-unknown:' . $email;
         record_attempt($ipBucket);
         $error = rate_limited($emailBucket, LOCKOUT_ATTEMPTS - 1) ? $lockedMessage : 'Incorrect email or password.';

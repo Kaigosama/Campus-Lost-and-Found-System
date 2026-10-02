@@ -61,7 +61,7 @@ if (!$changes) {
     json_error(422, 'Nothing to change.');
 }
 
-db()->prepare('UPDATE users SET role = ?, is_active = ?' . ($unlock ? ', failed_login_attempts = 0, locked_until = NULL' : '') . ' WHERE user_id = ?')
+db()->prepare('UPDATE users SET role = ?, is_active = ?' . ($unlock ? ', failed_login_attempts = 0, locked_at = NULL' : '') . ' WHERE user_id = ?')
     ->execute([$role, $isActive, $userId]);
 if (!$isActive) {
     revoke_sessions($userId);

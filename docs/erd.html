@@ -42,7 +42,7 @@ erDiagram
         char     email_verification_token_hash UK "SHA-256 of emailed token"
         datetime email_verification_expires_at
         tinyint  failed_login_attempts         "consecutive"
-        datetime locked_until
+        datetime locked_at                     "null = not locked"
         datetime last_login_at
         datetime last_activity_at
         datetime created_at
@@ -159,7 +159,7 @@ erDiagram
             <tr><td><code>claims</code></td><td><code>proof_description</code>, <code>reviewed_by</code>, <code>review_note</code>, <code>reviewed_at</code></td><td>schema.sql §5</td><td>What the claimant wrote, and the staff decision with its note.</td></tr>
             <tr><td><code>users</code></td><td><code>role</code> gains <code>master_admin</code></td><td>migration 001</td><td>Master admin: manages admin accounts and is never locked out.</td></tr>
             <tr><td><code>users</code></td><td><code>email_verified</code>, <code>email_verified_at</code>, <code>email_verification_token_hash</code>, <code>email_verification_expires_at</code></td><td>migration 001</td><td>Email confirmation on registration (single-use, expiring link; only the token's hash is stored).</td></tr>
-            <tr><td><code>users</code></td><td><code>failed_login_attempts</code>, <code>locked_until</code></td><td>migration 001</td><td>Lock after 3 wrong passwords in a row.</td></tr>
+            <tr><td><code>users</code></td><td><code>failed_login_attempts</code>, <code>locked_at</code></td><td>migration 001, renamed from <code>locked_until</code> by 002</td><td>Lock after 3 wrong passwords in a row, until an admin unlocks the account.</td></tr>
             <tr><td><code>users</code></td><td><code>last_login_at</code>, <code>last_activity_at</code></td><td>migration 001</td><td>Admin “Users &amp; Activity” page.</td></tr>
             <tr><td><code>found_items</code></td><td><code>moderation_status</code>, <code>moderated_by</code>, <code>moderation_note</code>, <code>moderated_at</code></td><td>migration 001</td><td>Students’ found-item posts stay private until staff approve them.</td></tr>
             <tr><td><code>user_sessions</code></td><td>new table</td><td>migration 001</td><td>Server-side sessions: inactivity timeout, logout, one device per admin.</td></tr>

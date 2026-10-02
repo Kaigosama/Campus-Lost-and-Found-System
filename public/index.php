@@ -611,7 +611,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     <td>
                         <span class="badge badge-<?= $u['is_active'] ? 'active' : 'inactive' ?>" data-status-for="user-<?= $u['user_id'] ?>"><?= $u['is_active'] ? 'Active' : 'Deactivated' ?></span>
                         <?php if (!$u['email_verified']): ?><span class="badge badge-pending">Unverified</span><?php endif; ?>
-                        <?php if ($locked): ?><span class="badge badge-rejected" data-locked-for="<?= $u['user_id'] ?>">Locked until <?= e(date('g:i A', strtotime($u['locked_until']))) ?></span><?php endif; ?>
+                        <?php if ($locked): ?><span class="badge badge-rejected" data-locked-for="<?= $u['user_id'] ?>" title="Locked <?= e(format_datetime($u['locked_at'])) ?>">Locked</span><?php endif; ?>
                     </td>
                     <td class="nowrap"><?= e(format_datetime($u['last_login_at'])) ?></td>
                     <td class="nowrap"><?= e(activity_label($u['last_activity_at'], $sessions)) ?></td>

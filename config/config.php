@@ -44,9 +44,10 @@ const RESET_LINK_MINUTES = 60;
 const VERIFY_LINK_HOURS  = 24;
 /** A session ends after this long without an authenticated request. */
 const SESSION_IDLE_MINUTES = 30;
-/** Consecutive wrong passwords that lock an account (not the master admin) for LOCKOUT_MINUTES. */
+/** Consecutive wrong passwords that lock an account (not the master admin) until an admin unlocks it. */
 const LOCKOUT_ATTEMPTS = 3;
-const LOCKOUT_MINUTES  = 15;
+const LOCKED_MESSAGE   = 'This account is locked after too many failed log-in attempts. Visit the Lost & Found office '
+    . '(Admin Bldg, Rm 104, Mon–Fri 8:00 AM–5:00 PM) with your ID to have it unlocked.';
 /** Requests allowed per LIMIT_WINDOW_MINUTES before further tries from that IP are refused. */
 const LOGIN_MAX_PER_IP     = 20;
 const RESET_MAX_PER_IP     = 5;

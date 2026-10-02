@@ -121,7 +121,7 @@ function login_user(array $user): void
     db()->prepare('INSERT INTO user_sessions (user_id, token_hash, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, NOW() + INTERVAL ? MINUTE)')
         ->execute([$user['user_id'], hash('sha256', $token), client_ip(), user_agent() ?: null, SESSION_IDLE_MINUTES]);
     $sessionId = (int) db()->lastInsertId();
-    db()->prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW(), last_activity_at = NOW() WHERE user_id = ?')
+    db()->prepare('UPDATE users SET failed_login_attempts = 0, last_login_at = NOW(), last_activity_at = NOW() WHERE user_id = ?')
         ->execute([$user['user_id']]);
 
     $_SESSION = [
@@ -151,10 +151,13 @@ function logout(): void
 
 /* ---------------------------------------------------------------- Lockout */
 
-/** Locked by too many wrong passwords. The master admin is never locked; their failures are only logged. */
+/**
+ * Locked by too many wrong passwords, until an admin unlocks it (api/update_user.php). Neither waiting nor a
+ * password reset unlocks it. The master admin is never locked; their failures are only logged.
+ */
 function account_locked(array $user): bool
 {
-    return $user['role'] !== 'master_admin' && $user['locked_until'] !== null && strtotime($user['locked_until']) > time();
+    return $user['role'] !== 'master_admin' && $user['locked_at'] !== null;
 }
 
 /** Counts a wrong password for $user; the LOCKOUT_ATTEMPTS-th in a row locks the account. Returns true if it locked now. */
@@ -176,11 +179,11 @@ function record_failed_login(array $user): bool
         }
         return false;
     }
-    db()->prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NOW() + INTERVAL ? MINUTE WHERE user_id = ?')
-        ->execute([LOCKOUT_MINUTES, $user['user_id']]);
-    log_event('account_locked', $user, ['minutes' => LOCKOUT_MINUTES]);
-    send_security_notice($user, 'Your account was locked for ' . LOCKOUT_MINUTES . ' minutes after ' . LOCKOUT_ATTEMPTS
-        . " wrong passwords in a row. If this wasn't you, reset your password: " . app_base_url() . url('/forgot_password.php'));
+    db()->prepare('UPDATE users SET failed_login_attempts = 0, locked_at = NOW() WHERE user_id = ?')->execute([$user['user_id']]);
+    log_event('account_locked', $user, ['failures' => LOCKOUT_ATTEMPTS]);
+    send_security_notice($user, 'Your account was locked after ' . LOCKOUT_ATTEMPTS . ' wrong passwords in a row. '
+        . 'Visit the Lost & Found office (Admin Bldg, Rm 104, Mon–Fri 8:00 AM–5:00 PM) with your ID to have it unlocked. '
+        . "If these attempts weren't you, tell the office so they can check your account.");
     return true;
 }
 
@@ -251,13 +254,13 @@ function password_sig(string $passwordHash): string
 }
 
 /**
- * Saves a new password and clears any lockout. Every other session of this user ends: their rows are revoked
- * and they fail the password check in session_problem().
+ * Saves a new password. A lockout stays: only an admin unlocks an account. Every other session of this user ends:
+ * their rows are revoked and they fail the password check in session_problem().
  */
 function set_password(array $user, string $password, int $keepSessionId = 0): string
 {
     $hash = password_hash($password, PASSWORD_DEFAULT);
-    db()->prepare('UPDATE users SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL WHERE user_id = ?')
+    db()->prepare('UPDATE users SET password_hash = ?, failed_login_attempts = 0 WHERE user_id = ?')
         ->execute([$hash, $user['user_id']]);
     revoke_sessions($user['user_id'], $keepSessionId);
     return $hash;
