@@ -7,6 +7,8 @@ require_once __DIR__ . '/../../src/bootstrap.php';
  *   found → staff only. Marking an item returned also closes the linked report and rejects other pending claims.
  *   lost  → staff may set any status (status=matched takes item_id, the found item it was matched to);
  *           the owner may only close their own open report.
+ *   { type: 'found', id, moderation: 'approved'|'rejected', review_note?, storage_location? }
+ *   → staff review of a student's found-item post. Approving needs a storage location; rejecting needs a reason.
  * Response: { ok, type, id, previous, status, message, rejected_claims: [claim_id…] }
  */
 require_method('POST');
@@ -21,6 +23,44 @@ $status = (string) ($in['status'] ?? '');
 $user   = current_user();
 $pdo    = db();
 $rejectedClaims = [];
+
+if ($type === 'found' && isset($in['moderation'])) {
+    if (!is_staff()) {
+        json_error(403, 'Only staff can review posts.');
+    }
+    $row = find_found_item($id);
+    if (!$row) {
+        json_error(404, 'Item not found.');
+    }
+    if ($row['moderation_status'] !== 'pending') {
+        json_error(409, 'This post has already been reviewed.');
+    }
+    $status  = (string) $in['moderation'];
+    $note    = trim((string) ($in['review_note'] ?? ''));
+    $storage = trim((string) ($in['storage_location'] ?? '')) ?: $row['storage_location'];
+    $errors  = [];
+    if (!in_array($status, ['approved', 'rejected'], true)) {
+        json_error(422, 'Choose approve or reject.');
+    }
+    if ($status === 'rejected' && mb_strlen($note) < 10) {
+        $errors['review_note'] = 'Give the poster a reason (at least 10 characters).';
+    }
+    if (mb_strlen($note) > 1000) {
+        $errors['review_note'] = 'Must be 1000 characters or fewer.';
+    }
+    if ($status === 'approved' && ($storage === '' || mb_strlen($storage) > 150)) {
+        $errors['storage_location'] = 'Record where the item is stored before approving it.';
+    }
+    if ($errors) {
+        json_error(422, 'Please fix the highlighted fields.', ['errors' => $errors]);
+    }
+    $pdo->prepare('UPDATE found_items SET moderation_status = ?, moderated_by = ?, moderation_note = ?, moderated_at = NOW(), storage_location = ? WHERE item_id = ?')
+        ->execute([$status, $user['user_id'], $note ?: null, $storage, $id]);
+    json_response([
+        'ok' => true, 'type' => 'found', 'id' => $id, 'previous' => 'pending', 'status' => $status, 'rejected_claims' => [],
+        'message' => $status === 'approved' ? "Post #$id approved. It is now listed publicly." : "Post #$id rejected. The poster can see your reason.",
+    ]);
+}
 
 if ($type === 'found') {
     if (!is_staff()) {

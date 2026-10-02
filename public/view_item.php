@@ -22,7 +22,9 @@ if ($type === 'lost') {
     $pageTitle    = $report['item_name'];
 } else {
     $item = find_found_item($id);
-    if (!$item || (!is_staff() && $item['status'] !== 'stored')) {
+    // The public sees approved items in storage; a student also sees their own post while it is reviewed.
+    $isPoster = $item && $user && $item['user_id'] === $user['user_id'] && !is_staff();
+    if (!$item || (!is_staff() && !$isPoster && !is_public_item($item))) {
         abort(404, 'Item not found', 'This item is no longer listed. It may have been returned to its owner.', url('/browse.php'), 'Back to found items');
     }
     $itemClaims   = where(all_claims(), 'item_id', $item['item_id']);
@@ -30,7 +32,9 @@ if ($type === 'lost') {
     $myClaim      = $user ? (where($itemClaims, 'user_id', $user['user_id'])[0] ?? null) : null;
     $loggedBy     = find_user($item['user_id']);
     $pageTitle    = $item['item_name'];
-    if ($user && !$myClaim && $item['status'] === 'stored') {
+    // Only students and faculty file claims, never on their own post. Staff and admins review them instead.
+    $canClaim     = is_public_item($item) && !$isPoster && (!$user || has_role('user'));
+    if ($user && $canClaim && !$myClaim) {
         $myOpenReports = array_values(array_filter(all_lost_reports(), fn ($r) => $r['user_id'] === $user['user_id'] && $r['status'] === 'open'));
     }
 }
@@ -137,7 +141,7 @@ include APP_ROOT . '/templates/layout/header.php';
                         <label for="match_item">Matching found item</label>
                         <select id="match_item" name="item_id" required>
                             <option value="">Select an item…</option>
-                            <?php foreach (where(all_found_items(), 'status', 'stored') as $fi): ?>
+                            <?php foreach (public_found_items() as $fi): ?>
                                 <option value="<?= $fi['item_id'] ?>">#<?= $fi['item_id'] ?> — <?= e($fi['item_name']) ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -159,6 +163,15 @@ include APP_ROOT . '/templates/layout/header.php';
         <h1><?= e($item['item_name']) ?> <?= status_badge($item['status'], 'found-' . $item['item_id']) ?></h1>
         <p>Item #<?= $item['item_id'] ?> &middot; turned in <?= e(format_date($item['date_found'])) ?></p>
     </div>
+    <?php if ($item['moderation_status'] !== 'approved' && ($isPoster || is_staff())): ?>
+        <div class="alert alert-<?= $item['moderation_status'] === 'pending' ? 'warning' : 'error' ?> mb-0" role="status">
+            <?php if ($item['moderation_status'] === 'pending'): ?>
+                <strong>Pending review.</strong> This post is not public yet<?= $isPoster ? '. Bring the item to the Lost &amp; Found office so staff can approve it.' : '.' ?>
+            <?php else: ?>
+                <strong>Not approved.</strong> This post is not public. <?= e($item['moderation_note']) ?>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
     <?php if (is_staff()): ?>
         <div class="btn-row">
             <a class="btn btn-outline" href="<?= e(url('/report.php?type=found&id=' . $item['item_id'])) ?>">Edit</a>
@@ -202,6 +215,28 @@ include APP_ROOT . '/templates/layout/header.php';
                 <?php if ($item['returned_at']): ?><dt>Returned</dt><dd><?= e(format_datetime($item['returned_at'])) ?></dd><?php endif; ?>
             </dl>
         </div>
+
+        <?php if ($item['moderation_status'] === 'pending'): ?>
+        <div class="card card-staff mt-2" data-replace>
+            <h2>Review this post</h2>
+            <p class="text-sm text-muted">Posted by a student or faculty member. Approve it once the item is at the office; it then appears in the public list.</p>
+            <form method="post" action="<?= e(item_url('found', $item['item_id'])) ?>" class="form" data-api="moderate">
+                <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
+                <div class="form-group">
+                    <label for="mod_storage">Storage location <span class="text-muted text-sm">(required to approve)</span></label>
+                    <input type="text" id="mod_storage" name="storage_location" maxlength="150" placeholder="e.g. Cabinet B, Shelf 2" value="<?= e($item['storage_location']) ?>">
+                </div>
+                <div class="form-group">
+                    <label for="mod_note">Note to the poster <span class="text-muted text-sm">(required to reject)</span></label>
+                    <textarea id="mod_note" name="review_note" maxlength="1000" placeholder="If rejecting: the reason, e.g. duplicate post or item never brought in."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" name="moderation" value="approved" class="btn btn-success" data-confirm="Approve and publish this post?">Approve post</button>
+                    <button type="submit" name="moderation" value="rejected" class="btn btn-danger" data-confirm="Reject this post?">Reject post</button>
+                </div>
+            </form>
+        </div>
+        <?php endif; ?>
 
         <?php if ($itemClaims): ?>
         <h2 class="mt-3">Claims on this item (<?= count($itemClaims) ?>)</h2>
@@ -305,7 +340,19 @@ include APP_ROOT . '/templates/layout/header.php';
     </div>
 
     <aside>
-        <?php if (!$user): ?>
+        <?php if (!$canClaim && !$myClaim): ?>
+            <?php if (is_staff()): ?>
+                <div class="card card-muted">
+                    <h3>Staff view</h3>
+                    <p class="text-sm mb-0">Review claims on this item in the panel<?= $itemClaims ? ' on the left' : ' (none yet)' ?> or in the <a href="<?= e(url('/?tab=queue')) ?>">claims queue</a>.</p>
+                </div>
+            <?php elseif ($isPoster): ?>
+                <div class="card card-muted">
+                    <h3>Your post</h3>
+                    <p class="text-sm mb-0">Status: <?= status_badge($item['moderation_status']) ?>. See all your posts under <a href="<?= e(url('/?tab=posts')) ?>">My Found Posts</a>.</p>
+                </div>
+            <?php endif; ?>
+        <?php elseif (!$user): ?>
             <div class="card">
                 <h3>Is this yours?</h3>
                 <p class="text-sm">Log in with your Mapua account to submit an ownership claim.</p>
@@ -321,7 +368,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     <div class="alert alert-<?= $myClaim['status'] === 'approved' ? 'success' : 'error' ?> text-sm mb-0"><?= e($myClaim['review_note']) ?></div>
                 <?php endif; ?>
             </div>
-        <?php elseif ($item['status'] === 'stored'): ?>
+        <?php else: ?>
             <div class="card" id="claim" data-replace>
                 <h3>Is this yours?</h3>
                 <p class="text-sm">Prove it by describing details that aren't visible in the listing. Staff compare this with the record made at intake — vague claims are rejected.</p>
@@ -368,7 +415,7 @@ include APP_ROOT . '/templates/layout/header.php';
             </div>
         <?php endif; ?>
 
-        <?php if (!$myClaim): ?>
+        <?php if ($canClaim && !$myClaim): ?>
         <div class="card card-muted mt-2">
             <h3>Tips for a successful claim</h3>
             <ul class="text-sm list-plain">

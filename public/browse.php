@@ -40,7 +40,7 @@ if ($type === 'lost') {
     }
 } else {
     $pageTitle = 'Found items';
-    $rows = search_rows(array_values(all_found_items()), $q, ['status' => 'stored', 'category' => $category]);
+    $rows = search_rows(array_values(public_found_items()), $q, ['category' => $category]);
     if ($from) $rows = array_values(array_filter($rows, fn ($i) => $i['date_found'] >= $from));
     usort($rows, fn ($a, $b) => $sort === 'oldest'
         ? strcmp($a['date_found'], $b['date_found'])
@@ -125,7 +125,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <h1>Manage found items</h1>
         <p>Everything logged at intake, including returned and disposed items.</p>
     </div>
-    <a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a>
+    <?php if (has_role('staff')): ?><a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a><?php endif; ?>
 </div>
 
 <?= pill_tabs(['' => 'All'] + FOUND_STATUSES, $counts, $status, 'status') ?>
@@ -157,6 +157,9 @@ include APP_ROOT . '/templates/layout/header.php';
                 <td>
                     <a class="table-title" href="<?= e(item_url('found', $item['item_id'])) ?>"><?= e($item['item_name']) ?></a>
                     <span class="table-sub"><?= e($item['location_found']) ?></span>
+                    <?php if ($item['moderation_status'] !== 'approved'): ?>
+                        <span class="table-sub">Student post: <?= status_badge($item['moderation_status']) ?></span>
+                    <?php endif; ?>
                 </td>
                 <td><?= e($item['category']) ?></td>
                 <td class="nowrap"><?= e(format_date($item['date_found'])) ?></td>
@@ -184,7 +187,9 @@ include APP_ROOT . '/templates/layout/header.php';
 </div>
 <p class="filter-empty" data-filter-empty hidden>No items match that filter.</p>
 <?php else: ?>
-    <?= empty_state('No items here', 'Nothing has been logged with this status yet.', url('/report.php?type=found'), 'Log a found item') ?>
+    <?= has_role('staff')
+        ? empty_state('No items here', 'Nothing has been logged with this status yet.', url('/report.php?type=found'), 'Log a found item')
+        : empty_state('No items here', 'Nothing has been logged with this status yet.') ?>
 <?php endif; ?>
 
 <?php else: ?>
@@ -194,12 +199,16 @@ include APP_ROOT . '/templates/layout/header.php';
         <h1>Found items</h1>
         <p>Items currently held at the Lost &amp; Found office. See something that's yours? Open it and submit a claim.</p>
     </div>
-    <?php if (is_staff()): ?>
-        <div class="btn-row">
+    <div class="btn-row">
+        <?php if (is_staff()): ?>
             <a class="btn btn-outline" href="<?= e(url('/browse.php?manage=1')) ?>">Manage items</a>
+        <?php endif; ?>
+        <?php if (has_role('staff')): ?>
             <a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a>
-        </div>
-    <?php endif; ?>
+        <?php elseif (has_role('user')): ?>
+            <a class="btn btn-outline" href="<?= e(url('/report.php?type=found')) ?>">+ I found something</a>
+        <?php endif; ?>
+    </div>
 </div>
 
 <!-- With JavaScript, results are fetched from api/get_items.php as you type (no page reload); without it, the form submits normally. -->

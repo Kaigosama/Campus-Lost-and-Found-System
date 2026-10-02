@@ -3,7 +3,7 @@ require_once __DIR__ . '/../../src/bootstrap.php';
 
 /**
  * GET /api/get_items.php   type=found|lost  q=  category=  status=  from=  to=  sort=newest|oldest  limit=1..100
- *   found → public sees items in storage (public fields); staff see every status and private fields
+ *   found → public sees approved items in storage (public fields); staff see every status and private fields
  *   lost  → login required; users see their own reports, staff see all
  * Response: { ok, type, count, items }
  */
@@ -19,13 +19,10 @@ $sort     = ($_GET['sort'] ?? 'newest') === 'oldest' ? 'oldest' : 'newest';
 $limit    = min(100, max(1, (int) ($_GET['limit'] ?? 50)));
 
 if ($type === 'found') {
-    if (!is_staff()) {
-        $status = 'stored';
-    }
-    $rows = search_rows(array_values(all_found_items()), $q, ['status' => $status, 'category' => $category]);
+    $rows = search_rows(array_values(is_staff() ? all_found_items() : public_found_items()), $q, ['status' => $status, 'category' => $category]);
     $dateColumn = 'date_found';
     if (!is_staff()) {
-        $rows = array_map(fn ($i) => array_diff_key($i, ['user_id' => 1, 'storage_location' => 1, 'private_details' => 1]), $rows);
+        $rows = array_map(fn ($i) => array_diff_key($i, ['user_id' => 1, 'storage_location' => 1, 'private_details' => 1, 'moderated_by' => 1, 'moderation_note' => 1]), $rows);
     }
 } else {
     if (!is_logged_in()) {

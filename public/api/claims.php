@@ -3,7 +3,7 @@ require_once __DIR__ . '/../../src/bootstrap.php';
 
 /**
  * POST /api/claims.php   (JSON body or form fields)
- *   action=create    { item_id, proof_description, report_id?, confirm_truth }   any logged-in user, one claim per item
+ *   action=create    { item_id, proof_description, report_id?, confirm_truth }   students / faculty, one claim per item
  *   action=review    { claim_id, decision: approve|reject, review_note }         staff
  *   action=withdraw  { claim_id }                                                 claimant, while the claim is pending
  * Response: { ok, action, claim_id, status, message, claim }   422: { ok:false, error, errors:{field: message} }
@@ -20,10 +20,17 @@ $pdo    = db();
 $errors = [];
 
 if ($action === 'create') {
+    // Staff and admins review claims; they never file them.
+    if (!has_role('user')) {
+        json_error(403, 'Only students and faculty can submit claims.');
+    }
     $itemId = (int) ($in['item_id'] ?? 0);
     $item   = find_found_item($itemId);
-    if (!$item || $item['status'] !== 'stored') {
+    if (!$item || !is_public_item($item)) {
         json_error(404, 'This item is not available to claim.');
+    }
+    if ($item['user_id'] === $user['user_id']) {
+        json_error(403, 'You posted this item, so you cannot claim it.');
     }
     if (where(where(all_claims(), 'item_id', $itemId), 'user_id', $user['user_id'])) {
         json_error(409, 'You have already submitted a claim for this item.');

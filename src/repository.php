@@ -27,6 +27,17 @@ function find_found_item(int $id): ?array  { return all_found_items()[$id] ?? nu
 function find_lost_report(int $id): ?array { return all_lost_reports()[$id] ?? null; }
 function find_claim(int $id): ?array       { return all_claims()[$id] ?? null; }
 
+/** Found items the public may see: approved by staff and still in storage. */
+function is_public_item(array $item): bool
+{
+    return $item['status'] === 'stored' && $item['moderation_status'] === 'approved';
+}
+
+function public_found_items(): array
+{
+    return array_filter(all_found_items(), 'is_public_item');
+}
+
 function find_user_by_email(string $email): ?array
 {
     $stmt = db()->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');

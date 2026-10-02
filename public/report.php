@@ -3,8 +3,10 @@ require_once __DIR__ . '/../src/bootstrap.php';
 
 /**
  * ?type=lost            file a lost report (any logged-in user)      ?type=lost&id=N    edit your own open report
- * ?type=found           log a found item at intake (staff)           ?type=found&id=N   edit a found item
+ * ?type=found           log a found item at intake (staff), or post one you found (students / faculty; staff
+ *                       approve it before it is public)                ?type=found&id=N   edit a found item (staff)
  * New records post through api/add_item.php, edits through api/update_item.php (both multipart, photo included).
+ * Administrators don't log found items.
  */
 require_login();
 
@@ -15,7 +17,7 @@ $today = date('Y-m-d');
 $row   = null;
 
 if ($type === 'found') {
-    require_role(['staff', 'admin']);
+    require_role($id ? REVIEWER_ROLES : ['staff', 'user']);
     if ($id) {
         $row = find_found_item($id);
         if (!$row) {
@@ -31,10 +33,12 @@ if ($type === 'found') {
 }
 
 $editing    = $row !== null;
+$isPost     = $type === 'found' && !$editing && has_role('user');   // a student's post, reviewed before it is public
 $formAction = url('/report.php?type=' . $type . ($editing ? '&id=' . $id : ''));
 $formMode   = 'data-api="' . ($editing ? 'update_item' : 'add_item') . '" data-type="' . $type . '"';
 $pageTitle  = match (true) {
     $type === 'found' && $editing => 'Edit: ' . $row['item_name'],
+    $isPost                       => 'Post a found item',
     $type === 'found'             => 'Log a found item',
     $editing                      => 'Edit report',
     default                       => 'Report a lost item',
@@ -46,9 +50,13 @@ include APP_ROOT . '/templates/layout/header.php';
 <?php if ($type === 'found'): ?>
 <!-- ====================================================== FOUND ITEM (staff) -->
 <div class="breadcrumb">
-    <a href="<?= e(url('/browse.php?manage=1')) ?>">Manage found items</a>
-    <?php if ($editing): ?><span><a href="<?= e(item_url('found', $id)) ?>"><?= e($row['item_name']) ?></a></span><span>Edit</span>
-    <?php else: ?><span>Log found item</span><?php endif; ?>
+    <?php if ($isPost): ?>
+        <a href="<?= e(url('/')) ?>">Dashboard</a><span>Post a found item</span>
+    <?php else: ?>
+        <a href="<?= e(url('/browse.php?manage=1')) ?>">Manage found items</a>
+        <?php if ($editing): ?><span><a href="<?= e(item_url('found', $id)) ?>"><?= e($row['item_name']) ?></a></span><span>Edit</span>
+        <?php else: ?><span>Log found item</span><?php endif; ?>
+    <?php endif; ?>
 </div>
 
 <div class="page-header">
@@ -56,6 +64,9 @@ include APP_ROOT . '/templates/layout/header.php';
         <?php if ($editing): ?>
             <h1>Edit item #<?= $id ?></h1>
             <p>Logged <?= e(format_datetime($row['created_at'])) ?> &middot; last updated <?= e(format_datetime($row['updated_at'])) ?></p>
+        <?php elseif ($isPost): ?>
+            <h1>Post a found item</h1>
+            <p>Found something on campus? Describe it here. Staff review every post before it appears in the public list.</p>
         <?php else: ?>
             <h1>Log a found item</h1>
             <p>Record an item turned in to the office and where it is stored.</p>
@@ -120,14 +131,16 @@ include APP_ROOT . '/templates/layout/header.php';
             </fieldset>
 
             <fieldset class="staff-only">
-                <legend>Staff-only details</legend>
-                <p class="text-sm text-muted">Never shown to users. Used to verify ownership claims and to locate the item physically.</p>
+                <legend><?= $isPost ? 'Details only staff see' : 'Staff-only details' ?></legend>
+                <p class="text-sm text-muted">Never shown publicly. Used to verify ownership claims<?= $isPost ? '' : ' and to locate the item physically' ?>.</p>
 
+                <?php if (!$isPost): ?>
                 <div class="form-group">
                     <label for="storage_location">Storage location <span class="req" aria-hidden="true">*</span></label>
                     <input type="text" id="storage_location" name="storage_location" required maxlength="150"
                            value="<?= e($row['storage_location'] ?? '') ?>" placeholder="e.g. Cabinet B, Shelf 2">
                 </div>
+                <?php endif; ?>
 
                 <div class="form-group">
                     <label for="private_details">Private / distinguishing details <span class="req" aria-hidden="true">*</span></label>
@@ -145,13 +158,25 @@ include APP_ROOT . '/templates/layout/header.php';
             </fieldset>
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary btn-lg"><?= $editing ? 'Save changes' : 'Save to storage' ?></button>
-                <a class="btn btn-secondary" href="<?= e($editing ? item_url('found', $id) : url('/browse.php?manage=1')) ?>">Cancel</a>
+                <button type="submit" class="btn btn-primary btn-lg"><?= $editing ? 'Save changes' : ($isPost ? 'Submit for review' : 'Save to storage') ?></button>
+                <a class="btn btn-secondary" href="<?= e($editing ? item_url('found', $id) : url($isPost ? '/' : '/browse.php?manage=1')) ?>">Cancel</a>
             </div>
         </form>
     </div>
 
-    <?php if (!$editing): ?>
+    <?php if ($isPost): ?>
+    <aside>
+        <div class="card card-muted">
+            <h3>What happens next</h3>
+            <ol class="text-sm list-plain">
+                <li>Your post is saved as <?= status_badge('pending') ?> and only you and staff can see it.</li>
+                <li>Bring the item to the Lost &amp; Found office (Admin Bldg, Rm 104).</li>
+                <li>Staff check it, record where it is stored and approve the post. It then appears in the public list.</li>
+            </ol>
+            <p class="text-sm mb-0">Follow its status under <a href="<?= e(url('/?tab=posts')) ?>">My Found Posts</a>.</p>
+        </div>
+    </aside>
+    <?php elseif (!$editing): ?>
     <aside>
         <div class="card card-muted">
             <h3>Intake checklist</h3>
