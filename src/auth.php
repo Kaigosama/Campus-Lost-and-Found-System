@@ -102,6 +102,14 @@ function login_user(array $user): void
     if (session_status() !== PHP_SESSION_ACTIVE) {
         session_start();
     }
+    // A browser holds one login at a time: logging in again (another account in another tab) ends the previous one.
+    if (!empty($_SESSION['session_row'])) {
+        $stmt = db()->prepare('UPDATE user_sessions SET status = "logged_out", ended_at = NOW() WHERE session_id = ? AND status = "active"');
+        $stmt->execute([$_SESSION['session_row']]);
+        if ($stmt->rowCount()) {
+            log_event('logout', find_user($_SESSION['user_id'] ?? null), ['reason' => 'another account logged in on this browser']);
+        }
+    }
     session_regenerate_id(true);   // no session fixation: the id from before login is discarded
 
     // A regular admin may be signed in on one device only: the new login ends the older session.
