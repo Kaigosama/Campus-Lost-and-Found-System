@@ -14,12 +14,15 @@ services:
       DB_NAME: clafs
       DB_USER: clafs
       DB_PASS: clafs
-      # Password-reset emails. Put real values in a .env file next to this one (see .env.example);
-      # without BREVO_API_KEY the emails are printed in `docker compose logs app` instead.
+      # Emails and CAPTCHA. Put real values in a .env file next to this one (see .env.example);
+      # without BREVO_API_KEY the emails are printed in `docker compose logs app` instead, and without
+      # Turnstile keys Cloudflare's always-pass test keys are used.
       APP_URL: ${APP_URL:-http://localhost:8080}
       BREVO_API_KEY: ${BREVO_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-CLAFS}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
     volumes:
       - uploads:/var/www/html/public/uploads
     depends_on:
