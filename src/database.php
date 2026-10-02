@@ -22,6 +22,9 @@ function db(): PDO
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ]);
+            // NOW() and column defaults in PHP's time zone, so session expiry and lockout times compare correctly
+            // even when the MySQL server runs in UTC (Railway).
+            $pdo->exec("SET time_zone = '" . date('P') . "'");
         } catch (PDOException $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=utf-8');

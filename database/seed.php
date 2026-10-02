@@ -2,10 +2,9 @@
 declare(strict_types=1);
 
 /**
- * Runs once per container start (docker/entrypoint.sh), before Apache.
- * Waits for MySQL, creates the database if it is missing, and loads database/schema.sql
- * only when there is no `users` table yet — schema.sql drops tables, so an
- * existing database is never touched.
+ * Runs once per container start (docker/entrypoint.sh), before Apache. On XAMPP run it by hand: php database/seed.php
+ * Waits for MySQL, creates the database if it is missing, loads database/schema.sql only when there is no
+ * `users` table yet (schema.sql drops tables), then applies any new database/migrations/*.sql.
  */
 
 require dirname(__DIR__) . '/src/bootstrap.php';
@@ -43,23 +42,44 @@ for ($attempt = 1; ; $attempt++) {
     }
 }
 
+/** Runs a multi-statement SQL file, stepping through every statement so an error in any of them is raised. */
+function run_sql(PDO $pdo, string $sql): void
+{
+    $stmt = $pdo->query($sql);
+    while ($stmt->nextRowset()) {
+    }
+}
+
 if ($pdo->query("SHOW TABLES LIKE 'users'")->fetchColumn() !== false) {
-    log_line('Database ' . DB_NAME . ' already has tables; leaving it as is.');
-    exit(0);
+    log_line('Database ' . DB_NAME . ' already has tables; keeping its data.');
+} else {
+    log_line('Empty database ' . DB_NAME . ': loading database/schema.sql');
+    // schema.sql creates and selects its own `clafs` database for XAMPP; here the configured database is used instead.
+    run_sql($pdo, preg_replace('/^\s*(CREATE DATABASE|USE)\b[^;]*;/mi', '', (string) file_get_contents(APP_ROOT . '/database/schema.sql')));
+    log_line('Schema and seed data loaded.');
 }
 
-log_line('Empty database ' . DB_NAME . ': loading database/schema.sql');
-// schema.sql creates and selects its own `clafs` database for XAMPP; here the configured database is used instead.
-$sql = preg_replace('/^\s*(CREATE DATABASE|USE)\b[^;]*;/mi', '', (string) file_get_contents(APP_ROOT . '/database/schema.sql'));
-$stmt = $pdo->query($sql);
-while ($stmt->nextRowset()) {
-    // Step through every statement so an error in any of them is raised.
+// Schema changes since schema.sql, each applied once in file-name order. They only add columns, tables and rows.
+$pdo->exec('CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(190) NOT NULL PRIMARY KEY, applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB');
+$applied = $pdo->query('SELECT name FROM schema_migrations')->fetchAll(PDO::FETCH_COLUMN);
+foreach (glob(APP_ROOT . '/database/migrations/*.sql') as $file) {
+    $name = basename($file);
+    if (in_array($name, $applied, true)) {
+        continue;
+    }
+    log_line("Applying migration $name");
+    run_sql($pdo, (string) file_get_contents($file));
+    $pdo->prepare('INSERT INTO schema_migrations (name) VALUES (?)')->execute([$name]);
 }
-log_line('Schema and seed data loaded.');
 
-// The seeded accounts share the password printed in the README; SEED_PASSWORD replaces it on a public deploy.
+// The seeded accounts share the password printed in the README; SEED_PASSWORD replaces it on a public deploy,
+// including on accounts a later migration adds.
+const SAMPLE_PASSWORD_HASH = '$2y$10$IAwEs/B32tlkg/sfgBNKRe5sveKeQ9wBgzD87w3nhoFjEtWd0AFAi';
 $seedPassword = (string) getenv('SEED_PASSWORD');
 if ($seedPassword !== '') {
-    $pdo->prepare('UPDATE users SET password_hash = ?')->execute([password_hash($seedPassword, PASSWORD_DEFAULT)]);
-    log_line('Seeded accounts now use SEED_PASSWORD.');
+    $stmt = $pdo->prepare('UPDATE users SET password_hash = ? WHERE password_hash = ?');
+    $stmt->execute([password_hash($seedPassword, PASSWORD_DEFAULT), SAMPLE_PASSWORD_HASH]);
+    if ($stmt->rowCount()) {
+        log_line('Sample accounts now use SEED_PASSWORD.');
+    }
 }

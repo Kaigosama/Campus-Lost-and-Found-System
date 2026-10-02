@@ -8,14 +8,16 @@
 --  diagram (and trim the UI), or fold those columns into the ERD.
 --  Section 6 seeds the same rows the mock data uses (needs section 5).
 --
---  Usage:  mysql -u root -p < database/schema.sql
+--  Later changes live in database/migrations/ and are applied by
+--  database/seed.php, so load the database with:   php database/seed.php
+--  (it runs this file on an empty database, then the migrations).
 -- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS clafs CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE clafs;
 
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS claims, found_items, lost_reports, users;
+DROP TABLE IF EXISTS claims, found_items, lost_reports, users, user_sessions, security_events, schema_migrations;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ---------------------------------------------------------------------
