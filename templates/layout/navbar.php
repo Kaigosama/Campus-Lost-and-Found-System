@@ -39,6 +39,7 @@ $navType = $type ?? '';
                             <a href="<?= e(url('/?tab=reports')) ?>">Lost Reports</a>
                             <a href="<?= e(url('/?tab=queue')) ?>">Claims</a>
                             <a href="<?= e(url('/?tab=moderation')) ?>">Post Review</a>
+                            <a href="<?= e(url('/?tab=stats')) ?>">Statistics</a>
                             <a href="<?= e(url('/?tab=account')) ?>">Account &amp; Password</a>
                         </div>
                     </details>
@@ -63,7 +64,6 @@ $navType = $type ?? '';
                         <div class="dropdown">
                             <a href="<?= e(url('/?tab=users')) ?>">Users &amp; Activity</a>
                             <a href="<?= e(url('/?tab=logs')) ?>">Security Logs</a>
-                            <a href="<?= e(url('/?tab=stats')) ?>">Statistics</a>
                         </div>
                     </details>
                 <?php endif; ?>

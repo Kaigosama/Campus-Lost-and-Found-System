@@ -27,8 +27,8 @@ display case. Cardinal Finds moves that process online.
 | Role | Who | Can do |
 |---|---|---|
 | Student / Faculty | anyone who registers and confirms their email | Browse found items, report lost items, claim items, post items they found (staff approve them before they are public) |
-| Security & Maintenance | assigned by an admin | Log found items at intake, review claims and student posts, manage found items, match lost reports. Does not file lost reports or claims |
-| Office Administrator | assigned by the master admin | Manage student and staff accounts, view account activity, security logs and statistics. Has no access to found-item records, lost reports or claims: does not report, claim, log items, or review claims and posts |
+| Security & Maintenance | assigned by an admin | Log found items at intake, review claims and student posts, manage found items, match lost reports, view statistics. Does not file lost reports or claims |
+| Office Administrator | assigned by the master admin | Manage student and staff accounts, view account activity and security logs. Has no access to found-item records, lost reports or claims: does not report, claim, log items, or review claims and posts |
 | Master Administrator | one seeded account | Everything an administrator does, plus manage administrator accounts. Never locked out by failed log-ins (failures are logged and emailed instead); recovers access through password reset |
 
 Account security: email verification on sign-up, Cloudflare Turnstile on log-in and registration, a password

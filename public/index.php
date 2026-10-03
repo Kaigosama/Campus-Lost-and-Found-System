@@ -5,7 +5,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
  * Guests      → landing page. Logging in and registering happen on login.php and register.php;
  *               old /?next= and /?reset=1 links are forwarded to login.php.
  * Logged in   → dashboard tabs: overview | account   students/faculty & staff: + reports | my_claims
- *               students/faculty: + posts   staff: + queue | moderation   admins: + users (with account activity) | stats | logs
+ *               students/faculty: + posts   staff: + queue | moderation | stats   admins: + users (with account activity) | logs
  *               POST on ?tab=account changes the password.
  * POST ?action=logout ends the session. It must be a POST so another site can't log visitors out with a link.
  */
@@ -176,7 +176,7 @@ $allTabs = [ // key => [label, required role(s) or null]
     'queue'     => ['Claims', REVIEWER_ROLES],
     'moderation' => ['Post Review', REVIEWER_ROLES],
     'users'     => ['Users & Activity', ADMIN_ROLES],
-    'stats'     => ['Statistics', ADMIN_ROLES],
+    'stats'     => ['Statistics', REVIEWER_ROLES],
     'logs'      => ['Security Logs', ADMIN_ROLES],
     'account'   => ['Account', null],
 ];
@@ -275,7 +275,7 @@ include APP_ROOT . '/templates/layout/header.php';
 <?php else: ?>
 <div class="page-header">
     <div><h1>Statistics</h1><p>How the Lost &amp; Found office is doing this semester.</p></div>
-    <a class="btn btn-outline" href="<?= e(url('/?tab=users')) ?>">Manage users</a>
+    <a class="btn btn-outline" href="<?= e(url('/browse.php?manage=1')) ?>">Manage found items</a>
 </div>
 <?php endif; ?>
 
@@ -295,9 +295,9 @@ include APP_ROOT . '/templates/layout/header.php';
                 <a href="<?= e(url('/?tab=users')) ?>">Manage users &rarr;</a>
             </div>
             <div class="stat-card">
-                <span class="stat-label">Items in storage</span>
-                <span class="stat-value"><?= $storedCount ?></span>
-                <a href="<?= e(url('/?tab=stats')) ?>">View statistics &rarr;</a>
+                <span class="stat-label">Security events (24 h)</span>
+                <span class="stat-value"><?= (int) db()->query('SELECT COUNT(*) FROM security_events WHERE created_at > NOW() - INTERVAL 1 DAY')->fetchColumn() ?></span>
+                <a href="<?= e(url('/?tab=logs')) ?>">View security logs &rarr;</a>
             </div>
         </div>
         <div class="card">
@@ -305,7 +305,6 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="btn-row">
                 <a class="btn btn-secondary" href="<?= e(url('/?tab=users')) ?>">Manage users</a>
                 <a class="btn btn-secondary" href="<?= e(url('/?tab=logs')) ?>">Security logs</a>
-                <a class="btn btn-secondary" href="<?= e(url('/?tab=stats')) ?>">View statistics</a>
             </div>
         </div>
 
@@ -880,7 +879,7 @@ include APP_ROOT . '/templates/layout/header.php';
         </div>
     </div>
 
-<?php /* ================================================== STATISTICS (admin) */ ?>
+<?php /* ================================================== STATISTICS (staff) */ ?>
 <?php else: ?>
     <?php
     $items   = all_found_items();
@@ -906,13 +905,12 @@ include APP_ROOT . '/templates/layout/header.php';
         $byLocation[$i['location_found']] = ($byLocation[$i['location_found']] ?? 0) + 1;
     }
     arsort($byLocation);
-    $maxLocation = max(1, max($byLocation));
+    $maxLocation = max([1, ...array_values($byLocation)]);   // max() of an empty array throws when nothing is logged yet
 
     $activity = [];
-    // Plain text, not links: admins (the only viewers of this tab) don't open item, report or claim records.
-    foreach ($items as $i)   $activity[] = ['at' => $i['created_at'], 'text' => 'Found item logged: ' . $i['item_name'], 'badge' => 'stored'];
-    foreach ($reports as $r) $activity[] = ['at' => $r['created_at'], 'text' => 'Lost report filed: ' . $r['item_name'], 'badge' => 'open'];
-    foreach ($claims as $c)  $activity[] = ['at' => $c['created_at'], 'text' => 'Claim submitted on ' . find_found_item($c['item_id'])['item_name'], 'badge' => $c['status']];
+    foreach ($items as $i)   $activity[] = ['at' => $i['created_at'], 'text' => 'Found item logged: ' . $i['item_name'], 'url' => item_url('found', $i['item_id']), 'badge' => 'stored'];
+    foreach ($reports as $r) $activity[] = ['at' => $r['created_at'], 'text' => 'Lost report filed: ' . $r['item_name'], 'url' => item_url('lost', $r['report_id']), 'badge' => 'open'];
+    foreach ($claims as $c)  $activity[] = ['at' => $c['created_at'], 'text' => 'Claim submitted on ' . find_found_item($c['item_id'])['item_name'], 'url' => item_url('found', $c['item_id']) . '#claim-' . $c['claim_id'], 'badge' => $c['status']];
     $activity = array_slice(newest_first($activity, 'at'), 0, 8);
 
     $bar = fn (int $n, int $max, string $cls = '') => '<div class="bar-track"><div class="bar-fill ' . $cls . '" data-width="' . round($n / max(1, $max) * 100) . '"></div></div>';
@@ -975,7 +973,7 @@ include APP_ROOT . '/templates/layout/header.php';
                 <?php foreach ($activity as $a): ?>
                     <li>
                         <time><?= e(format_date($a['at'])) ?></time>
-                        <div><?= e($a['text']) ?> <?= status_badge($a['badge']) ?></div>
+                        <div><a href="<?= e($a['url']) ?>"><?= e($a['text']) ?></a> <?= status_badge($a['badge']) ?></div>
                     </li>
                 <?php endforeach; ?>
             </ul>
