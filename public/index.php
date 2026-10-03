@@ -239,6 +239,11 @@ include APP_ROOT . '/templates/layout/header.php';
 <?php elseif ($tab === 'logs'): ?>
 <div class="page-header">
     <div><h1>Security logs</h1><p>Log-ins, failures, lockouts and session history. Session tokens are never shown.</p></div>
+    <div class="btn-row">
+        <a class="btn btn-outline" href="<?= e(url('/export_logs.php?format=pdf')) ?>" download>Download PDF</a>
+        <a class="btn btn-outline" href="<?= e(url('/export_logs.php?format=csv&table=events')) ?>" download>Events CSV</a>
+        <a class="btn btn-outline" href="<?= e(url('/export_logs.php?format=csv&table=sessions')) ?>" download>Sessions CSV</a>
+    </div>
 </div>
 <?php elseif ($tab === 'reports'): ?>
 <div class="page-header">
