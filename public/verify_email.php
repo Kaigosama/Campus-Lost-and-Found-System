@@ -7,7 +7,9 @@ require_once __DIR__ . '/../src/bootstrap.php';
  * therefore can't use up the single-use link before the person does.
  */
 
-header('Referrer-Policy: no-referrer');   // the URL carries the token
+// The URL carries the token, so it never goes to other sites. Not no-referrer: that makes the browser send
+// "Origin: null" on the confirm POST, which reject_cross_site_post() refuses.
+header('Referrer-Policy: same-origin');
 
 $token   = (string) ($_GET['token'] ?? '');
 $pending = user_from_verification_token($token);

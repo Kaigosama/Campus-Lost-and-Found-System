@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
  * Shows the new-password form while the link is valid; a successful reset sends the user to log in.
  */
 
-header('Referrer-Policy: no-referrer');   // the URL carries the reset token
+header('Referrer-Policy: same-origin');   // the URL carries the reset token; no-referrer would break the POST (see verify_email.php)
 
 $resetUser = user_from_reset_link($_GET);
 if (!$resetUser) {
