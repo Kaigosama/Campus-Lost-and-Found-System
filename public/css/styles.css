@@ -500,6 +500,25 @@ img[data-lightbox]:not(a img) { cursor: zoom-in; }
     display: grid; place-items: center; font-weight: 800; margin-bottom: .75rem;
 }
 .step p { margin: 0; color: var(--muted); font-size: .93rem; }
+.step h3 { font-size: 1.05rem; }
+.tip-icon {
+    width: 40px; height: 40px; border-radius: var(--radius-sm); background: var(--red-light); color: var(--red);
+    display: grid; place-items: center; margin-bottom: .75rem;
+}
+
+/* "Back with their owners": recently returned items */
+.reunited { background: var(--blue-light); border-left: 6px solid var(--blue); border-radius: var(--radius); padding: 1.5rem 1.25rem; }
+.reunited-intro { display: grid; gap: 1rem; margin-bottom: 1.25rem; }
+.reunited-intro p { max-width: 640px; }
+.reunited-count { display: flex; flex-direction: column; gap: .2rem; align-self: center; }
+.reunited-count .stat-value { color: var(--blue-dark); font-size: 2.5rem; }
+.icon-heading { display: flex; align-items: center; gap: .45rem; }
+.icon-heading svg { color: var(--red); flex-shrink: 0; }
+@media (min-width: 900px) {
+    .reunited { padding: 2rem; }
+    .reunited-intro { grid-template-columns: 1fr auto; gap: 2rem; }
+    .reunited-count { text-align: right; }
+}
 
 /* ---------- 15. CSS bar chart (admin stats) ---------- */
 .bars { display: grid; gap: .6rem; }

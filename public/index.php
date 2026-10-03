@@ -30,6 +30,7 @@ if (!$user) {
     $returnedCount = count_where(all_found_items(), 'status', 'returned');
     $openReports   = count_where(all_lost_reports(), 'status', 'open');
     $recentItems   = array_slice(newest_first(array_values(public_found_items()), 'date_found'), 0, 3);
+    $reunited      = array_slice(newest_first(where(all_found_items(), 'status', 'returned'), 'updated_at'), 0, 3);
 
     include APP_ROOT . '/templates/layout/header.php';
     ?>
@@ -102,6 +103,58 @@ if (!$user) {
     </div>
 </section>
 <?php endif; ?>
+
+<?php $heart = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>'; ?>
+<?php if ($reunited): ?>
+<section class="section reunited" aria-labelledby="reunited-title">
+    <div class="reunited-intro">
+        <div>
+            <h2 id="reunited-title" class="icon-heading"><?= $heart ?> Back with their owners</h2>
+            <p class="text-muted">Items that made it home.</p>
+            <p class="mb-0">Each one was turned in to the Lost &amp; Found office, claimed by someone who described details only the
+                owner would know, and checked by staff against the intake record before it was handed over.</p>
+        </div>
+        <div class="reunited-count">
+            <span class="stat-value"><?= $returnedCount ?></span>
+            <span class="stat-note">item<?= $returnedCount === 1 ? '' : 's' ?> returned to <?= $returnedCount === 1 ? 'its owner' : 'their owners' ?></span>
+        </div>
+    </div>
+    <div class="item-grid">
+        <?php foreach ($reunited as $item): ?>
+            <article class="item-card">
+                <div class="item-card-photo"><?= photo_tag($item['image_url'], $item['item_name']) ?></div>
+                <div class="item-card-body">
+                    <h3 class="item-card-title icon-heading"><?= $heart ?> <?= e($item['item_name']) ?> is back with its owner</h3>
+                    <p class="item-card-desc mb-0">Found at <?= e($item['location_found']) ?> on <?= e(format_date($item['date_found'])) ?>
+                        and returned on <?= e(format_date($item['returned_at'] ?? $item['updated_at'])) ?> after staff verified the claim.</p>
+                </div>
+            </article>
+        <?php endforeach; ?>
+    </div>
+</section>
+<?php endif; ?>
+
+<section class="section" aria-labelledby="safety-title">
+    <div class="section-title"><h2 id="safety-title">Claiming is easier when everyone plays fair</h2></div>
+    <p class="text-muted">A few simple habits keep items going back to the right people.</p>
+    <div class="steps">
+        <div class="step">
+            <span class="tip-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+            <h3>Describe what only you know</h3>
+            <p>Mention marks, contents or engravings that aren't in the listing. Staff compare them with the private record made at intake.</p>
+        </div>
+        <div class="step">
+            <span class="tip-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.5 1.7-2 3-2s2.4.5 3 2M14 10h4M14 13h3"/></svg></span>
+            <h3>Bring your ID to pick it up</h3>
+            <p>Approved items are released only at the Lost &amp; Found office, Admin Bldg Rm 104, after staff check your ID.</p>
+        </div>
+        <div class="step">
+            <span class="tip-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+            <h3>Only claim what's yours</h3>
+            <p>False claims are logged against your account and may be reported to the Office of Student Affairs.</p>
+        </div>
+    </div>
+</section>
 
     <?php
     include APP_ROOT . '/templates/layout/footer.php';
