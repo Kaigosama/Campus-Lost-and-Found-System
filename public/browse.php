@@ -10,7 +10,7 @@ $manage = !empty($_GET['manage']);
 $type   = $manage ? 'found' : ((($_GET['type'] ?? 'found') === 'lost') ? 'lost' : 'found');
 
 if ($manage || $type === 'lost') {
-    require_role(['staff', 'admin']);
+    require_role(REVIEWER_ROLES);
 }
 
 $q        = trim($_GET['q'] ?? '');
@@ -245,7 +245,7 @@ include APP_ROOT . '/templates/layout/header.php';
     </div>
     <?= pagination($page, $totalPages) ?>
 <?php else: ?>
-    <?= empty_state(
+    <?= is_admin() ? empty_state('No items match your search', 'Try a broader keyword or clear the filters.') : empty_state(
         'No items match your search',
         "Don't see yours? File a lost report so staff can match it when it's turned in.",
         is_logged_in() ? url('/report.php') : url('/login.php?next=' . rawurlencode(url('/report.php'))),

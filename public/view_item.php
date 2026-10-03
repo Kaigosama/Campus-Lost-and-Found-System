@@ -32,7 +32,7 @@ if ($type === 'lost') {
     $myClaim      = $user ? (where($itemClaims, 'user_id', $user['user_id'])[0] ?? null) : null;
     $loggedBy     = find_user($item['user_id']);
     $pageTitle    = $item['item_name'];
-    // Only students and faculty file claims, never on their own post. Staff and admins review them instead.
+    // Only students and faculty file claims, never on their own post. Staff review them; admins do neither.
     $canClaim     = is_public_item($item) && !$isPoster && (!$user || has_role('user'));
     if ($user && $canClaim && !$myClaim) {
         $myOpenReports = array_values(array_filter(all_lost_reports(), fn ($r) => $r['user_id'] === $user['user_id'] && $r['status'] === 'open'));

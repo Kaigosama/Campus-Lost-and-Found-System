@@ -20,7 +20,7 @@ $pdo    = db();
 $errors = [];
 
 if ($action === 'create') {
-    // Staff and admins review claims; they never file them.
+    // Staff review claims and never file them; admins do neither.
     if (!has_role('user')) {
         json_error(403, 'Only students and faculty can submit claims.');
     }

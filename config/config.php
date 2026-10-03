@@ -26,8 +26,8 @@ const ROLES = [
     'master_admin' => 'Master Administrator',
 ];
 const ADMIN_ROLES = ['admin', 'master_admin'];
-/** Who reviews claims and student posts. Logging found items at intake is 'staff' only. */
-const REVIEWER_ROLES = ['staff', 'admin', 'master_admin'];
+/** Who handles found items, lost reports, claims and student posts. Admins manage accounts only and see none of these records. */
+const REVIEWER_ROLES = ['staff'];
 const LOST_STATUSES  = ['open' => 'Open', 'matched' => 'Matched', 'closed' => 'Closed'];
 const FOUND_STATUSES = ['stored' => 'In Storage', 'returned' => 'Returned', 'disposed' => 'Disposed'];
 const CLAIM_STATUSES = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected'];

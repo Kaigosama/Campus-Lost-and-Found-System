@@ -28,7 +28,7 @@ display case. CLAFS moves that process online.
 |---|---|---|
 | Student / Faculty | anyone who registers and confirms their email | Browse found items, report lost items, claim items, post items they found (staff approve them before they are public) |
 | Security & Maintenance | assigned by an admin | Log found items at intake, review claims and student posts, manage found items |
-| Office Administrator | assigned by the master admin | Review claims and posts, manage student and staff accounts, view account activity, security logs and statistics. Does not log found items. One device at a time: a new login ends the older session |
+| Office Administrator | assigned by the master admin | Manage student and staff accounts, view account activity, security logs and statistics. Has no access to found-item records, lost reports or claims: does not report, claim, log items, or review claims and posts. One device at a time: a new login ends the older session |
 | Master Administrator | one seeded account | Everything an administrator does, plus manage administrator accounts. Never locked out by failed log-ins (failures are logged and emailed instead); recovers access through password reset |
 
 Account security: email verification on sign-up, Cloudflare Turnstile on log-in and registration, a password

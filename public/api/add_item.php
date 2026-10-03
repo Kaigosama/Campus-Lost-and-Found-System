@@ -20,8 +20,8 @@ $type = ($in['type'] ?? 'lost') === 'found' ? 'found' : 'lost';
 $user = current_user();
 $isIntake = $user['role'] === 'staff';
 
-if ($type === 'found' && !has_role(['staff', 'user'])) {
-    json_error(403, 'Administrators do not log found items. Staff handle intake.');
+if (!has_role(['staff', 'user'])) {
+    json_error(403, 'Administrators do not file lost reports or log found items.');
 }
 
 [$errors, $v] = validate_item_input($in, $type, $isIntake);

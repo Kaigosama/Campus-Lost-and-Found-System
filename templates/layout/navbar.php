@@ -23,6 +23,9 @@ $navType = $type ?? '';
                 <a href="<?= e(url('/register.php')) ?>"<?= is_active('/register.php') ?>>Register</a>
             <?php else: ?>
                 <a href="<?= e(url('/')) ?>"<?= is_active('/index.php') ?>>Dashboard</a>
+                <?php if (is_admin()): /* admins don't handle items, report or claim */ ?>
+                    <a href="<?= e(url('/?tab=account')) ?>">Account</a>
+                <?php else: ?>
                 <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php', $navType !== 'lost') ?>>Found Items</a>
                 <a href="<?= e(url('/report.php')) ?>"<?= is_active('/report.php', $navType !== 'found') ?>>Report Lost</a>
 
@@ -38,14 +41,13 @@ $navType = $type ?? '';
                         <a href="<?= e(url('/?tab=account')) ?>">Account &amp; Password</a>
                     </div>
                 </details>
+                <?php endif; ?>
 
                 <?php if (is_staff()): ?>
                     <details class="nav-group">
                         <summary>Staff</summary>
                         <div class="dropdown">
-                            <?php if (has_role('staff')): ?>
-                                <a href="<?= e(url('/report.php?type=found')) ?>">Log Found Item</a>
-                            <?php endif; ?>
+                            <a href="<?= e(url('/report.php?type=found')) ?>">Log Found Item</a>
                             <a href="<?= e(url('/browse.php?manage=1')) ?>">Manage Found Items</a>
                             <a href="<?= e(url('/?tab=queue')) ?>">Claims Queue</a>
                             <a href="<?= e(url('/?tab=moderation')) ?>">Post Review</a>

@@ -292,7 +292,7 @@ function has_role(array|string $roles): bool
     return $user !== null && in_array($user['role'], (array) $roles, true);
 }
 
-/** Staff, admins and the master admin: review claims and student posts, manage found items. */
+/** Security & maintenance staff: review claims and student posts, manage found items and lost reports. Not admins. */
 function is_staff(): bool
 {
     return has_role(REVIEWER_ROLES);
