@@ -406,6 +406,13 @@ img[data-lightbox]:not(a img) { cursor: zoom-in; }
 .table-sub { display: block; font-size: .8rem; color: var(--muted); }
 .table-tools { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; justify-content: space-between; margin-bottom: .75rem; }
 .table-tools input[type="search"] { max-width: 320px; }
+/* Manage found items: tighter cells and stacked controls so the whole table fits without sideways scrolling. */
+.table-manage th, .table-manage td { padding: .6rem .5rem; }
+.table-manage .table-title { min-width: 150px; }
+.table-manage .inline-form { flex-direction: column; align-items: stretch; }
+.table-manage .actions { white-space: normal; width: 1%; }
+.table-manage .actions .btn, .table-manage .actions form { display: flex; width: 100%; margin: 0; }
+.table-manage .actions .btn + form { margin-top: .35rem; }
 .table select.inline-select { width: auto; padding: .35rem 2rem .35rem .6rem; font-size: .85rem; }
 .filter-empty { padding: 2rem; text-align: center; color: var(--muted); }
 

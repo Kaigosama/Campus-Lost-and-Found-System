@@ -170,8 +170,8 @@ include APP_ROOT . '/templates/layout/header.php';
 
 <?php if ($rows): ?>
 <div class="table-wrap">
-    <table class="table" id="itemsTable">
-        <thead><tr><th>#</th><th></th><th>Item</th><th>Category</th><th>Found</th><th>Storage</th><th>Claims</th><th>Status</th><th class="actions"></th></tr></thead>
+    <table class="table table-manage" id="itemsTable">
+        <thead><tr><th>#</th><th></th><th>Item</th><th>Found</th><th>Storage</th><th>Claims</th><th>Status</th><th class="actions"></th></tr></thead>
         <tbody>
         <?php foreach ($rows as $item): ?>
             <tr data-remove>
@@ -179,14 +179,13 @@ include APP_ROOT . '/templates/layout/header.php';
                 <td><?= photo_tag($item['image_url'], $item['item_name'], 'photo-thumb') ?></td>
                 <td>
                     <a class="table-title" href="<?= e(item_url('found', $item['item_id'])) ?>"><?= e($item['item_name']) ?></a>
-                    <span class="table-sub"><?= e($item['location_found']) ?></span>
+                    <span class="table-sub"><?= e($item['category']) ?> &middot; <?= e($item['location_found']) ?></span>
                     <?php if ($item['moderation_status'] !== 'approved'): ?>
                         <span class="table-sub">Student post: <?= status_badge($item['moderation_status']) ?></span>
                     <?php endif; ?>
                 </td>
-                <td><?= e($item['category']) ?></td>
                 <td class="nowrap"><?= e(format_date($item['date_found'])) ?></td>
-                <td class="nowrap"><?= e($item['storage_location']) ?></td>
+                <td><?= e($item['storage_location']) ?></td>
                 <td>
                     <?php if (!empty($pendingByItem[$item['item_id']])): ?>
                         <a href="<?= e(url('/?tab=queue&item=' . $item['item_id'])) ?>" class="badge badge-pending"><?= $pendingByItem[$item['item_id']] ?> pending</a>
