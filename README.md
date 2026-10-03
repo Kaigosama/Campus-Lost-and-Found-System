@@ -1,8 +1,8 @@
-# Campus Lost-and-Found System
+# Cardinal Finds
 
-A web app that replaces Mapua University's paper lost-and-found logbook.
+A campus lost-and-found web app that replaces Mapua University's paper lost-and-found logbook.
 
-CLAFS lets students and faculty browse items turned in to the Lost & Found office, report what they lost, and
+Cardinal Finds lets students and faculty browse items turned in to the Lost & Found office, report what they lost, and
 claim their belongings online. Staff log found items and verify ownership claims, and administrators manage
 accounts. Built by ITS122P AM2 Group 4 with PHP, MySQL, and plain HTML, CSS and JavaScript.
 
@@ -22,7 +22,7 @@ accounts. Built by ITS122P AM2 Group 4 with PHP, MySQL, and plain HTML, CSS and 
 
 Mapua University records lost items in a paper logbook. A turned-in item is written down and put in a drawer,
 and a student who loses something has to visit the office in person to describe it or look through the
-display case. CLAFS moves that process online.
+display case. Cardinal Finds moves that process online.
 
 | Role | Who | Can do |
 |---|---|---|

@@ -1,4 +1,4 @@
-/* CLAFS — Campus Lost-and-Found System. Mobile-first; breakpoints at 640 / 900px. */
+/* Cardinal Finds — campus lost-and-found system. Mobile-first; breakpoints at 640 / 900px. */
 
 /* ---------- 1. Design tokens ---------- */
 :root {
@@ -100,7 +100,7 @@ code { background: var(--neutral-bg); padding: .1em .35em; border-radius: var(--
 .brand-mark { width: 40px; height: 40px; flex-shrink: 0; object-fit: contain; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; font-size: 1.15rem; color: var(--blue-dark); }
 .brand-text small { color: var(--muted); font-size: .8rem; font-weight: 500; white-space: nowrap; }
-/* Between the mobile menu and wide screens the full nav needs the room; the logo and "CLAFS" stay. */
+/* Between the mobile menu and wide screens the full nav needs the room; the logo and the name stay. */
 @media (min-width: 901px) and (max-width: 1200px) { .brand-text small { display: none; } }
 
 .nav { display: flex; align-items: center; gap: .15rem; }

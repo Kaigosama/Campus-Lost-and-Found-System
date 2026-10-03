@@ -57,7 +57,7 @@ function request_password_reset(string $email): void
         . "Someone asked to reset the password for your " . APP_NAME . " account. Open this link to choose a new one:\n\n"
         . password_reset_url($user) . "\n\n"
         . 'The link works once and expires in ' . RESET_LINK_MINUTES . " minutes. If you didn't ask for this, ignore this email; your password stays the same.\n\n"
-        . '— ' . APP_FULL_NAME;
+        . '— ' . APP_NAME;
     send_mail($user['email'], full_name($user), 'Reset your ' . APP_NAME . ' password', $text);
 }
 
@@ -78,7 +78,7 @@ function send_security_notice(array $user, string $message): void
     if (mail_throttled('security', $user)) {
         return;
     }
-    send_mail($user['email'], full_name($user), APP_NAME . ' security alert', "Hi {$user['first_name']},\n\n$message\n\n— " . APP_FULL_NAME);
+    send_mail($user['email'], full_name($user), APP_NAME . ' security alert', "Hi {$user['first_name']},\n\n$message\n\n— " . APP_NAME);
 }
 
 /**

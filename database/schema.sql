@@ -1,5 +1,5 @@
 -- =====================================================================
---  CLAFS — Campus Lost-and-Found System
+--  Cardinal Finds — campus lost-and-found system
 --  MySQL 8 / MariaDB 10.4+ schema.   Diagram: docs/erd.html
 --
 --  Sections 1–4 create the four tables exactly as drawn in the ERD.

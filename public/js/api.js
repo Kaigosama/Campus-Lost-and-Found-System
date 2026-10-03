@@ -1,5 +1,5 @@
 /*
- * fetch() wrappers for api/ (the CLAFS JSON API) and for the external public-holiday API.
+ * fetch() wrappers for api/ (the Cardinal Finds JSON API) and for the external public-holiday API.
  * Each call resolves with the JSON body, or rejects with an Error carrying .status (HTTP code)
  * and .data (body, e.g. .data.errors for 422).
  */
@@ -65,7 +65,7 @@ window.ClafsApi = (function () {
     }
 
     return {
-        /* ---- CLAFS JSON API (api/) ---- */
+        /* ---- Cardinal Finds JSON API (api/) ---- */
         getItems:     function (params)                   { return get('get_items.php', params); },
         addItem:      function (type, fields)             { return post('add_item.php', withType(type, fields)); },
         updateItem:   function (type, id, fields)         { return post('update_item.php', withType(type, fields, { id: id })); },

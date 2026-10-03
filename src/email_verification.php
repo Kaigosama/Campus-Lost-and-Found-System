@@ -16,7 +16,7 @@ function send_verification_email(array $user): void
         . 'Confirm your email address to finish creating your ' . APP_NAME . " account:\n\n"
         . app_base_url() . url('/verify_email.php?token=' . $token) . "\n\n"
         . 'The link works once and expires in ' . VERIFY_LINK_HOURS . " hours. If you didn't sign up, ignore this email.\n\n"
-        . '— ' . APP_FULL_NAME;
+        . '— ' . APP_NAME;
     send_mail($user['email'], full_name($user), 'Confirm your ' . APP_NAME . ' email address', $text);
 }
 
@@ -49,6 +49,25 @@ function resend_verification(string $email): void
     log_event('verification_resent', $user);
 }
 
+/**
+ * Deletes student / faculty accounts whose verification link expired unconfirmed, so the address can register again.
+ * Accounts that somehow own reports, posts or claims are kept (those foreign keys would block the delete anyway).
+ * ponytail: no cron here, so this runs on each deploy (seed.php) and when an admin opens the dashboard.
+ */
+function delete_expired_unverified(): int
+{
+    $deleted = db()->exec("DELETE u FROM users u
+        WHERE u.role = 'user' AND u.email_verified = 0
+          AND (u.email_verification_expires_at IS NULL OR u.email_verification_expires_at < NOW())
+          AND NOT EXISTS (SELECT 1 FROM lost_reports r WHERE r.user_id = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM found_items f WHERE f.user_id = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.user_id = u.user_id)");
+    if ($deleted) {
+        log_event('unverified_accounts_deleted', null, ['count' => $deleted]);
+    }
+    return (int) $deleted;
+}
+
 /** Someone registered with an email that already has an account: tell its owner instead of the visitor. */
 function notify_existing_account(array $user): void
 {
@@ -64,6 +83,6 @@ function notify_existing_account(array $user): void
         . 'Log in: ' . app_base_url() . url('/login.php') . "\n"
         . 'Forgot your password? ' . app_base_url() . url('/forgot_password.php') . "\n\n"
         . "If this wasn't you, you can ignore this email.\n\n"
-        . '— ' . APP_FULL_NAME;
+        . '— ' . APP_NAME;
     send_mail($user['email'], full_name($user), 'You already have a ' . APP_NAME . ' account', $text);
 }

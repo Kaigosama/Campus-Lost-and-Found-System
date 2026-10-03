@@ -1,5 +1,5 @@
 /*
- * CLAFS front-end behaviour. Requires api.js.
+ * Cardinal Finds front-end behaviour. Requires api.js.
  *   [data-nav-toggle]                  mobile menu; .nav-group dropdowns close on outside click / Escape
  *   [data-confirm]                     confirm() before links, buttons and forms
  *   form[data-validate]                client-side rules mirroring the API (a convenience, not security)

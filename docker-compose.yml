@@ -20,7 +20,7 @@ services:
       APP_URL: ${APP_URL:-http://localhost:8080}
       BREVO_API_KEY: ${BREVO_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-}
-      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-CLAFS}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Cardinal Finds}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
     volumes:
