@@ -29,7 +29,25 @@ if ($type === 'lost') {
     [$pageRows, $page, $totalPages] = paginate($rows, 10);
 } elseif ($manage) {
     $pageTitle = 'Manage found items';
-    $rows = newest_first(search_rows(array_values(all_found_items()), $q, ['status' => $status, 'category' => $category]));
+    // Staff pick the order; the choice is remembered for this login so the menu link keeps it.
+    $manageSorts = [ // key => [label, column, descending]
+        'newest'     => ['Newest logged first', 'created_at', true],
+        'oldest'     => ['Oldest logged first', 'created_at', false],
+        'id_desc'    => ['Item # (high to low)', 'item_id', true],
+        'id_asc'     => ['Item # (low to high)', 'item_id', false],
+        'found_desc' => ['Date found (newest)', 'date_found', true],
+        'found_asc'  => ['Date found (oldest)', 'date_found', false],
+        'name'       => ['Name (A–Z)', 'item_name', false],
+    ];
+    $sort = $_GET['sort'] ?? $_SESSION['manage_sort'] ?? 'newest';
+    $sort = isset($manageSorts[$sort]) ? $sort : 'newest';
+    $_SESSION['manage_sort'] = $sort;
+    [, $sortColumn, $sortDesc] = $manageSorts[$sort];
+    $rows = search_rows(array_values(all_found_items()), $q, ['status' => $status, 'category' => $category]);
+    usort($rows, function ($a, $b) use ($sortColumn, $sortDesc) {
+        $c = strnatcasecmp((string) $a[$sortColumn], (string) $b[$sortColumn]) ?: $a['item_id'] <=> $b['item_id'];
+        return $sortDesc ? -$c : $c;
+    });
     $counts = ['' => count(all_found_items())];
     foreach (FOUND_STATUSES as $key => $label) {
         $counts[$key] = count_where(all_found_items(), 'status', $key);
@@ -139,6 +157,10 @@ include APP_ROOT . '/templates/layout/header.php';
         <select id="category" name="category" class="inline-select">
             <option value="">All categories</option>
             <?= options(CATEGORIES, $category, false) ?>
+        </select>
+        <label for="manage-sort" class="sr-only">Sort by</label>
+        <select id="manage-sort" name="sort" class="inline-select">
+            <?= options(array_map(fn ($s) => $s[0], $manageSorts), $sort) ?>
         </select>
         <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
     </form>
