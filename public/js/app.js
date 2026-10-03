@@ -241,20 +241,19 @@
         return '';
     }
 
-    function validateForm(form) {
-        var firstInvalid = null;
-        form.querySelectorAll('input, select, textarea').forEach(function (field) {
-            var message = validateField(field);
-            message ? setError(field, message) : clearError(field);
-            if (message && !firstInvalid) firstInvalid = field;
-        });
-        if (firstInvalid) firstInvalid.focus();
-        return !firstInvalid;
-    }
-
     function check(field) {
         var message = validateField(field);
         message ? setError(field, message) : clearError(field);
+        return message;
+    }
+
+    function validateForm(form) {
+        var firstInvalid = null;
+        form.querySelectorAll('input, select, textarea').forEach(function (field) {
+            if (check(field) && !firstInvalid) firstInvalid = field;
+        });
+        if (firstInvalid) firstInvalid.focus();
+        return !firstInvalid;
     }
 
     document.querySelectorAll('form[data-validate]').forEach(function (form) {
@@ -431,12 +430,7 @@
                 .then(function (result) { finish(form, result.message); });
         },
         update_user: function (form, data) {
-            var changes = {};
-            if ('role' in data) changes.role = data.role;
-            if ('is_active' in data) changes.is_active = data.is_active;
-            if ('unlock' in data) changes.unlock = data.unlock;
-            if ('note' in data) changes.note = data.note;
-            return ClafsApi.updateUser(parseInt(data.user_id, 10), changes).then(function (result) {
+            return ClafsApi.updateUser(parseInt(data.user_id, 10), data).then(function (result) {
                 setBadge('user-' + result.user_id, result.is_active ? 'active' : 'inactive');
                 if (!result.locked) {
                     var lockBadge = document.querySelector('[data-locked-for="' + result.user_id + '"]');
@@ -637,9 +631,7 @@
         input.addEventListener('change', function () {
             if (objectUrl) URL.revokeObjectURL(objectUrl);
             objectUrl = null;
-            var message = validateField(input);
-            message ? setError(input, message) : clearError(input);
-
+            var message = check(input);
             var file = input.files && input.files[0];
             if (!file || message) {
                 target.innerHTML = placeholder;

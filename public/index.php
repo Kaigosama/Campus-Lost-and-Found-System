@@ -400,42 +400,30 @@ include APP_ROOT . '/templates/layout/header.php';
             </div>
         </div>
 
-        <div class="grid grid-sidebar">
-            <div class="card">
-                <div class="card-header">
-                    <h2>Claims awaiting review</h2>
-                    <a href="<?= e(url('/?tab=queue')) ?>" class="btn btn-outline btn-sm">All claims</a>
-                </div>
-                <?php if ($pendingClaims): ?>
-                <div class="table-wrap">
-                    <table class="table">
-                        <thead><tr><th>Item</th><th>Claimant</th><th>Submitted</th><th class="actions"></th></tr></thead>
-                        <tbody>
-                        <?php foreach ($pendingClaims as $claim): $item = find_found_item($claim['item_id']); $claimant = find_user($claim['user_id']); ?>
-                            <tr>
-                                <td><span class="table-title"><?= e($item['item_name']) ?></span><span class="table-sub"><?= e($item['category']) ?></span></td>
-                                <td><?= e(full_name($claimant)) ?></td>
-                                <td class="nowrap"><?= e(format_date($claim['date_claimed'])) ?></td>
-                                <td class="actions"><a class="btn btn-primary btn-sm" href="<?= e(item_url('found', $item['item_id']) . '#claim-' . $claim['claim_id']) ?>">Review</a></td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <?php else: ?>
-                    <p class="text-muted mb-0">No pending claims. <span aria-hidden="true">🎉</span></p>
-                <?php endif; ?>
+        <div class="card">
+            <div class="card-header">
+                <h2>Claims awaiting review</h2>
+                <a href="<?= e(url('/?tab=queue')) ?>" class="btn btn-outline btn-sm">All claims</a>
             </div>
-
-            <div class="card">
-                <h2>Quick actions</h2>
-                <div class="grid gap-sm">
-                    <a class="btn btn-secondary" href="<?= e(url('/report.php?type=found')) ?>">Log a found item</a>
-                    <a class="btn btn-secondary" href="<?= e(url('/?tab=moderation')) ?>">Review student posts</a>
-                    <a class="btn btn-secondary" href="<?= e(url('/browse.php?manage=1')) ?>">Manage found items</a>
-                    <a class="btn btn-secondary" href="<?= e(url('/browse.php?type=lost')) ?>">Browse lost reports</a>
-                </div>
+            <?php if ($pendingClaims): ?>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Item</th><th>Claimant</th><th>Submitted</th><th class="actions"></th></tr></thead>
+                    <tbody>
+                    <?php foreach ($pendingClaims as $claim): $item = find_found_item($claim['item_id']); $claimant = find_user($claim['user_id']); ?>
+                        <tr>
+                            <td><span class="table-title"><?= e($item['item_name']) ?></span><span class="table-sub"><?= e($item['category']) ?></span></td>
+                            <td><?= e(full_name($claimant)) ?></td>
+                            <td class="nowrap"><?= e(format_date($claim['date_claimed'])) ?></td>
+                            <td class="actions"><a class="btn btn-primary btn-sm" href="<?= e(item_url('found', $item['item_id']) . '#claim-' . $claim['claim_id']) ?>">Review</a></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
+            <?php else: ?>
+                <p class="text-muted mb-0">No pending claims. <span aria-hidden="true">🎉</span></p>
+            <?php endif; ?>
         </div>
 
     <?php else: ?>

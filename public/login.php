@@ -18,7 +18,6 @@ if (is_logged_in()) {
 $notice = $_SESSION['auth_notice'] ?? '';
 unset($_SESSION['auth_notice']);
 
-$lockedMessage = LOCKED_MESSAGE;
 $error = '';
 $unverified = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -40,15 +39,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // waits that long can tell them apart. Store unknown-email locks in a table if that matters.
         $emailBucket = 'login-unknown:' . $email;
         record_attempt($ipBucket);
-        $error = rate_limited($emailBucket, LOCKOUT_ATTEMPTS - 1) ? $lockedMessage : 'Incorrect email or password.';
+        $error = rate_limited($emailBucket, LOCKOUT_ATTEMPTS - 1) ? LOCKED_MESSAGE : 'Incorrect email or password.';
         record_attempt($emailBucket);
         log_event('login_failed', null, ['reason' => 'unknown email'], $email ?: null);
     } elseif (account_locked($found)) {
-        $error = $lockedMessage;
+        $error = LOCKED_MESSAGE;
         log_event('login_blocked_locked', $found);
     } elseif (!password_verify($password, $found['password_hash'])) {
         record_attempt($ipBucket);
-        $error = record_failed_login($found) ? $lockedMessage : 'Incorrect email or password.';
+        $error = record_failed_login($found) ? LOCKED_MESSAGE : 'Incorrect email or password.';
     } elseif (!$found['is_active']) {
         $error = deactivated_message($found);
         log_event('login_blocked_inactive', $found);

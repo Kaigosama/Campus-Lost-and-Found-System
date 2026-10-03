@@ -144,7 +144,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <h1>Manage found items</h1>
         <p>Everything logged at intake, including returned and disposed items.</p>
     </div>
-    <?php if (has_role('staff')): ?><a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a><?php endif; ?>
+    <a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a>
 </div>
 
 <?= pill_tabs(['' => 'All'] + FOUND_STATUSES, $counts, $status, 'status') ?>
@@ -218,9 +218,7 @@ include APP_ROOT . '/templates/layout/header.php';
 </div>
 <p class="filter-empty" data-filter-empty hidden>No items match that filter.</p>
 <?php else: ?>
-    <?= has_role('staff')
-        ? empty_state('No items here', 'Nothing has been logged with this status yet.', url('/report.php?type=found'), 'Log a found item')
-        : empty_state('No items here', 'Nothing has been logged with this status yet.') ?>
+    <?= empty_state('No items here', 'Nothing has been logged with this status yet.', url('/report.php?type=found'), 'Log a found item') ?>
 <?php endif; ?>
 
 <?php else: ?>
@@ -233,8 +231,6 @@ include APP_ROOT . '/templates/layout/header.php';
     <div class="btn-row">
         <?php if (is_staff()): ?>
             <a class="btn btn-outline" href="<?= e(url('/browse.php?manage=1')) ?>">Manage items</a>
-        <?php endif; ?>
-        <?php if (has_role('staff')): ?>
             <a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a>
         <?php elseif (has_role('user')): ?>
             <a class="btn btn-outline" href="<?= e(url('/report.php?type=found')) ?>">+ I found something</a>

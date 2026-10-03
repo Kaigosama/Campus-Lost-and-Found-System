@@ -104,13 +104,7 @@ function login_user(array $user): void
         session_start();
     }
     // A browser holds one login at a time: logging in again (another account in another tab) ends the previous one.
-    if (!empty($_SESSION['session_row'])) {
-        $stmt = db()->prepare('UPDATE user_sessions SET status = "logged_out", ended_at = NOW() WHERE session_id = ? AND status = "active"');
-        $stmt->execute([$_SESSION['session_row']]);
-        if ($stmt->rowCount()) {
-            log_event('logout', find_user($_SESSION['user_id'] ?? null), ['reason' => 'another account logged in on this browser']);
-        }
-    }
+    end_browser_session(['reason' => 'another account logged in on this browser']);
     session_regenerate_id(true);   // no session fixation: the id from before login is discarded
 
     // Every account is signed in on one device at a time: the new login ends the older session.
@@ -134,15 +128,21 @@ function login_user(array $user): void
     log_event('login_success', $user, ['role' => $user['role']], null, $sessionId);
 }
 
-function logout(): void
+/** Marks this browser's session row logged out (if still active) and logs it. */
+function end_browser_session(array $metadata = []): void
 {
     if (!empty($_SESSION['session_row'])) {
         $stmt = db()->prepare('UPDATE user_sessions SET status = "logged_out", ended_at = NOW() WHERE session_id = ? AND status = "active"');
         $stmt->execute([$_SESSION['session_row']]);
         if ($stmt->rowCount()) {
-            log_event('logout', find_user($_SESSION['user_id'] ?? null));
+            log_event('logout', find_user($_SESSION['user_id'] ?? null), $metadata);
         }
     }
+}
+
+function logout(): void
+{
+    end_browser_session();
     $_SESSION = [];
     setcookie(session_name(), '', ['expires' => time() - 3600, 'path' => '/']);
     if (session_status() === PHP_SESSION_ACTIVE) {
@@ -183,7 +183,7 @@ function record_failed_login(array $user): bool
     db()->prepare('UPDATE users SET failed_login_attempts = 0, locked_at = NOW() WHERE user_id = ?')->execute([$user['user_id']]);
     log_event('account_locked', $user, ['failures' => LOCKOUT_ATTEMPTS]);
     send_security_notice($user, 'Your account was locked after ' . LOCKOUT_ATTEMPTS . ' wrong passwords in a row. '
-        . 'Visit the Lost & Found office (Admin Bldg, Rm 104, Mon–Fri 8:00 AM–5:00 PM) with your ID to have it unlocked. '
+        . 'Visit ' . OFFICE_INFO . ' with your ID to have it unlocked. '
         . "If these attempts weren't you, tell the office so they can check your account.");
     return true;
 }
