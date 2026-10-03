@@ -308,7 +308,10 @@ include APP_ROOT . '/templates/layout/header.php';
             <dl class="detail-list">
                 <dt>Storage location</dt><dd class="fw-600"><?= e($item['storage_location']) ?></dd>
                 <dt>Private details</dt><dd><div class="quote staff"><?= e($item['private_details']) ?></div></dd>
-                <dt>Logged by</dt><dd><?= e(full_name($loggedBy)) ?> &middot; <?= e(format_datetime($item['created_at'])) ?></dd>            </dl>
+                <dt>Logged by</dt><dd><?= e(full_name($loggedBy)) ?> &middot; <?= e(format_datetime($item['created_at'])) ?></dd>
+                <?php if ($item['returned_at'] && $item['status'] !== 'returned'): // the details card shows the date while it is still returned ?>
+                    <dt>Previously returned</dt><dd><?= e(format_datetime($item['returned_at'])) ?></dd>
+                <?php endif; ?>            </dl>
         </div>
 
         <?php if ($item['moderation_status'] === 'pending'): ?>
