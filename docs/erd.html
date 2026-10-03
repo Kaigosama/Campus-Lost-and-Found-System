@@ -162,7 +162,7 @@ erDiagram
             <tr><td><code>users</code></td><td><code>failed_login_attempts</code>, <code>locked_at</code></td><td>migration 001, renamed from <code>locked_until</code> by 002</td><td>Lock after 3 wrong passwords in a row, until an admin unlocks the account.</td></tr>
             <tr><td><code>users</code></td><td><code>last_login_at</code>, <code>last_activity_at</code></td><td>migration 001</td><td>Admin “Users &amp; Activity” page.</td></tr>
             <tr><td><code>found_items</code></td><td><code>moderation_status</code>, <code>moderated_by</code>, <code>moderation_note</code>, <code>moderated_at</code></td><td>migration 001</td><td>Students’ found-item posts stay private until staff approve them.</td></tr>
-            <tr><td><code>user_sessions</code></td><td>new table</td><td>migration 001</td><td>Server-side sessions: inactivity timeout, logout, one device per admin.</td></tr>
+            <tr><td><code>user_sessions</code></td><td>new table</td><td>migration 001</td><td>Server-side sessions: inactivity timeout, logout, one device per account.</td></tr>
             <tr><td><code>security_events</code></td><td>new table</td><td>migration 001</td><td>Login history and security log on <code>index.php?tab=logs</code>.</td></tr>
         </tbody>
     </table>

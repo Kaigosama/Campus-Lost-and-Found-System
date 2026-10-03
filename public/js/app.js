@@ -316,6 +316,12 @@
                     finish(form, result.message);
                 });
         },
+        delete_item: function (form, data) {
+            return ClafsApi.deleteItem(parseInt(data.id, 10)).then(function (result) {
+                if (form.dataset.redirect) { window.location.href = form.dataset.redirect; return; }
+                finish(form, result.message);
+            });
+        },
         claim: function (form, data) {
             return ClafsApi.createClaim(data).then(function (result) { finish(form, result.message); });
         },

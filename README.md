@@ -27,13 +27,13 @@ display case. Cardinal Finds moves that process online.
 | Role | Who | Can do |
 |---|---|---|
 | Student / Faculty | anyone who registers and confirms their email | Browse found items, report lost items, claim items, post items they found (staff approve them before they are public) |
-| Security & Maintenance | assigned by an admin | Log found items at intake, review claims and student posts, manage found items |
-| Office Administrator | assigned by the master admin | Manage student and staff accounts, view account activity, security logs and statistics. Has no access to found-item records, lost reports or claims: does not report, claim, log items, or review claims and posts. One device at a time: a new login ends the older session |
+| Security & Maintenance | assigned by an admin | Log found items at intake, review claims and student posts, manage found items, match lost reports. Does not file lost reports or claims |
+| Office Administrator | assigned by the master admin | Manage student and staff accounts, view account activity, security logs and statistics. Has no access to found-item records, lost reports or claims: does not report, claim, log items, or review claims and posts |
 | Master Administrator | one seeded account | Everything an administrator does, plus manage administrator accounts. Never locked out by failed log-ins (failures are logged and emailed instead); recovers access through password reset |
 
 Account security: email verification on sign-up, Cloudflare Turnstile on log-in and registration, a password
 policy (8+ characters with upper and lower case, a number and a symbol), a lock after 3 wrong passwords in a row
-that only an admin can lift (the user visits the Lost & Found office; Admin → Users & Activity → Unlock), sessions that end after 30 minutes without activity, and a log of every log-in, failure, lockout and
+that only an admin can lift (the user visits the Lost & Found office; Admin → Users & Activity → Unlock), sessions that end after 30 minutes without activity, one device per account at a time (a new login ends the older session), and a log of every log-in, failure, lockout and
 logout that admins can read under **Admin → Security Logs**.
 
 The database design is in [docs/erd.html](docs/erd.html) and [database/schema.sql](database/schema.sql).
@@ -147,6 +147,7 @@ The pages call JSON endpoints in [`public/api/`](public/api/) through [`public/j
 | `GET api/get_items.php` | List found items or lost reports (search and filters) |
 | `POST api/add_item.php` | Add a found item or lost report, with an optional photo |
 | `POST api/update_item.php` | Edit a found item or lost report |
+| `POST api/delete_item.php` | Delete a found item logged by mistake (staff; not once returned or a claim is approved) |
 | `POST api/update_status.php` | Change a status, match a report to an item, or approve/reject a student's post |
 | `POST api/claims.php` | Submit, approve, reject or withdraw a claim |
 | `POST api/update_user.php` | Admin: change a user's role, deactivate or unlock an account |

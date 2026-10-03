@@ -112,9 +112,9 @@ function login_user(array $user): void
     }
     session_regenerate_id(true);   // no session fixation: the id from before login is discarded
 
-    // A regular admin may be signed in on one device only: the new login ends the older session.
-    if ($user['role'] === 'admin' && ($ended = revoke_sessions($user['user_id']))) {
-        log_event('session_revoked', $user, ['reason' => 'admin signed in on another device', 'sessions' => $ended]);
+    // Every account is signed in on one device at a time: the new login ends the older session.
+    if ($ended = revoke_sessions($user['user_id'])) {
+        log_event('session_revoked', $user, ['reason' => 'signed in on another device', 'sessions' => $ended]);
     }
 
     $token = bin2hex(random_bytes(32));

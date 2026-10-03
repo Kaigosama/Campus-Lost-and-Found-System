@@ -151,7 +151,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <thead><tr><th>#</th><th></th><th>Item</th><th>Category</th><th>Found</th><th>Storage</th><th>Claims</th><th>Status</th><th class="actions"></th></tr></thead>
         <tbody>
         <?php foreach ($rows as $item): ?>
-            <tr>
+            <tr data-remove>
                 <td class="text-muted"><?= $item['item_id'] ?></td>
                 <td><?= photo_tag($item['image_url'], $item['item_name'], 'photo-thumb') ?></td>
                 <td>
@@ -179,7 +179,16 @@ include APP_ROOT . '/templates/layout/header.php';
                         <button type="submit" class="btn btn-secondary btn-sm">Save<span class="sr-only"> status of <?= e($item['item_name']) ?></span></button>
                     </form>
                 </td>
-                <td class="actions"><a class="btn btn-outline btn-sm" href="<?= e(url('/report.php?type=found&id=' . $item['item_id'])) ?>">Edit</a></td>
+                <td class="actions">
+                    <a class="btn btn-outline btn-sm" href="<?= e(url('/report.php?type=found&id=' . $item['item_id'])) ?>">Edit</a>
+                    <?php if (can_delete_found_item($item)): ?>
+                        <form method="post" action="<?= e(url('/browse.php?manage=1')) ?>" class="inline-form" data-api="delete_item" data-done="remove"
+                              data-confirm="Delete &quot;<?= e($item['item_name']) ?>&quot;? Use this only for an item logged by mistake. Any pending claims on it are deleted too. This can't be undone.">
+                            <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
+                            <button type="submit" class="btn btn-danger btn-sm">Delete<span class="sr-only"> <?= e($item['item_name']) ?></span></button>
+                        </form>
+                    <?php endif; ?>
+                </td>
             </tr>
         <?php endforeach; ?>
         </tbody>
@@ -245,7 +254,7 @@ include APP_ROOT . '/templates/layout/header.php';
     </div>
     <?= pagination($page, $totalPages) ?>
 <?php else: ?>
-    <?= is_admin() ? empty_state('No items match your search', 'Try a broader keyword or clear the filters.') : empty_state(
+    <?= is_logged_in() && !has_role('user') ? empty_state('No items match your search', 'Try a broader keyword or clear the filters.') : empty_state(
         'No items match your search',
         "Don't see yours? File a lost report so staff can match it when it's turned in.",
         is_logged_in() ? url('/report.php') : url('/login.php?next=' . rawurlencode(url('/report.php'))),

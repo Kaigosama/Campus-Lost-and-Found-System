@@ -69,6 +69,7 @@ window.ClafsApi = (function () {
         getItems:     function (params)                   { return get('get_items.php', params); },
         addItem:      function (type, fields)             { return post('add_item.php', withType(type, fields)); },
         updateItem:   function (type, id, fields)         { return post('update_item.php', withType(type, fields, { id: id })); },
+        deleteItem:   function (id)                       { return post('delete_item.php', { id: id }); },
         updateStatus: function (type, id, status, itemId) { return post('update_status.php', { type: type, id: id, status: status, item_id: itemId }); },
         createClaim:  function (fields)                   { return post('claims.php', Object.assign({ action: 'create' }, fields)); },
         moderateItem: function (id, decision, note, storage) { return post('update_status.php', { type: 'found', id: id, moderation: decision, review_note: note, storage_location: storage }); },

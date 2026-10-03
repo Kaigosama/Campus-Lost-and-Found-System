@@ -176,6 +176,13 @@ include APP_ROOT . '/templates/layout/header.php';
         <div class="btn-row">
             <a class="btn btn-outline" href="<?= e(url('/report.php?type=found&id=' . $item['item_id'])) ?>">Edit</a>
             <a class="btn btn-secondary" href="<?= e(url('/browse.php?manage=1')) ?>">Manage items</a>
+            <?php if (can_delete_found_item($item)): ?>
+                <form method="post" action="<?= e(item_url('found', $item['item_id'])) ?>" class="inline-form" data-api="delete_item" data-redirect="<?= e(url('/browse.php?manage=1')) ?>"
+                      data-confirm="Delete this item? Use this only for an item logged by mistake. Any pending claims on it are deleted too. This can't be undone.">
+                    <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
+                    <button type="submit" class="btn btn-danger">Delete item</button>
+                </form>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 </div>

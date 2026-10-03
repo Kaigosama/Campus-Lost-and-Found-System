@@ -33,6 +33,13 @@ function is_public_item(array $item): bool
     return $item['status'] === 'stored' && $item['moderation_status'] === 'approved';
 }
 
+/** A found item logged by mistake can be deleted until it is returned or a claim on it is approved. */
+function can_delete_found_item(array $item): bool
+{
+    return $item['status'] !== 'returned'
+        && !count_where(where(all_claims(), 'item_id', $item['item_id']), 'status', 'approved');
+}
+
 function public_found_items(): array
 {
     return array_filter(all_found_items(), 'is_public_item');
