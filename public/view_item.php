@@ -284,7 +284,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     <dt>Found at</dt><dd><?= e($item['location_found']) ?></dd>
                     <dt>Status</dt><dd><?= status_badge($item['status'], 'found-' . $item['item_id']) ?></dd>
                     <?php if ($item['status'] === 'returned'): ?>
-                        <dt>Returned</dt><dd>to its rightful owner on <?= e(format_datetime($item['returned_at'])) ?></dd>
+                        <dt>Returned</dt><dd><?= e(format_datetime($item['returned_at'])) ?></dd>
                     <?php elseif ($item['status'] === 'stored'): ?>
                     <dt>Pickup</dt>
                     <dd>
@@ -308,9 +308,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <dl class="detail-list">
                 <dt>Storage location</dt><dd class="fw-600"><?= e($item['storage_location']) ?></dd>
                 <dt>Private details</dt><dd><div class="quote staff"><?= e($item['private_details']) ?></div></dd>
-                <dt>Logged by</dt><dd><?= e(full_name($loggedBy)) ?> &middot; <?= e(format_datetime($item['created_at'])) ?></dd>
-                <?php if ($item['returned_at']): ?><dt>Returned</dt><dd><?= e(format_datetime($item['returned_at'])) ?></dd><?php endif; ?>
-            </dl>
+                <dt>Logged by</dt><dd><?= e(full_name($loggedBy)) ?> &middot; <?= e(format_datetime($item['created_at'])) ?></dd>            </dl>
         </div>
 
         <?php if ($item['moderation_status'] === 'pending'): ?>
