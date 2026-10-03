@@ -1050,16 +1050,17 @@ include APP_ROOT . '/templates/layout/header.php';
     $pendingCount   = count_where($claims, 'status', 'pending');
     $returnRate     = $totalItems ? round(($returnedCount / $totalItems) * 100) : 0;
 
-    $byCategory = [];
-    foreach (CATEGORIES as $cat) {
-        $byCategory[$cat] = count_where($items, 'category', $cat);
+    $byCategory = array_fill_keys(CATEGORIES, 0);
+    foreach ($items as $i) {
+        $byCategory[listed($i['category'], CATEGORIES)]++;   // typed "Other" values count as Other
     }
     arsort($byCategory);
     $maxCategory = max(1, max($byCategory));
 
     $byLocation = [];
     foreach ($items as $i) {
-        $byLocation[$i['location_found']] = ($byLocation[$i['location_found']] ?? 0) + 1;
+        $loc = listed($i['location_found'], CAMPUS_LOCATIONS);
+        $byLocation[$loc] = ($byLocation[$loc] ?? 0) + 1;
     }
     arsort($byLocation);
     $maxLocation = max([1, ...array_values($byLocation)]);   // max() of an empty array throws when nothing is logged yet

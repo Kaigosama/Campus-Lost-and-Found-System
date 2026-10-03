@@ -128,7 +128,9 @@ function search_rows(array $rows, string $keyword = '', array $exact = []): arra
     $keyword = mb_strtolower(trim($keyword));
     return array_values(array_filter($rows, function (array $row) use ($keyword, $exact) {
         foreach ($exact as $field => $value) {
-            if ($value !== '' && $value !== null && (string) ($row[$field] ?? '') !== (string) $value) {
+            $actual = (string) ($row[$field] ?? '');
+            if ($field === 'category') $actual = listed($actual, CATEGORIES);   // a typed "Other" category matches the Other filter
+            if ($value !== '' && $value !== null && $actual !== (string) $value) {
                 return false;
             }
         }

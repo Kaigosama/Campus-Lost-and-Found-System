@@ -165,6 +165,24 @@ function options(array $items, mixed $selected = null, bool $isAssoc = true): st
     return $html;
 }
 
+/** $value when it is in $list (or empty), else 'Other': a saved value that was typed into an "Other" box. */
+function listed(?string $value, array $list): string
+{
+    return $value === null || $value === '' || in_array($value, $list, true) ? (string) $value : 'Other';
+}
+
+/**
+ * The text box under a <select name="$name"> for describing its "Other" choice, prefilled with a typed value.
+ * Disabled unless "Other" is picked; app.js keeps it in step with the select. The API stores the text in place of "Other".
+ */
+function other_input(string $name, ?string $saved, array $list, int $max): string
+{
+    $isOther = listed($saved, $list) === 'Other';
+    return '<input type="text" name="' . e($name) . '_other" data-other-for="' . e($name) . '" required maxlength="' . $max . '"'
+        . ' class="mt-1" aria-label="Describe the other choice" placeholder="If Other: please specify"'
+        . ' value="' . e($isOther && $saved !== 'Other' ? $saved : '') . '"' . ($isOther ? '' : ' disabled') . '>';
+}
+
 function excerpt(string $text, int $length = 110): string
 {
     $text = trim(preg_replace('/\s+/', ' ', $text));

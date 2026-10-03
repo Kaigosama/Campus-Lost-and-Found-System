@@ -118,7 +118,8 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="card card-muted">
                 <h3>Think you've spotted it?</h3>
                 <p class="text-sm">Browse the found items list and submit a claim if you see your item.</p>
-                <a class="btn btn-primary btn-sm" href="<?= e(url('/browse.php?category=' . rawurlencode($report['category']))) ?>">Browse <?= e($report['category']) ?></a>
+                <?php $browseCategory = listed($report['category'], CATEGORIES); ?>
+                <a class="btn btn-primary btn-sm" href="<?= e(url('/browse.php?category=' . rawurlencode($browseCategory))) ?>">Browse <?= e($browseCategory) ?></a>
             </div>
         <?php elseif ($report['status'] === 'matched'): ?>
             <div class="alert alert-warning mb-0">
@@ -318,19 +319,22 @@ include APP_ROOT . '/templates/layout/header.php';
         <div class="card card-staff mt-2" data-replace>
             <h2>Review this post</h2>
             <p class="text-sm text-muted">Posted by a student or faculty member. Approve it once the item is at the office; it then appears in the public list.</p>
-            <form method="post" action="<?= e(item_url('found', $item['item_id'])) ?>" class="form" data-api="moderate">
+            <form method="post" action="<?= e(item_url('found', $item['item_id'])) ?>" class="form" data-api="moderate" data-done="replace" data-submit-guard>
                 <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
                 <div class="form-group">
                     <label for="mod_storage">Storage location <span class="text-muted text-sm">(required to approve)</span></label>
-                    <input type="text" id="mod_storage" name="storage_location" maxlength="150" placeholder="e.g. Cabinet B, Shelf 2" value="<?= e($item['storage_location']) ?>">
+                    <select id="mod_storage" name="storage_location">
+                        <option value="">Select a storage location…</option>
+                        <?= options(STORAGE_LOCATIONS, $item['storage_location'], false) ?>
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label for="mod_note">Note to the poster <span class="text-muted text-sm">(required to reject)</span></label>
+                    <label for="mod_note">Note to the poster <span class="text-muted text-sm">(required to reject, at least 10 characters)</span></label>
                     <textarea id="mod_note" name="review_note" maxlength="1000" placeholder="If rejecting: the reason, e.g. duplicate post or item never brought in."></textarea>
                 </div>
                 <div class="form-actions">
-                    <button type="submit" name="moderation" value="approved" class="btn btn-success" data-confirm="Approve and publish this post?">Approve post</button>
-                    <button type="submit" name="moderation" value="rejected" class="btn btn-danger" data-confirm="Reject this post?">Reject post</button>
+                    <button type="submit" name="moderation" value="approved" class="btn btn-success" data-requires="storage_location" data-confirm="Approve and publish this post?">Approve post</button>
+                    <button type="submit" name="moderation" value="rejected" class="btn btn-danger" data-requires="review_note" data-min="10" data-confirm="Reject this post?">Reject post</button>
                 </div>
             </form>
         </div>

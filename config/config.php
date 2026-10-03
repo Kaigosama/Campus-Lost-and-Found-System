@@ -40,6 +40,11 @@ const CAMPUS_LOCATIONS = [
     'Media Studios', 'Library', 'Student Lounge', 'Canteen & Café', 'Gymnasium', 'Cinema', 'Prayer Room',
     'Student Services Office', 'Restrooms', 'Parking Area', 'Other',
 ];
+/** The only places in the Lost & Found office where staff store an item; database/migrations/010 moved older values onto them. */
+const STORAGE_LOCATIONS = [
+    'Cabinet A, Shelf 1', 'Cabinet B, Shelf 2', 'Cabinet C, Shelf 1',
+    'Drawer 1 (IDs)', 'Drawer 2 (Keys)', 'Bin 4 (Misc)',
+];
 
 const MAX_UPLOAD_MB   = 5;
 const UPLOAD_DIR      = APP_ROOT . '/public/uploads';

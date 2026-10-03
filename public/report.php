@@ -12,6 +12,7 @@ $user  = current_user();
 $type  = ($_GET['type'] ?? 'lost') === 'found' ? 'found' : 'lost';
 $id    = (int) ($_GET['id'] ?? 0);
 $today = date('Y-m-d');
+$minDate = earliest_item_date();
 $row   = null;
 
 require_role(match (true) {
@@ -97,12 +98,13 @@ include APP_ROOT . '/templates/layout/header.php';
                         <label for="category">Category <span class="req" aria-hidden="true">*</span></label>
                         <select id="category" name="category" required>
                             <option value="">Select a category…</option>
-                            <?= options(CATEGORIES, $row['category'] ?? null, false) ?>
+                            <?= options(CATEGORIES, listed($row['category'] ?? null, CATEGORIES), false) ?>
                         </select>
+                        <?= other_input('category', $row['category'] ?? null, CATEGORIES, 50) ?>
                     </div>
                     <div class="form-group">
                         <label for="date_found">Date found <span class="req" aria-hidden="true">*</span></label>
-                        <input type="date" id="date_found" name="date_found" required max="<?= $today ?>" value="<?= e($row['date_found'] ?? $today) ?>">
+                        <input type="date" id="date_found" name="date_found" required min="<?= $minDate ?>" max="<?= $today ?>" value="<?= e($row['date_found'] ?? $today) ?>">
                     </div>
                 </div>
 
@@ -110,8 +112,9 @@ include APP_ROOT . '/templates/layout/header.php';
                     <label for="location_found">Where was it found? <span class="req" aria-hidden="true">*</span></label>
                     <select id="location_found" name="location_found" required>
                         <option value="">Select a location…</option>
-                        <?= options(CAMPUS_LOCATIONS, $row['location_found'] ?? null, false) ?>
+                        <?= options(CAMPUS_LOCATIONS, listed($row['location_found'] ?? null, CAMPUS_LOCATIONS), false) ?>
                     </select>
+                    <?= other_input('location_found', $row['location_found'] ?? null, CAMPUS_LOCATIONS, 150) ?>
                 </div>
 
                 <div class="form-group">
@@ -141,8 +144,10 @@ include APP_ROOT . '/templates/layout/header.php';
                 <?php if (!$isPost): ?>
                 <div class="form-group">
                     <label for="storage_location">Storage location <span class="req" aria-hidden="true">*</span></label>
-                    <input type="text" id="storage_location" name="storage_location" required maxlength="150"
-                           value="<?= e($row['storage_location'] ?? '') ?>" placeholder="e.g. Cabinet B, Shelf 2">
+                    <select id="storage_location" name="storage_location" required>
+                        <option value="">Select a storage location…</option>
+                        <?= options(STORAGE_LOCATIONS, $row['storage_location'] ?? null, false) ?>
+                    </select>
                 </div>
                 <?php endif; ?>
 
@@ -238,12 +243,13 @@ include APP_ROOT . '/templates/layout/header.php';
                     <label for="category">Category <span class="req" aria-hidden="true">*</span></label>
                     <select id="category" name="category" required>
                         <option value="">Select a category…</option>
-                        <?= options(CATEGORIES, $row['category'] ?? null, false) ?>
+                        <?= options(CATEGORIES, listed($row['category'] ?? null, CATEGORIES), false) ?>
                     </select>
+                    <?= other_input('category', $row['category'] ?? null, CATEGORIES, 50) ?>
                 </div>
                 <div class="form-group">
                     <label for="date_lost">Date lost <span class="req" aria-hidden="true">*</span></label>
-                    <input type="date" id="date_lost" name="date_lost" required max="<?= $today ?>" value="<?= e($row['date_lost'] ?? $today) ?>">
+                    <input type="date" id="date_lost" name="date_lost" required min="<?= $minDate ?>" max="<?= $today ?>" value="<?= e($row['date_lost'] ?? $today) ?>">
                 </div>
             </div>
 
@@ -251,8 +257,9 @@ include APP_ROOT . '/templates/layout/header.php';
                 <label for="location_lost">Where did you last have it? <span class="req" aria-hidden="true">*</span></label>
                 <select id="location_lost" name="location_lost" required>
                     <option value="">Select a location…</option>
-                    <?= options(CAMPUS_LOCATIONS, $row['location_lost'] ?? null, false) ?>
+                    <?= options(CAMPUS_LOCATIONS, listed($row['location_lost'] ?? null, CAMPUS_LOCATIONS), false) ?>
                 </select>
+                <?= other_input('location_lost', $row['location_lost'] ?? null, CAMPUS_LOCATIONS, 150) ?>
             </div>
 
             <div class="form-group">

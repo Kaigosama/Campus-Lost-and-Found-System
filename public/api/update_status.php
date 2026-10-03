@@ -48,7 +48,7 @@ if ($type === 'found' && isset($in['moderation'])) {
     if (mb_strlen($note) > 1000) {
         $errors['review_note'] = 'Must be 1000 characters or fewer.';
     }
-    if ($status === 'approved' && ($storage === '' || mb_strlen($storage) > 150)) {
+    if ($status === 'approved' && !in_array($storage, STORAGE_LOCATIONS, true)) {
         $errors['storage_location'] = 'Record where the item is stored before approving it.';
     }
     if ($errors) {

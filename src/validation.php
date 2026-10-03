@@ -35,20 +35,38 @@ function validate_item_input(array $in, string $type, bool $needsStorage = true)
         elseif ($len > $max) $errors[$key] = "Must be $max characters or fewer.";
     }
     $values['category'] = $field('category');
-    if (!in_array($values['category'], CATEGORIES, true)) {
-        $errors['category'] = 'Choose a valid category.';
-    }
     $locationKey = $type === 'found' ? 'location_found' : 'location_lost';
-    if (!isset($errors[$locationKey]) && !in_array($values[$locationKey], CAMPUS_LOCATIONS, true)) {
-        $errors[$locationKey] = 'Choose a location from the list.';
+    // "Other" is stored as the text typed in the <key>_other box (see other_input()).
+    $choices = ['category' => [CATEGORIES, 50, 'Choose a valid category.'], $locationKey => [CAMPUS_LOCATIONS, 150, 'Choose a location from the list.']];
+    foreach ($choices as $key => [$list, $max, $message]) {
+        if (isset($errors[$key])) continue;
+        if ($values[$key] === 'Other') {
+            $values[$key] = $field($key . '_other');
+            $len = mb_strlen($values[$key]);
+            if ($len === 0) $errors[$key . '_other'] = 'Describe what "Other" is.';
+            elseif ($len > $max) $errors[$key . '_other'] = "Must be $max characters or fewer.";
+        } elseif (!in_array($values[$key], $list, true)) {
+            $errors[$key] = $message;
+        }
+    }
+    if ($type === 'found' && $needsStorage && !isset($errors['storage_location']) && !in_array($values['storage_location'], STORAGE_LOCATIONS, true)) {
+        $errors['storage_location'] = 'Choose a storage location from the list.';
     }
     $values[$dateKey] = $field($dateKey);
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $values[$dateKey]) || !strtotime($values[$dateKey])) {
         $errors[$dateKey] = 'Enter a valid date.';
     } elseif ($values[$dateKey] > date('Y-m-d')) {
         $errors[$dateKey] = 'Date cannot be in the future.';
+    } elseif ($values[$dateKey] < earliest_item_date()) {
+        $errors[$dateKey] = 'Date cannot be more than a year ago.';
     }
     return [$errors, $values];
+}
+
+/** The oldest date_found / date_lost accepted: one year before today. */
+function earliest_item_date(): string
+{
+    return date('Y-m-d', strtotime('-1 year'));
 }
 
 /** A person's name: required, at least $min characters, letters (any script) plus spaces, hyphens, apostrophes, periods. */

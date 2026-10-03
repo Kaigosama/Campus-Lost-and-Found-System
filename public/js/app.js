@@ -235,7 +235,7 @@
             if (other && other.value !== field.value) return 'Passwords do not match.';
         }
         if (field.type === 'date' && field.max && value > field.max) return 'Date cannot be in the future.';
-        if (field.type === 'date' && field.min && value < field.min) return 'Date is too early.';
+        if (field.type === 'date' && field.min && value < field.min) return 'Date cannot be more than a year ago.';
         var minWords = parseInt(field.dataset.minWords, 10);
         if (minWords && value.split(/\s+/).length < minWords) return 'Please give a little more detail (at least ' + minWords + ' words).';
         return '';
@@ -286,12 +286,27 @@
         if (!busy) guardSubmit(form);
     }
 
+    // input[data-other-for="<select name>"]: typed into only while that select is on "Other". Disabled, it is skipped
+    // by validation and left out of the request.
+    document.querySelectorAll('[data-other-for]').forEach(function (input) {
+        var select = input.form.querySelector('[name="' + input.dataset.otherFor + '"]');
+        select.addEventListener('change', function () {
+            input.disabled = select.value !== 'Other';
+            if (input.disabled) clearError(input); else input.focus();
+        });
+    });
+
     // form[data-submit-guard]: the submit button stays disabled until every field passes validateField(), checked
-    // on each keystroke and change. Feedback only: the API validates every field again.
+    // on each keystroke and change. A button with data-requires="<name>" waits only for that field to hold at least
+    // data-min (default 1) characters, e.g. Approve needs a storage location and Reject a reason.
+    // Feedback only: the API validates every field again.
     function guardSubmit(form) {
         if (!form.hasAttribute('data-submit-guard')) return;
         var ready = Array.prototype.every.call(form.querySelectorAll('input, select, textarea'), function (field) { return !validateField(field); });
-        form.querySelectorAll('button[type="submit"]').forEach(function (button) { button.disabled = !ready; });
+        form.querySelectorAll('button[type="submit"]').forEach(function (button) {
+            var needed = button.dataset.requires && form.querySelector('[name="' + button.dataset.requires + '"]');
+            button.disabled = needed ? needed.value.trim().length < (parseInt(button.dataset.min, 10) || 1) : !ready;
+        });
         var hint = form.querySelector('[data-guard-hint]');
         if (hint) hint.hidden = ready;
     }
