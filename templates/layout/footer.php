@@ -4,7 +4,7 @@
 <footer class="site-footer">
     <div class="container footer-inner">
         <p>
-            &copy; <?= date('Y') ?> <?= e(APP_NAME) ?>. Academic project for Web Systems and Technologies 2 (ITS122P, Group 4), Mapua University.
+            &copy; <?= date('Y') ?> <?= e(APP_NAME) ?>. Academic project for Web Systems and Technologies 2 (ITS122P, Group 4).
             All items, people and reports shown are fictional demonstration data.
         </p>
         <button type="button" class="link-button" data-cookie-settings>Cookie settings</button>
