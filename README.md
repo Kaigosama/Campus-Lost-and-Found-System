@@ -86,7 +86,7 @@ Log in at `/login.php` with a sample account. The password for each is `password
 |---|---|
 | `masteradminp@gmail.com` | Master Administrator |
 | `admin@mapua.edu.ph`, `admin2@mapua.edu.ph` | Office Administrator |
-| `staff@mapua.edu.ph` | Security & Maintenance |
+| `staffmarcos1@gmail.com` | Security & Maintenance |
 | `student1@mymail.mapua.edu.ph` | Student / Faculty |
 
 New accounts can register at `/register.php` with any email address, then
