@@ -344,7 +344,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <?php if (is_staff()): ?>
                 <div class="card card-muted">
                     <h3>Staff view</h3>
-                    <p class="text-sm mb-0">Review claims on this item in the panel<?= $itemClaims ? ' on the left' : ' (none yet)' ?> or in the <a href="<?= e(url('/?tab=queue')) ?>">claims queue</a>.</p>
+                    <p class="text-sm mb-0">Review claims on this item in the panel<?= $itemClaims ? ' on the left' : ' (none yet)' ?> or on the <a href="<?= e(url('/?tab=queue')) ?>">Claims</a> tab.</p>
                 </div>
             <?php elseif ($isPoster): ?>
                 <div class="card card-muted">

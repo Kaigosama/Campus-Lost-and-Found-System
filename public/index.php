@@ -169,10 +169,11 @@ if (is_admin()) {
 
 $allTabs = [ // key => [label, required role(s) or null]
     'overview'  => ['Overview', null],
-    'reports'   => ['My Lost Reports', ['user', 'staff']],
-    'my_claims' => ['My Claims', ['user', 'staff']],
+    // Staff see every lost report and claim here; students and faculty see their own.
+    'reports'   => [is_staff() ? 'Lost Reports' : 'My Lost Reports', ['user', 'staff']],
+    'my_claims' => ['My Claims', 'user'],   // staff never file claims
     'posts'     => ['My Found Posts', 'user'],
-    'queue'     => ['Claims Queue', REVIEWER_ROLES],
+    'queue'     => ['Claims', REVIEWER_ROLES],
     'moderation' => ['Post Review', REVIEWER_ROLES],
     'users'     => ['Users & Activity', ADMIN_ROLES],
     'stats'     => ['Statistics', ADMIN_ROLES],
@@ -198,6 +199,7 @@ if ($tab === 'account' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $myReports = newest_first(where(all_lost_reports(), 'user_id', $user['user_id']));
+$reportRows = is_staff() ? newest_first(array_values(all_lost_reports())) : $myReports;   // the Lost Reports tab
 $myClaims  = newest_first(where(all_claims(), 'user_id', $user['user_id']));
 $storedCount = count(public_found_items());
 $pendingPosts = newest_first(where(all_found_items(), 'moderation_status', 'pending'));
@@ -242,7 +244,11 @@ include APP_ROOT . '/templates/layout/header.php';
 </div>
 <?php elseif ($tab === 'reports'): ?>
 <div class="page-header">
-    <div><h1>My lost reports</h1><p>Everything you've reported, newest first.</p></div>
+    <?php if (is_staff()): ?>
+        <div><h1>Lost reports</h1><p>Every report filed by students, faculty and staff, newest first. Open one to match it to a found item.</p></div>
+    <?php else: ?>
+        <div><h1>My lost reports</h1><p>Everything you've reported, newest first.</p></div>
+    <?php endif; ?>
     <a class="btn btn-primary" href="<?= e(url('/report.php')) ?>">+ New report</a>
 </div>
 <?php elseif ($tab === 'my_claims'): ?>
@@ -252,7 +258,7 @@ include APP_ROOT . '/templates/layout/header.php';
 </div>
 <?php elseif ($tab === 'queue'): ?>
 <div class="page-header">
-    <div><h1>Claims queue</h1><p>Compare each claimant's proof with the private details logged at intake.</p></div>
+    <div><h1>Claims</h1><p>Compare each claimant's proof with the private details logged at intake.</p></div>
 </div>
 <?php elseif ($tab === 'users'): ?>
 <div class="page-header">
@@ -315,7 +321,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="stat-card warning">
                 <span class="stat-label">Pending claims</span>
                 <span class="stat-value"><?= count($pendingClaims) ?></span>
-                <a href="<?= e(url('/?tab=queue')) ?>">Review queue &rarr;</a>
+                <a href="<?= e(url('/?tab=queue')) ?>">Review claims &rarr;</a>
             </div>
             <div class="stat-card">
                 <span class="stat-label">Items in storage</span>
@@ -338,7 +344,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="card">
                 <div class="card-header">
                     <h2>Claims awaiting review</h2>
-                    <a href="<?= e(url('/?tab=queue')) ?>" class="btn btn-outline btn-sm">Open queue</a>
+                    <a href="<?= e(url('/?tab=queue')) ?>" class="btn btn-outline btn-sm">All claims</a>
                 </div>
                 <?php if ($pendingClaims): ?>
                 <div class="table-wrap">
@@ -452,22 +458,22 @@ include APP_ROOT . '/templates/layout/header.php';
         </div>
     <?php endif; ?>
 
-<?php /* ================================================== MY LOST REPORTS */ ?>
+<?php /* ================================================== LOST REPORTS (own; every report for staff) */ ?>
 <?php elseif ($tab === 'reports'): ?>
     <?php
     $status = $_GET['status'] ?? '';
-    $counts = ['' => count($myReports)];
+    $counts = ['' => count($reportRows)];
     foreach (LOST_STATUSES as $key => $label) {
-        $counts[$key] = count_where($myReports, 'status', $key);
+        $counts[$key] = count_where($reportRows, 'status', $key);
     }
-    $rows = $status === '' ? $myReports : where($myReports, 'status', $status);
+    $rows = $status === '' ? $reportRows : where($reportRows, 'status', $status);
     echo pill_tabs(['' => 'All'] + LOST_STATUSES, $counts, $status, 'status');
     ?>
 
     <?php if ($rows): ?>
     <div class="table-wrap">
         <table class="table">
-            <thead><tr><th></th><th>Item</th><th>Category</th><th>Lost on</th><th>Where</th><th>Status</th><th class="actions"></th></tr></thead>
+            <thead><tr><th></th><th>Item</th><?= is_staff() ? '<th>Reported by</th>' : '' ?><th>Category</th><th>Lost on</th><th>Where</th><th>Status</th><th class="actions"></th></tr></thead>
             <tbody>
             <?php foreach ($rows as $report): ?>
                 <tr>
@@ -476,6 +482,9 @@ include APP_ROOT . '/templates/layout/header.php';
                         <a class="table-title" href="<?= e(item_url('lost', $report['report_id'])) ?>"><?= e($report['item_name']) ?></a>
                         <span class="table-sub"><?= e(excerpt($report['description'], 70)) ?></span>
                     </td>
+                    <?php if (is_staff()): $owner = find_user($report['user_id']); ?>
+                        <td><?= e(full_name($owner)) ?><span class="table-sub"><?= e($owner['email']) ?></span></td>
+                    <?php endif; ?>
                     <td><?= e($report['category']) ?></td>
                     <td class="nowrap"><?= e(format_date($report['date_lost'])) ?></td>
                     <td><?= e($report['location_lost']) ?></td>
@@ -489,7 +498,7 @@ include APP_ROOT . '/templates/layout/header.php';
     <?php else: ?>
         <?= empty_state(
             $status ? 'No ' . strtolower(status_label($status)) . ' reports' : 'No lost reports yet',
-            'When you report a lost item it will show up here with its current status.',
+            is_staff() ? 'Reports filed by students, faculty and staff show up here.' : 'When you report a lost item it will show up here with its current status.',
             url('/report.php'),
             'Report a lost item'
         ) ?>
