@@ -94,7 +94,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <?php endif; ?>
             <div class="form-group">
                 <label for="email">Email <span class="req" aria-hidden="true">*</span></label>
-                <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email data-label="Email"
+                <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com" data-label="Email"
                        <?= $error ? 'aria-invalid="true" aria-describedby="login-error"' : '' ?>
                        value="<?= e($_POST['email'] ?? '') ?>">
             </div>

@@ -49,7 +49,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <form method="post" action="<?= e(url('/forgot_password.php')) ?>" class="form" data-validate>
             <div class="form-group">
                 <label for="email">Email <span class="req" aria-hidden="true">*</span></label>
-                <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph"
+                <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com"
                        aria-describedby="email-error"
                        value="<?= e($_POST['email'] ?? '') ?>"<?= isset($errors['email']) ? ' class="is-invalid" aria-invalid="true"' : '' ?>>
                 <?php if (isset($errors['email'])): ?><span class="form-error" id="email-error"><?= e($errors['email']) ?></span><?php endif; ?>

@@ -203,13 +203,10 @@ function register_user(array $in, bool $captchaPassed): array
         'last_name'  => name_error($last, 'Last name', 1),
     ]);
     $email  = mb_strtolower(trim((string) ($in['email'] ?? '')));
-    $domain = substr(strrchr($email, '@') ?: '', 1);
     if ($email === '') {
         $errors['email'] = 'Email is required.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 190) {
         $errors['email'] = 'Enter a valid email address.';
-    } elseif (!in_array($domain, ALLOWED_EMAIL_DOMAINS, true)) {
-        $errors['email'] = 'Use your Mapua email (@' . implode(' or @', ALLOWED_EMAIL_DOMAINS) . ').';
     }
     $password = (string) ($in['password'] ?? '');
     $confirm  = (string) ($in['password_confirm'] ?? '');

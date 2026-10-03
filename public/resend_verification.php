@@ -47,7 +47,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <form method="post" action="<?= e(url('/resend_verification.php')) ?>" class="form" data-validate>
             <div class="form-group">
                 <label for="email">Email <span class="req" aria-hidden="true">*</span></label>
-                <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-label="Email"
+                <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com" data-label="Email"
                        value="<?= e($_POST['email'] ?? $_GET['email'] ?? '') ?>"<?= isset($errors['email']) ? ' class="is-invalid" aria-invalid="true"' : '' ?>>
                 <?php if (isset($errors['email'])): ?><span class="form-error" id="email-error"><?= e($errors['email']) ?></span><?php endif; ?>
             </div>

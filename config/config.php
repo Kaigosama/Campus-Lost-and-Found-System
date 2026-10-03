@@ -32,7 +32,6 @@ const LOST_STATUSES  = ['open' => 'Open', 'matched' => 'Matched', 'closed' => 'C
 const FOUND_STATUSES = ['stored' => 'In Storage', 'returned' => 'Returned', 'disposed' => 'Disposed'];
 const CLAIM_STATUSES = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected'];
 
-const ALLOWED_EMAIL_DOMAINS = ['mymail.mapua.edu.ph', 'mapua.edu.ph'];
 const CAMPUS_LOCATIONS = ['Library', 'Cafeteria', 'Gymnasium', 'Student Lounge', 'Parking Area', 'North Building', 'South Building', 'Admin Building', 'Chapel', 'Covered Court'];
 
 const MAX_UPLOAD_MB   = 5;

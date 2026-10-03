@@ -14,7 +14,6 @@
  *   [data-table-filter]                quick text filter for a table
  */
 (function () {
-    var ALLOWED_DOMAINS = ['mymail.mapua.edu.ph', 'mapua.edu.ph'];
     var IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
     var MAX_IMAGE_BYTES = 5 * 1024 * 1024;
     var BASE = document.documentElement.getAttribute('data-base') || '';
@@ -209,9 +208,6 @@
             return 'Use letters only (spaces, hyphens, apostrophes and periods are allowed).';
         }
         if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email address.';
-        if (field.hasAttribute('data-mapua-email') && ALLOWED_DOMAINS.indexOf((value.split('@')[1] || '').toLowerCase()) === -1) {
-            return 'Use your Mapua email (@mymail.mapua.edu.ph or @mapua.edu.ph).';
-        }
         if (field.dataset.match) {
             var other = field.form.querySelector('[name="' + field.dataset.match + '"]');
             if (other && other.value !== field.value) return 'Passwords do not match.';

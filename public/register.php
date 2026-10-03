@@ -60,9 +60,9 @@ include APP_ROOT . '/templates/layout/header.php';
                 </div>
             </div>
             <div class="form-group">
-                <label for="email">Mapua email <span class="req" aria-hidden="true">*</span></label>
-                <input type="email" id="email" name="email" required maxlength="190" autocomplete="email" placeholder="you@mymail.mapua.edu.ph" data-mapua-email data-label="Email" aria-required="true" value="<?= $old('email') ?>"<?= $inv('email') ?>>
-                <span class="form-hint">Must end in @mymail.mapua.edu.ph or @mapua.edu.ph. This is how you log in.</span>
+                <label for="email">Email <span class="req" aria-hidden="true">*</span></label>
+                <input type="email" id="email" name="email" required maxlength="190" autocomplete="email" placeholder="you@example.com" data-label="Email" aria-required="true" value="<?= $old('email') ?>"<?= $inv('email') ?>>
+                <span class="form-hint">We send a link to confirm it. This is how you log in.</span>
                 <?= $err('email') ?>
             </div>
             <div class="form-group">
