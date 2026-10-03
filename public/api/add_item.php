@@ -3,7 +3,7 @@ require_once __DIR__ . '/../../src/bootstrap.php';
 
 /**
  * POST /api/add_item.php   (multipart/form-data with optional "photo" file, form fields, or JSON)
- *   type=lost   { item_name, category, date_lost,  location_lost,  description }                                  — students / faculty, staff
+ *   type=lost   { item_name, category, date_lost,  location_lost,  description }                                  — students / faculty
  *   type=found  { item_name, category, date_found, location_found, description, storage_location, private_details }
  *               staff: logged at intake and public at once.
  *               students / faculty: a post without storage_location that stays "pending" until staff approve it.
@@ -20,8 +20,11 @@ $type = ($in['type'] ?? 'lost') === 'found' ? 'found' : 'lost';
 $user = current_user();
 $isIntake = $user['role'] === 'staff';
 
+if ($type === 'lost' && !has_role('user')) {
+    json_error(403, 'Only students and faculty file lost reports.');
+}
 if (!has_role(['staff', 'user'])) {
-    json_error(403, 'Administrators do not file lost reports or log found items.');
+    json_error(403, 'Administrators do not log found items.');
 }
 
 [$errors, $v] = validate_item_input($in, $type, $isIntake);

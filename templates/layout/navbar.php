@@ -31,13 +31,11 @@ $navType = $type ?? '';
                 <?php else: ?>
                     <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php', $navType !== 'lost') ?>>Found Items</a>
                 <?php endif; ?>
-                <a href="<?= e(url('/report.php')) ?>"<?= is_active('/report.php', $navType !== 'found') ?>>Report Lost</a>
-
-                <?php if (is_staff()): ?>
+                <?php if (is_staff()): /* staff log found items; only students and faculty report lost ones */ ?>
+                    <a href="<?= e(url('/report.php?type=found')) ?>"<?= is_active('/report.php', $navType === 'found') ?>>Log Found Item</a>
                     <details class="nav-group">
                         <summary>Staff</summary>
                         <div class="dropdown">
-                            <a href="<?= e(url('/report.php?type=found')) ?>">Log Found Item</a>
                             <a href="<?= e(url('/?tab=reports')) ?>">Lost Reports</a>
                             <a href="<?= e(url('/?tab=queue')) ?>">Claims</a>
                             <a href="<?= e(url('/?tab=moderation')) ?>">Post Review</a>
@@ -45,6 +43,7 @@ $navType = $type ?? '';
                         </div>
                     </details>
                 <?php else: ?>
+                    <a href="<?= e(url('/report.php')) ?>"<?= is_active('/report.php', $navType !== 'found') ?>>Report Lost</a>
                     <details class="nav-group">
                         <summary>My Activity</summary>
                         <div class="dropdown">

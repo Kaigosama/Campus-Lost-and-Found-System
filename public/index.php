@@ -223,9 +223,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a>
         <?php elseif (has_role('user')): ?>
             <a class="btn btn-outline" href="<?= e(url('/report.php?type=found')) ?>">+ I found something</a>
-        <?php endif; ?>
-        <?php if (!is_admin()): ?>
-            <a class="btn <?= is_staff() ? 'btn-outline' : 'btn-primary' ?>" href="<?= e(url('/report.php')) ?>">+ Report lost item</a>
+            <a class="btn btn-primary" href="<?= e(url('/report.php')) ?>">+ Report lost item</a>
         <?php endif; ?>
     </div>
 </div>
@@ -245,11 +243,11 @@ include APP_ROOT . '/templates/layout/header.php';
 <?php elseif ($tab === 'reports'): ?>
 <div class="page-header">
     <?php if (is_staff()): ?>
-        <div><h1>Lost reports</h1><p>Every report filed by students, faculty and staff, newest first. Open one to match it to a found item.</p></div>
+        <div><h1>Lost reports</h1><p>Every report filed by students and faculty, newest first. Open one to match it to a found item.</p></div>
     <?php else: ?>
         <div><h1>My lost reports</h1><p>Everything you've reported, newest first.</p></div>
+        <a class="btn btn-primary" href="<?= e(url('/report.php')) ?>">+ New report</a>
     <?php endif; ?>
-    <a class="btn btn-primary" href="<?= e(url('/report.php')) ?>">+ New report</a>
 </div>
 <?php elseif ($tab === 'my_claims'): ?>
 <div class="page-header">
@@ -496,12 +494,10 @@ include APP_ROOT . '/templates/layout/header.php';
         </table>
     </div>
     <?php else: ?>
-        <?= empty_state(
-            $status ? 'No ' . strtolower(status_label($status)) . ' reports' : 'No lost reports yet',
-            is_staff() ? 'Reports filed by students, faculty and staff show up here.' : 'When you report a lost item it will show up here with its current status.',
-            url('/report.php'),
-            'Report a lost item'
-        ) ?>
+        <?php $emptyTitle = $status ? 'No ' . strtolower(status_label($status)) . ' reports' : 'No lost reports yet'; ?>
+        <?= is_staff()
+            ? empty_state($emptyTitle, 'Reports filed by students and faculty show up here.')
+            : empty_state($emptyTitle, 'When you report a lost item it will show up here with its current status.', url('/report.php'), 'Report a lost item') ?>
     <?php endif; ?>
 
 <?php /* ================================================== MY CLAIMS */ ?>

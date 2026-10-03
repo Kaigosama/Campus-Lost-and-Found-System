@@ -2,11 +2,11 @@
 require_once __DIR__ . '/../src/bootstrap.php';
 
 /**
- * ?type=lost            file a lost report (students / faculty, staff)   ?type=lost&id=N    edit your own open report
+ * ?type=lost            file a lost report (students / faculty only)     ?type=lost&id=N    edit your own open report
  * ?type=found           log a found item at intake (staff), or post one you found (students / faculty; staff
  *                       approve it before it is public)                ?type=found&id=N   edit a found item (staff)
  * New records post through api/add_item.php, edits through api/update_item.php (both multipart, photo included).
- * Administrators don't file lost reports or log or edit found items.
+ * Staff log found items but don't file lost reports; administrators do neither.
  */
 $user  = current_user();
 $type  = ($_GET['type'] ?? 'lost') === 'found' ? 'found' : 'lost';
@@ -14,7 +14,11 @@ $id    = (int) ($_GET['id'] ?? 0);
 $today = date('Y-m-d');
 $row   = null;
 
-require_role($type === 'found' && $id ? 'staff' : ['staff', 'user']);
+require_role(match (true) {
+    $type === 'lost' => 'user',
+    $id > 0          => 'staff',
+    default          => ['staff', 'user'],
+});
 if ($type === 'found') {
     if ($id) {
         $row = find_found_item($id);
