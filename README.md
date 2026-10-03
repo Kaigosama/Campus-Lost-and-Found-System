@@ -85,7 +85,7 @@ Log in at `/login.php` with a sample account. The password for each is `password
 | Email | Role |
 |---|---|
 | `masteradminp@gmail.com` | Master Administrator |
-| `admin@mapua.edu.ph`, `admin2@mapua.edu.ph` | Office Administrator |
+| `adminanalog1@gmail.com`, `adminlizancing2@gmail.com` | Office Administrator |
 | `staffmarcos1@gmail.com` | Security & Maintenance |
 
 There are no sample Student / Faculty accounts. Students and faculty register at `/register.php` with any
