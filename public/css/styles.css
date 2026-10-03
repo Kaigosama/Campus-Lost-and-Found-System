@@ -544,11 +544,13 @@ img[data-lightbox]:not(a img) { cursor: zoom-in; }
 /* ---------- 15. CSS bar chart (admin stats) ---------- */
 .bars { display: grid; gap: .6rem; }
 .bar-row { display: grid; grid-template-columns: 120px 1fr 40px; align-items: center; gap: .6rem; font-size: .88rem; }
-.bar-track { height: 14px; background: var(--neutral-bg); border-radius: var(--radius-sm); overflow: hidden; }
-.bar-fill { height: 100%; background: var(--red); }
-.bar-fill.accent { background: var(--blue); }
-.bar-fill.success { background: var(--success); }
-.bar-fill.info { background: var(--blue); }
+/* <progress> bars: the fill takes the colour (currentColor) set by the variant class. */
+.bar { appearance: none; width: 100%; height: 14px; border: 0; border-radius: var(--radius-sm); overflow: hidden; background: var(--neutral-bg); color: var(--red); }
+.bar::-webkit-progress-bar { background: var(--neutral-bg); }
+.bar::-webkit-progress-value { background: currentColor; }
+.bar::-moz-progress-bar { background: currentColor; }
+.bar.accent, .bar.info { color: var(--blue); }
+.bar.success { color: var(--success); }
 .bar-value { text-align: right; font-weight: 600; }
 
 /* ---------- 16. Footer ---------- */

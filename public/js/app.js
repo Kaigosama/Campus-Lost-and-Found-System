@@ -717,11 +717,6 @@
         });
     }
 
-    /* ---- Bar widths (CSP blocks inline style attributes) ---- */
-    document.querySelectorAll('[data-width]').forEach(function (bar) {
-        bar.style.width = bar.dataset.width + '%';
-    });
-
     /* ---- Staff pages: notice new claims and student posts without a reload ---- */
     // Polls api/staff_updates.php every 15 s while the tab is visible. A new arrival shows a banner with a
     // Refresh button instead of reloading by itself, so a review note being typed is never lost.

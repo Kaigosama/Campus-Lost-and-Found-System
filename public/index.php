@@ -1070,7 +1070,8 @@ include APP_ROOT . '/templates/layout/header.php';
     foreach ($claims as $c)  $activity[] = ['at' => $c['created_at'], 'text' => 'Claim submitted on ' . find_found_item($c['item_id'])['item_name'], 'url' => item_url('found', $c['item_id']) . '#claim-' . $c['claim_id'], 'badge' => $c['status']];
     $activity = array_slice(newest_first($activity, 'at'), 0, 8);
 
-    $bar = fn (int $n, int $max, string $cls = '') => '<div class="bar-track"><div class="bar-fill ' . $cls . '" data-width="' . round($n / max(1, $max) * 100) . '"></div></div>';
+    // The count is shown next to each bar, so screen readers skip the bar itself.
+    $bar = fn (int $n, int $max, string $cls = '') => '<progress class="bar ' . $cls . '" value="' . $n . '" max="' . max(1, $max) . '" aria-hidden="true"></progress>';
     ?>
 
     <div class="stat-grid">
