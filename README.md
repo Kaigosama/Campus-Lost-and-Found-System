@@ -87,10 +87,9 @@ Log in at `/login.php` with a sample account. The password for each is `password
 | `masteradminp@gmail.com` | Master Administrator |
 | `admin@mapua.edu.ph`, `admin2@mapua.edu.ph` | Office Administrator |
 | `staffmarcos1@gmail.com` | Security & Maintenance |
-| `student1@mymail.mapua.edu.ph` | Student / Faculty |
 
-New accounts can register at `/register.php` with any email address, then
-confirm it through the emailed link before logging in.
+There are no sample Student / Faculty accounts. Students and faculty register at `/register.php` with any
+email address, then confirm it through the emailed link before logging in.
 
 - **Change password:** My Activity → Account & Password.
 - **Emails on your own computer:** verification, password-reset and security emails aren't sent without
