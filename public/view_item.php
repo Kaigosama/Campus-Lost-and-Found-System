@@ -25,14 +25,15 @@ if ($type === 'lost') {
     $pageTitle    = $report['item_name'];
 } else {
     $item = find_found_item($id);
-    // The public sees approved items in storage; a student also sees their own post while it is reviewed.
+    $itemClaims = $item ? where(all_claims(), 'item_id', $item['item_id']) : [];
+    $myClaim    = $user ? (where($itemClaims, 'user_id', $user['user_id'])[0] ?? null) : null;
+    // The public sees approved items in storage; a student also sees their own post while it is reviewed,
+    // and a claimant keeps seeing the item after it leaves storage (e.g. returned to them).
     $isPoster = $item && $user && $item['user_id'] === $user['user_id'] && !is_staff();
-    if (!$item || (!is_staff() && !$isPoster && !is_public_item($item))) {
+    if (!$item || (!is_staff() && !$isPoster && !$myClaim && !is_public_item($item))) {
         abort(404, 'Item not found', 'This item is no longer listed. It may have been returned to its owner.', url('/browse.php'), 'Back to found items');
     }
-    $itemClaims   = where(all_claims(), 'item_id', $item['item_id']);
     $pendingCount = count_where($itemClaims, 'status', 'pending');
-    $myClaim      = $user ? (where($itemClaims, 'user_id', $user['user_id'])[0] ?? null) : null;
     $loggedBy     = find_user($item['user_id']);
     $pageTitle    = $item['item_name'];
     // Only students and faculty file claims, never on their own post. Staff review them; admins do neither.
@@ -282,11 +283,15 @@ include APP_ROOT . '/templates/layout/header.php';
                     <dt>Date found</dt><dd><?= e(format_date($item['date_found'])) ?></dd>
                     <dt>Found at</dt><dd><?= e($item['location_found']) ?></dd>
                     <dt>Status</dt><dd><?= status_badge($item['status'], 'found-' . $item['item_id']) ?></dd>
+                    <?php if ($item['status'] === 'returned'): ?>
+                        <dt>Returned</dt><dd>to its rightful owner on <?= e(format_datetime($item['returned_at'])) ?></dd>
+                    <?php elseif ($item['status'] === 'stored'): ?>
                     <dt>Pickup</dt>
                     <dd>
                         Lost &amp; Found office<br><small>Admin Bldg, Rm 104 · Mon–Fri 8 AM–5 PM</small>
                         <br><small data-next-holiday>Checking holiday schedule…</small>
                     </dd>
+                    <?php endif; ?>
                 </dl>
             </div>
             <hr>
@@ -453,8 +458,11 @@ include APP_ROOT . '/templates/layout/header.php';
         <?php elseif ($myClaim): ?>
             <div class="card">
                 <h3>Your claim</h3>
-                <p><?= status_badge($myClaim['status']) ?> <small>submitted <?= e(format_date($myClaim['date_claimed'])) ?></small></p>
-                <?php if ($myClaim['status'] === 'pending'): ?>
+                <?php $collected = $myClaim['status'] === 'approved' && $item['status'] === 'returned'; ?>
+                <p><?= status_badge($collected ? 'returned' : $myClaim['status']) ?> <small>submitted <?= e(format_date($myClaim['date_claimed'])) ?></small></p>
+                <?php if ($collected): ?>
+                    <div class="alert alert-success text-sm mb-0">Returned to you on <?= e(format_datetime($item['returned_at'])) ?>.</div>
+                <?php elseif ($myClaim['status'] === 'pending'): ?>
                     <p class="text-sm text-muted">Staff are reviewing your claim. You'll see the result here and on <a href="<?= e(url('/?tab=my_claims')) ?>">My Claims</a>.</p>
                 <?php else: ?>
                     <div class="alert alert-<?= $myClaim['status'] === 'approved' ? 'success' : 'error' ?> text-sm mb-0"><?= e($myClaim['review_note']) ?></div>
