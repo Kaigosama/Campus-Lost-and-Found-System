@@ -17,7 +17,7 @@ if (!$pending) {
     abort(
         400,
         'This verification link no longer works',
-        'Links expire after ' . VERIFY_LINK_HOURS . ' hours and work only once. If you already confirmed your email, just log in; otherwise request a new link.',
+        'Links expire after ' . VERIFY_LINK_HOURS . ' hours and work only once. If you already confirmed your email, just log in; otherwise request a new link. Accounts left unconfirmed after the link expires are removed, so if no new link arrives, register again.',
         url('/resend_verification.php'),
         'Send a new link',
         '&#9993;'
