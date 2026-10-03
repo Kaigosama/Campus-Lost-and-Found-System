@@ -267,6 +267,9 @@ input[type="search"], input[type="number"], select, textarea {
 input:focus, select:focus, textarea:focus { border-color: var(--blue); }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
 textarea { min-height: 120px; resize: vertical; }
+/* "New claim to review" banner on staff pages (added by app.js) */
+.update-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+
 /* Show / Hide button inside password fields (added by app.js) */
 .password-field { position: relative; }
 .password-field input { padding-right: 4.25rem; }

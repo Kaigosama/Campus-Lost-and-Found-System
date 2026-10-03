@@ -4,7 +4,7 @@ defined('APP_ROOT') || exit;
 $title = !empty($pageTitle) ? $pageTitle . ' · ' . APP_NAME : APP_NAME . ' · ' . APP_FULL_NAME;
 ?>
 <!DOCTYPE html>
-<html lang="en" data-base="<?= e(BASE_URL) ?>">
+<html lang="en" data-base="<?= e(BASE_URL) ?>"<?= is_staff() ? ' data-staff-watch' : '' ?>>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

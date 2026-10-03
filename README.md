@@ -147,6 +147,7 @@ The pages call JSON endpoints in [`public/api/`](public/api/) through [`public/j
 | `GET api/get_items.php` | List found items or lost reports (search and filters) |
 | `POST api/add_item.php` | Add a found item or lost report, with an optional photo |
 | `POST api/update_item.php` | Edit a found item or lost report |
+| `GET api/staff_updates.php` | Newest pending claim and post (staff pages poll this to offer a refresh; doesn't count as session activity) |
 | `POST api/delete_item.php` | Delete a found item logged by mistake (staff; not once returned or a claim is approved) |
 | `POST api/update_status.php` | Change a status, match a report to an item, or approve/reject a student's post |
 | `POST api/claims.php` | Submit, approve, reject or withdraw a claim |

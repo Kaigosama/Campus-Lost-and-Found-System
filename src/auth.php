@@ -80,8 +80,9 @@ function session_problem(array $user): ?string
         log_event('session_expired', $user, ['idle_minutes' => SESSION_IDLE_MINUTES], null, (int) $row['session_id']);
         return 'Your session expired after ' . SESSION_IDLE_MINUTES . ' minutes of inactivity. Please log in again.';
     }
-    // Authenticated activity, written at most once a minute per session.
-    if (strtotime($row['last_activity_at']) < time() - 60) {
+    // Authenticated activity, written at most once a minute per session. Background polls (PASSIVE_REQUEST) don't
+    // count, or an open staff tab would keep its session alive forever.
+    if (!defined('PASSIVE_REQUEST') && strtotime($row['last_activity_at']) < time() - 60) {
         db()->prepare('UPDATE user_sessions SET last_activity_at = NOW(), expires_at = NOW() + INTERVAL ? MINUTE WHERE session_id = ?')
             ->execute([SESSION_IDLE_MINUTES, $row['session_id']]);
         db()->prepare('UPDATE users SET last_activity_at = NOW() WHERE user_id = ?')->execute([$user['user_id']]);

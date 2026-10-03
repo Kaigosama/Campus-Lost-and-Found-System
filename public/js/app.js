@@ -662,4 +662,37 @@
     document.querySelectorAll('[data-width]').forEach(function (bar) {
         bar.style.width = bar.dataset.width + '%';
     });
+
+    /* ---- Staff pages: notice new claims and student posts without a reload ---- */
+    // Polls api/staff_updates.php every 15 s while the tab is visible. A new arrival shows a banner with a
+    // Refresh button instead of reloading by itself, so a review note being typed is never lost.
+    if (document.documentElement.hasAttribute('data-staff-watch') && window.ClafsApi) {
+        var seen = null;
+        var updateBanner = null;
+        var checkUpdates = function () {
+            if (document.hidden || updateBanner) return;
+            ClafsApi.staffUpdates().then(function (now) {
+                if (!seen) { seen = now; return; }
+                var news = [];
+                if (now.latest_claim > seen.latest_claim) news.push('a new claim');
+                if (now.latest_post > seen.latest_post) news.push('a new found-item post');
+                if (!news.length) return;
+                updateBanner = alertNode('info', 'There is ' + news.join(' and ') + ' to review (' + now.pending_claims
+                    + ' pending claim' + (now.pending_claims === 1 ? '' : 's') + ', ' + now.pending_posts + ' pending post'
+                    + (now.pending_posts === 1 ? '' : 's') + '). ');
+                updateBanner.classList.add('update-banner');
+                var refresh = document.createElement('button');
+                refresh.type = 'button';
+                refresh.className = 'btn btn-primary btn-sm';
+                refresh.textContent = 'Refresh';
+                refresh.addEventListener('click', function () { window.location.reload(); });
+                updateBanner.appendChild(refresh);
+                var main = document.getElementById('main');
+                main.insertBefore(updateBanner, main.firstChild);
+            }).catch(function () { /* offline or server busy: try again on the next tick */ });
+        };
+        checkUpdates();
+        setInterval(checkUpdates, 15000);
+        document.addEventListener('visibilitychange', checkUpdates);
+    }
 })();
