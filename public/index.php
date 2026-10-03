@@ -55,7 +55,7 @@ if (!$user) {
     <div class="stat-card success">
         <span class="stat-label">Returned to owners</span>
         <span class="stat-value"><?= $returnedCount ?></span>
-        <span class="stat-note">since CLAFS launched</span>
+        <span class="stat-note">since <?= e(APP_NAME) ?> launched</span>
     </div>
     <div class="stat-card info">
         <span class="stat-label">Open lost reports</span>
@@ -109,6 +109,10 @@ if (!$user) {
 }
 
 /* ------------------------------------------------------------ Dashboard */
+
+if (is_admin()) {
+    delete_expired_unverified();   // keeps the Users list and counts free of sign-ups that never confirmed
+}
 
 $allTabs = [ // key => [label, required role(s) or null]
     'overview'  => ['Overview', null],

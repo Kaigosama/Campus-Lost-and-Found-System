@@ -14,8 +14,8 @@ const BASE_URL = '';
 
 /* ---------------------------------------------------------------- Constants */
 
-const APP_NAME      = 'CLAFS';
-const APP_FULL_NAME = 'Campus Lost-and-Found System';
+const APP_NAME      = 'Cardinal Finds';
+const APP_FULL_NAME = 'Campus Lost & Found';   // tagline under the name and in the home page title
 
 const CATEGORIES = ['Electronics', 'IDs & Cards', 'Bags', 'Clothing', 'Books & Notes', 'Keys', 'Accessories', 'Other'];
 
