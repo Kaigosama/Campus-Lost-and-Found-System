@@ -289,7 +289,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     <?php elseif ($item['status'] === 'stored'): ?>
                     <dt>Pickup</dt>
                     <dd>
-                        Lost &amp; Found office<br><small>Admin Bldg, Rm 104 · Mon–Fri 8 AM–5 PM</small>
+                        Lost &amp; Found desk<br><small>Admin Office, Mapúa Makati · Mon–Fri 8 AM–5 PM</small>
                         <br><small data-next-holiday>Checking holiday schedule…</small>
                     </dd>
                     <?php endif; ?>
@@ -413,7 +413,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     <div class="form-group">
                         <label for="review_note_<?= $claim['claim_id'] ?>">Note to claimant <span class="req" aria-hidden="true">*</span></label>
                         <textarea id="review_note_<?= $claim['claim_id'] ?>" name="review_note" required minlength="10" maxlength="1000"
-                                  placeholder="If approving: pickup instructions (e.g. bring a valid ID to Admin Bldg Rm 104). If rejecting: the reason."></textarea>
+                                  placeholder="If approving: pickup instructions (e.g. bring a valid ID to the Admin Office). If rejecting: the reason."></textarea>
                         <span class="form-hint">This message is shown to the claimant.</span>
                     </div>
                     <div class="form-actions">

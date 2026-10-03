@@ -180,7 +180,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <h3>What happens next</h3>
             <ol class="text-sm list-plain">
                 <li>Your post is saved as <?= status_badge('pending') ?> and only you and staff can see it.</li>
-                <li>Bring the item to the Lost &amp; Found office (Admin Bldg, Rm 104).</li>
+                <li>Bring the item to the Lost &amp; Found desk at the Admin Office.</li>
                 <li>Staff check it, record where it is stored and approve the post. It then appears in the public list.</li>
             </ol>
             <p class="text-sm mb-0">Follow its status under <a href="<?= e(url('/?tab=posts')) ?>">My Found Posts</a>.</p>

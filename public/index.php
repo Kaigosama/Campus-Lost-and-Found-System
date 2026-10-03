@@ -66,7 +66,7 @@ if (!$user) {
     <div class="stat-card accent">
         <span class="stat-label">Office hours</span>
         <span class="stat-value stat-value-sm">Mon–Fri</span>
-        <span class="stat-note">8:00 AM – 5:00 PM, Admin Bldg Rm 104</span>
+        <span class="stat-note">8:00 AM – 5:00 PM, Admin Office</span>
         <span class="stat-note" data-next-holiday aria-live="polite">Checking holiday schedule…</span>
     </div>
 </div>
@@ -146,7 +146,7 @@ if (!$user) {
         <div class="step">
             <span class="tip-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.5 1.7-2 3-2s2.4.5 3 2M14 10h4M14 13h3"/></svg></span>
             <h3>Bring your ID to pick it up</h3>
-            <p>Approved items are released only at the Lost &amp; Found office, Admin Bldg Rm 104, after staff check your ID.</p>
+            <p>Approved items are released only at the Lost &amp; Found desk in the Admin Office, after staff check your ID.</p>
         </div>
         <div class="step">
             <span class="tip-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
@@ -444,7 +444,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="stat-card success">
                 <span class="stat-label">Approved — ready for pickup</span>
                 <span class="stat-value"><?= $myApprovedClaims ?></span>
-                <span class="stat-note">bring your ID to Admin Bldg Rm 104</span>
+                <span class="stat-note">bring your ID to the Admin Office</span>
             </div>
             <div class="stat-card info">
                 <span class="stat-label">Items in storage</span>
