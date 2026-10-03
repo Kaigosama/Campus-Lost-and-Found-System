@@ -75,6 +75,7 @@ window.ClafsApi = (function () {
         moderateItem: function (id, decision, note, storage) { return post('update_status.php', { type: 'found', id: id, moderation: decision, review_note: note, storage_location: storage }); },
         reviewClaim:  function (claimId, decision, note)  { return post('claims.php', { action: 'review', claim_id: claimId, decision: decision, review_note: note }); },
         withdrawClaim: function (claimId)                 { return post('claims.php', { action: 'withdraw', claim_id: claimId }); },
+        moderateReport: function (reportId, action, reason) { return post('moderate_report.php', { report_id: reportId, action: action, reason: reason }); },
         updateUser:   function (userId, changes)          { return post('update_user.php', Object.assign({ user_id: userId }, changes)); },
         staffUpdates: function ()                         { return get('staff_updates.php'); },
 

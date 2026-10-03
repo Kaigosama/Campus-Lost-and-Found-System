@@ -36,6 +36,15 @@ policy (8+ characters with upper and lower case, a number and a symbol), a lock 
 that only an admin can lift (the user visits the Lost & Found office; Admin → Users & Activity → Unlock), sessions that end after 30 minutes without activity, one device per account at a time (a new login ends the older session), and a log of every log-in, failure, lockout and
 logout that admins can read under **Admin → Security Logs**.
 
+Report safeguards, all enforced on the server: an account can file `REPORT_LIMIT_MAX` lost reports per
+`REPORT_LIMIT_WINDOW_MINUTES` (3 per 60 minutes, in `config/config.php`); an exact resubmission of one of your own open
+reports is refused and a similar one asks you to confirm first. Staff can reject a report, mark it as spam, or mark it as
+a confirmed false report, and remove false or spam reports (a soft delete kept for audits). The first confirmed false
+report warns the account; the second deactivates it and ends its sessions. Only an admin can reactivate it, after an
+in-person review at the Lost & Found office (Admin → Users & Activity → the account → Reactivate, with review notes).
+The admin dashboard shows recent activity across the system, filterable by reports, claims, posts, accounts,
+authentication and administrative actions, plus a list of accounts needing attention.
+
 The database design is in [docs/erd.html](docs/erd.html) and [database/schema.sql](database/schema.sql).
 
 ## Install

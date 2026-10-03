@@ -3,9 +3,11 @@ require_once __DIR__ . '/../../src/bootstrap.php';
 
 /**
  * POST /api/update_user.php   (JSON body or form fields)   admins only, never on your own account
- *   { user_id, role? : user|staff|admin, is_active? : 0|1, unlock? : 1 }
+ *   { user_id, role? : user|staff|admin, is_active? : 0|1, unlock? : 1, note? }
  *   Regular admins manage students/faculty and staff. Only the master admin may grant or remove the admin role
  *   or change another admin. No one can grant master_admin here. Deactivating ends the user's sessions.
+ *   Reactivating an account deactivated for repeated false reports needs a note (10+ characters) recording the
+ *   in-person review at the Lost & Found office. There is no self-service path back for the account holder.
  * Response: { ok, user_id, role, is_active, locked, message }
  */
 require_method('POST');
@@ -47,10 +49,17 @@ if (isset($in['role'])) {
         log_event('role_changed', $target, ['from' => $target['role'], 'to' => $role, 'by' => $me['user_id']]);
     }
 }
+$note = trim((string) ($in['note'] ?? ''));
 if (isset($in['is_active']) && (int) (bool) $in['is_active'] !== $isActive) {
-    $isActive  = (int) (bool) $in['is_active'];
+    $isActive = (int) (bool) $in['is_active'];
+    // An account deactivated for repeated false reports comes back only after an in-person review at the office,
+    // recorded here by the admin who did it.
+    if ($isActive && $target['deactivation_reason'] === 'false_reports' && (mb_strlen($note) < 10 || mb_strlen($note) > 1000)) {
+        json_error(422, 'Record the outcome of the in-person account review (10–1000 characters) before reactivating.', ['errors' => ['note' => 'Describe the review: identity checked, decision and reason.']]);
+    }
     $changes[] = $isActive ? 'account reactivated' : 'account deactivated';
-    log_event($isActive ? 'account_reactivated' : 'account_deactivated', $target, ['by' => $me['user_id']]);
+    log_event($isActive ? 'account_reactivated' : 'account_deactivated', $target,
+        ['by' => $me['user_id']] + ($isActive && $target['deactivation_reason'] ? ['was_deactivated_for' => $target['deactivation_reason']] : []) + ($note !== '' ? ['note' => $note] : []));
 }
 $unlock = !empty($in['unlock']) && account_locked($target);
 if ($unlock) {
@@ -63,6 +72,12 @@ if (!$changes) {
 
 db()->prepare('UPDATE users SET role = ?, is_active = ?' . ($unlock ? ', failed_login_attempts = 0, locked_at = NULL' : '') . ' WHERE user_id = ?')
     ->execute([$role, $isActive, $userId]);
+if ($isActive !== (int) $target['is_active']) {
+    db()->prepare($isActive
+        ? 'UPDATE users SET deactivation_reason = NULL, deactivated_at = NULL, deactivated_by = NULL WHERE user_id = ?'
+        : 'UPDATE users SET deactivation_reason = "admin", deactivated_at = NOW(), deactivated_by = ? WHERE user_id = ?')
+        ->execute($isActive ? [$userId] : [$me['user_id'], $userId]);
+}
 if (!$isActive) {
     revoke_sessions($userId);
 }

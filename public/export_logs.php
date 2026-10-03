@@ -15,14 +15,17 @@ $user   = current_user();
 $account = fn (array $r) => $r['user_id'] ? full_name($r) : 'Unknown account';
 $role    = fn (array $r) => $r['role'] ? (ROLES[$r['role']] ?? $r['role']) : '';
 
-$events = [['When', 'Event', 'Account', 'Email', 'Role', 'Details', 'IP', 'Device']];
-foreach (db()->query('SELECT e.*, u.first_name, u.last_name, u.role FROM security_events e LEFT JOIN users u ON u.user_id = e.user_id ORDER BY e.event_id DESC') as $ev) {
+// Account is who the event concerns; By is who performed it (blank when nobody was signed in).
+$events = [['When', 'Event', 'Account', 'By', 'Email', 'Role', 'Details', 'IP', 'Device']];
+foreach (db()->query('SELECT e.*, u.first_name, u.last_name, u.role, a.first_name AS a_first, a.last_name AS a_last FROM security_events e
+                     LEFT JOIN users u ON u.user_id = e.user_id LEFT JOIN users a ON a.user_id = e.actor_id ORDER BY e.event_id DESC') as $ev) {
     $details = [];
     foreach (json_decode((string) $ev['metadata'], true) ?: [] as $k => $v) {
         $details[] = str_replace('_', ' ', (string) $k) . ': ' . (is_scalar($v) ? (string) $v : json_encode($v));
     }
     if ($ev['session_id']) $details[] = 'session #' . $ev['session_id'];
-    $events[] = [format_datetime($ev['created_at']), str_replace('_', ' ', $ev['event_type']), $account($ev), $ev['email'] ?? '',
+    $events[] = [format_datetime($ev['created_at']), str_replace('_', ' ', $ev['event_type']), $account($ev),
+                 $ev['actor_id'] ? trim($ev['a_first'] . ' ' . $ev['a_last']) : '', $ev['email'] ?? '',
                  $role($ev), implode('; ', $details), $ev['ip_address'] ?? '', $ev['user_agent'] ?? ''];
 }
 
@@ -39,7 +42,7 @@ $exported = 'Exported ' . format_datetime(date('Y-m-d H:i:s')) . ' by ' . full_n
 if ($format === 'pdf') {
     // Column widths in characters; a landscape page holds about 186.
     $body = pdf_build(APP_NAME . ' security logs', $exported, [
-        'Security events (' . (count($events) - 1) . ')' => ['widths' => [23, 21, 15, 27, 23, 37, 15, 25], 'rows' => $events],
+        'Security events (' . (count($events) - 1) . ')' => ['widths' => [23, 21, 15, 15, 27, 23, 30, 15, 17], 'rows' => $events],
         'Login sessions (' . (count($sessions) - 1) . ')' => ['widths' => [4, 15, 27, 23, 11, 23, 23, 31, 15, 14], 'rows' => $sessions],
     ]);
     $type = 'application/pdf';

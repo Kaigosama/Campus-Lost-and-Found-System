@@ -288,25 +288,83 @@ include APP_ROOT . '/templates/layout/header.php';
 <?php /* ================================================== OVERVIEW */ ?>
 <?php if ($tab === 'overview'): ?>
     <?php if (is_admin()): ?>
+        <?php
+        $activityFilter = isset(ACTIVITY_FILTERS[$_GET['activity'] ?? '']) ? ($_GET['activity'] ?? '') : '';
+        $attention = accounts_needing_attention();
+        $counts24h = db()->query("SELECT
+                COUNT(*) AS events,
+                SUM(event_type = 'report_created') AS reports,
+                SUM(event_type IN ('login_failed', 'report_rate_limited', 'report_duplicate_blocked')) AS blocked
+            FROM security_events WHERE created_at > NOW() - INTERVAL 1 DAY")->fetch();
+        ?>
         <div class="stat-grid">
             <div class="stat-card success">
                 <span class="stat-label">Active users</span>
                 <span class="stat-value"><?= count_where(all_users(), 'is_active', 1) ?></span>
                 <a href="<?= e(url('/?tab=users')) ?>">Manage users &rarr;</a>
             </div>
+            <div class="stat-card info">
+                <span class="stat-label">Reports filed (24 h)</span>
+                <span class="stat-value"><?= (int) $counts24h['reports'] ?></span>
+                <span class="stat-note"><?= (int) $counts24h['events'] ?> events in total</span>
+            </div>
+            <div class="stat-card warning">
+                <span class="stat-label">Refused attempts (24 h)</span>
+                <span class="stat-value"><?= (int) $counts24h['blocked'] ?></span>
+                <span class="stat-note">failed log-ins, limit and duplicate hits</span>
+            </div>
             <div class="stat-card">
-                <span class="stat-label">Security events (24 h)</span>
-                <span class="stat-value"><?= (int) db()->query('SELECT COUNT(*) FROM security_events WHERE created_at > NOW() - INTERVAL 1 DAY')->fetchColumn() ?></span>
-                <a href="<?= e(url('/?tab=logs')) ?>">View security logs &rarr;</a>
+                <span class="stat-label">Accounts needing attention</span>
+                <span class="stat-value"><?= count($attention) ?></span>
+                <a href="#attention">Review list &darr;</a>
             </div>
         </div>
-        <div class="card">
-            <h2>Quick actions</h2>
-            <div class="btn-row">
-                <a class="btn btn-secondary" href="<?= e(url('/?tab=users')) ?>">Manage users</a>
-                <a class="btn btn-secondary" href="<?= e(url('/?tab=logs')) ?>">Security logs</a>
+
+        <section class="section">
+            <div class="section-title">
+                <h2>Recent activity</h2>
+                <a href="<?= e(url('/?tab=logs')) ?>">Full security logs &rarr;</a>
             </div>
-        </div>
+            <?php
+            echo pill_tabs(array_map(fn ($f) => $f[0], ACTIVITY_FILTERS), [], $activityFilter, 'activity');
+            $events = activity_events($activityFilter);
+            ?>
+            <div class="table-tools">
+                <input type="search" placeholder="Filter by name, role, action…" aria-label="Filter activity" data-table-filter="#activityTable">
+                <span class="text-sm text-muted">Showing <span data-filter-count="#activityTable"><?= count($events) ?></span> (latest 100)</span>
+            </div>
+            <?= activity_table($events) ?>
+            <p class="filter-empty" data-filter-empty hidden>No activity matches that filter.</p>
+        </section>
+
+        <section class="section" id="attention">
+            <div class="section-title"><h2>Accounts needing attention</h2></div>
+            <?php if ($attention): ?>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Account</th><th>Status</th><th>False reports</th><th>Spam reports</th><th>Blocked submissions (7 days)</th><th>Note</th><th class="actions"></th></tr></thead>
+                    <tbody>
+                    <?php foreach ($attention as $u): ?>
+                        <tr>
+                            <td><span class="table-title"><?= e(full_name($u)) ?></span><span class="table-sub"><?= e($u['email']) ?></span></td>
+                            <td>
+                                <span class="badge badge-<?= $u['is_active'] ? 'active' : 'inactive' ?>"><?= $u['is_active'] ? 'Active' : 'Deactivated' ?></span>
+                                <?php if (account_locked($u)): ?><span class="badge badge-rejected">Locked</span><?php endif; ?>
+                            </td>
+                            <td><?= (int) $u['violations'] ?> / <?= FALSE_REPORTS_TO_DEACTIVATE ?></td>
+                            <td><?= (int) $u['spam_reports'] ?></td>
+                            <td><?= (int) $u['blocked_submissions'] ?></td>
+                            <td class="text-sm"><?= $u['name_matches_deactivated'] ? 'Same name as an account deactivated for false reports. Check it is not a re-registration.' : ($u['deactivation_reason'] === 'false_reports' ? 'Deactivated for repeated false reports.' : '') ?></td>
+                            <td class="actions"><a class="btn btn-outline btn-sm" href="<?= e(url('/?tab=users&id=' . $u['user_id'])) ?>">Review</a></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php else: ?>
+                <p class="text-muted">No student or faculty account needs attention right now.</p>
+            <?php endif; ?>
+        </section>
 
     <?php elseif (is_staff()): ?>
         <?php
@@ -382,6 +440,7 @@ include APP_ROOT . '/templates/layout/header.php';
 
     <?php else: ?>
         <?php $myApprovedClaims = count_where($myClaims, 'status', 'approved'); ?>
+        <?= false_report_notice($user) ?>
         <div class="stat-grid">
             <div class="stat-card">
                 <span class="stat-label">My open reports</span>
@@ -464,12 +523,20 @@ include APP_ROOT . '/templates/layout/header.php';
 <?php elseif ($tab === 'reports'): ?>
     <?php
     $status = $_GET['status'] ?? '';
-    $counts = ['' => count($reportRows)];
-    foreach (LOST_STATUSES as $key => $label) {
+    // Staff's "All" is the working list: rejected, false and spam reports only appear under their own tab, and
+    // removed ones under "Removed" (kept for audits). Students and faculty see every report of their own that wasn't removed.
+    $working = is_staff() ? array_values(array_filter($reportRows, fn ($r) => !is_moderated_report($r))) : $reportRows;
+    $removed = is_staff() ? newest_first(array_values(array_filter(table('lost_reports'), fn ($r) => $r['deleted_at'] !== null))) : [];
+    $counts  = ['' => count($working), 'removed' => count($removed)];
+    foreach (LOST_STATUSES + REPORT_MODERATION_STATUSES as $key => $label) {
         $counts[$key] = count_where($reportRows, 'status', $key);
     }
-    $rows = $status === '' ? $reportRows : where($reportRows, 'status', $status);
-    echo pill_tabs(['' => 'All'] + LOST_STATUSES, $counts, $status, 'status');
+    $rows = match ($status) { '' => $working, 'removed' => $removed, default => where($reportRows, 'status', $status) };
+    $pills = ['' => 'All'] + LOST_STATUSES + REPORT_MODERATION_STATUSES + (is_staff() ? ['removed' => 'Removed'] : []);
+    if (!is_staff()) {   // an owner sees an outcome tab only when one of their reports has that outcome
+        $pills = array_filter($pills, fn ($key) => !isset(REPORT_MODERATION_STATUSES[$key]) || $counts[$key] > 0, ARRAY_FILTER_USE_KEY);
+    }
+    echo pill_tabs($pills, $counts, $status, 'status');
     ?>
 
     <?php if ($rows): ?>
@@ -490,7 +557,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     <td><?= e($report['category']) ?></td>
                     <td class="nowrap"><?= e(format_date($report['date_lost'])) ?></td>
                     <td><?= e($report['location_lost']) ?></td>
-                    <td><?= status_badge($report['status']) ?></td>
+                    <td><?= status_badge($report['status']) ?><?= $report['deleted_at'] ? ' <span class="badge badge-closed">Removed</span>' : '' ?></td>
                     <td class="actions"><a class="btn btn-outline btn-sm" href="<?= e(item_url('lost', $report['report_id'])) ?>">View</a></td>
                 </tr>
             <?php endforeach; ?>
@@ -626,6 +693,101 @@ include APP_ROOT . '/templates/layout/header.php';
         ) ?>
     <?php endif; ?>
 
+<?php /* ================================================== ACCOUNT REVIEW (admin) */ ?>
+<?php elseif ($tab === 'users' && ($member = find_user((int) ($_GET['id'] ?? 0)))): ?>
+    <?php
+    $memberViolations = account_violations($member['user_id']);
+    $deactivator      = find_user($member['deactivated_by']);
+    $falseReports     = $member['deactivation_reason'] === 'false_reports';
+    ?>
+    <p><a href="<?= e(url('/?tab=users')) ?>">&larr; All users</a></p>
+    <div class="grid grid-2 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h2><?= e(full_name($member)) ?></h2>
+                <span class="badge badge-<?= $member['is_active'] ? 'active' : 'inactive' ?>" data-status-for="user-<?= $member['user_id'] ?>"><?= $member['is_active'] ? 'Active' : 'Deactivated' ?></span>
+            </div>
+            <dl class="detail-list">
+                <dt>Email</dt><dd><?= e($member['email']) ?><?= $member['email_verified'] ? '' : ' <span class="badge badge-pending">Unverified</span>' ?></dd>
+                <dt>Role</dt><dd><?= e(ROLES[$member['role']] ?? $member['role']) ?></dd>
+                <dt>Registered</dt><dd><?= e(format_datetime($member['created_at'])) ?></dd>
+                <dt>Last login</dt><dd><?= e(format_datetime($member['last_login_at'])) ?></dd>
+                <?php if (account_locked($member)): ?><dt>Locked</dt><dd><?= e(format_datetime($member['locked_at'])) ?> (unlock from the users list)</dd><?php endif; ?>
+                <?php if (!$member['is_active']): ?>
+                    <dt>Deactivated</dt>
+                    <dd>
+                        <?= e(format_datetime($member['deactivated_at'])) ?><?= $deactivator ? ' by ' . e(full_name($deactivator)) : '' ?><br>
+                        <small>Reason: <?= $falseReports ? 'repeated confirmed false reports' : 'administrator decision' ?></small>
+                    </dd>
+                <?php endif; ?>
+            </dl>
+        </div>
+
+        <div class="card">
+            <h2>Account status</h2>
+            <?php if (!can_manage_user($member)): ?>
+                <p class="text-muted mb-0">You can't change this account.</p>
+            <?php elseif ($member['is_active']): ?>
+                <p class="text-sm">Deactivating logs the user out everywhere and stops them logging in.</p>
+                <form method="post" action="<?= e(url('/?tab=users&id=' . $member['user_id'])) ?>" class="form" data-api="update_user" data-done="replace"
+                      data-confirm="Deactivate this account? They will be logged out and no longer able to log in.">
+                    <input type="hidden" name="user_id" value="<?= $member['user_id'] ?>">
+                    <input type="hidden" name="is_active" value="0">
+                    <button type="submit" class="btn btn-secondary">Deactivate account</button>
+                </form>
+            <?php else: ?>
+                <?php if ($falseReports): ?>
+                    <div class="alert alert-warning text-sm">Deactivated after <?= count($memberViolations) ?> confirmed false reports. Reactivate only after the
+                        account holder has come to the Lost &amp; Found office, their identity has been checked against their school ID, and the review supports it.</div>
+                <?php endif; ?>
+                <form method="post" action="<?= e(url('/?tab=users&id=' . $member['user_id'])) ?>" class="form" data-validate data-api="update_user" data-done="replace"
+                      data-confirm="Reactivate this account?">
+                    <input type="hidden" name="user_id" value="<?= $member['user_id'] ?>">
+                    <input type="hidden" name="is_active" value="1">
+                    <div class="form-group">
+                        <label for="review_note">Review notes <?= $falseReports ? '<span class="req" aria-hidden="true">*</span>' : '<span class="text-muted text-sm">(optional)</span>' ?></label>
+                        <textarea id="review_note" name="note" maxlength="1000" <?= $falseReports ? 'required minlength="10"' : '' ?>
+                                  placeholder="e.g. Identity checked against school ID at the office on <?= e(date('M j')) ?>; student acknowledged the false-report policy."></textarea>
+                        <span class="form-hint">Saved in the activity log with your name.</span>
+                    </div>
+                    <button type="submit" class="btn btn-success">Reactivate account</button>
+                </form>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <h2>False-report violations (<?= count($memberViolations) ?> of <?= FALSE_REPORTS_TO_DEACTIVATE ?>)</h2>
+    <?php if ($memberViolations): ?>
+    <div class="table-wrap mb-3">
+        <table class="table">
+            <thead><tr><th>#</th><th>Report</th><th>Date</th><th>Action</th><th>Reason</th><th>Issued by</th></tr></thead>
+            <tbody>
+            <?php foreach ($memberViolations as $i => $v): ?>
+                <tr>
+                    <td class="text-muted"><?= $i + 1 ?></td>
+                    <td>#<?= (int) $v['report_id'] ?> <?= e($v['item_name']) ?></td>
+                    <td class="nowrap"><?= e(format_datetime($v['created_at'])) ?></td>
+                    <td><span class="badge badge-<?= $v['action_taken'] === 'warning' ? 'pending' : 'rejected' ?>"><?= $v['action_taken'] === 'warning' ? 'Warning' : 'Account deactivated' ?></span></td>
+                    <td class="cell-wide"><?= e($v['reason']) ?></td>
+                    <td><?= $v['issued_by'] ? e($v['first_name'] . ' ' . $v['last_name']) : '—' ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php else: ?>
+        <p class="text-muted mb-3">None.</p>
+    <?php endif; ?>
+
+    <h2>Activity</h2>
+    <?php $memberEvents = activity_events('', $member['user_id']); ?>
+    <div class="table-tools">
+        <input type="search" placeholder="Filter this account's activity…" aria-label="Filter account activity" data-table-filter="#memberActivity">
+        <span class="text-sm text-muted">Showing <span data-filter-count="#memberActivity"><?= count($memberEvents) ?></span> (latest 100)</span>
+    </div>
+    <?= activity_table($memberEvents, 'memberActivity') ?>
+    <p class="filter-empty" data-filter-empty hidden>No activity matches that filter.</p>
+
 <?php /* ================================================== USERS (admin) */ ?>
 <?php elseif ($tab === 'users'): ?>
     <?php
@@ -641,6 +803,7 @@ include APP_ROOT . '/templates/layout/header.php';
     $stmt = db()->prepare('SELECT user_id, COUNT(*) FROM user_sessions WHERE status = "active" AND last_activity_at > NOW() - INTERVAL ? MINUTE GROUP BY user_id');
     $stmt->execute([SESSION_IDLE_MINUTES]);
     $online     = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    $violations = db()->query('SELECT user_id, COUNT(*) FROM account_violations GROUP BY user_id')->fetchAll(PDO::FETCH_KEY_PAIR);
     $isMaster   = has_role('master_admin');
     $assignable = array_intersect_key(ROLES, array_flip($isMaster ? ['user', 'staff', 'admin'] : ['user', 'staff']));
     ?>
@@ -656,8 +819,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <tbody>
             <?php foreach ($rows as $u):
                 $isMe     = $u['user_id'] === $user['user_id'];
-                // Mirrors api/update_user.php: admins are changed only by the master admin; the master admin not here.
-                $canEdit  = !$isMe && $u['role'] !== 'master_admin' && ($isMaster || !in_array($u['role'], ADMIN_ROLES, true));
+                $canEdit  = can_manage_user($u);
                 $sessions = (int) ($online[$u['user_id']] ?? 0);
                 $locked   = account_locked($u);
             ?>
@@ -665,7 +827,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     <td>
                         <div class="flex items-center gap-1">
                             <span class="avatar" aria-hidden="true"><?= e(initials($u)) ?></span>
-                            <span class="table-title"><?= e(full_name($u)) ?><?= $isMe ? ' <small class="text-muted">(you)</small>' : '' ?>
+                            <span class="table-title"><a href="<?= e(url('/?tab=users&id=' . $u['user_id'])) ?>"><?= e(full_name($u)) ?></a><?= $isMe ? ' <small class="text-muted">(you)</small>' : '' ?>
                                 <span class="table-sub"><?= e($u['email']) ?></span></span>
                         </div>
                     </td>
@@ -687,6 +849,7 @@ include APP_ROOT . '/templates/layout/header.php';
                         <span class="badge badge-<?= $u['is_active'] ? 'active' : 'inactive' ?>" data-status-for="user-<?= $u['user_id'] ?>"><?= $u['is_active'] ? 'Active' : 'Deactivated' ?></span>
                         <?php if (!$u['email_verified']): ?><span class="badge badge-pending">Unverified</span><?php endif; ?>
                         <?php if ($locked): ?><span class="badge badge-rejected" data-locked-for="<?= $u['user_id'] ?>" title="Locked <?= e(format_datetime($u['locked_at'])) ?>">Locked</span><?php endif; ?>
+                        <?php if (!empty($violations[$u['user_id']])): ?><span class="badge badge-false_report"><?= (int) $violations[$u['user_id']] ?> false report<?= (int) $violations[$u['user_id']] === 1 ? '' : 's' ?></span><?php endif; ?>
                     </td>
                     <td class="nowrap"><?= e(format_datetime($u['last_login_at'])) ?></td>
                     <td class="nowrap"><?= e(activity_label($u['last_activity_at'], $sessions)) ?></td>
@@ -699,7 +862,9 @@ include APP_ROOT . '/templates/layout/header.php';
                                 <button type="submit" class="btn btn-sm btn-outline">Unlock</button>
                             </form>
                         <?php endif; ?>
-                        <?php if ($canEdit): ?>
+                        <?php if ($canEdit && $u['deactivation_reason'] === 'false_reports'): /* reactivation records an in-person review */ ?>
+                            <a class="btn btn-sm btn-outline" href="<?= e(url('/?tab=users&id=' . $u['user_id'])) ?>">Review account</a>
+                        <?php elseif ($canEdit): ?>
                             <form method="post" action="<?= e(url('/?tab=users')) ?>" class="inline-form" data-api="update_user"
                                   data-confirm="<?= $u['is_active'] ? 'Deactivate this account? They will be logged out and no longer able to log in.' : 'Reactivate this account?' ?>">
                                 <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">

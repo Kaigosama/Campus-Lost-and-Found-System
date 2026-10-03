@@ -29,6 +29,9 @@ if ($type === 'found') {
         json_error(401, 'Log in to view lost reports.');
     }
     $rows = search_rows(array_values(all_lost_reports()), $q, ['status' => $status, 'category' => $category]);
+    if ($status === '' && is_staff()) {   // staff searches skip rejected, false and spam reports unless they ask for that status
+        $rows = array_values(array_filter($rows, fn ($r) => !is_moderated_report($r)));
+    }
     if (!is_staff()) {
         $rows = where($rows, 'user_id', current_user()['user_id']);
     }

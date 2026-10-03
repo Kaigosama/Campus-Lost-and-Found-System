@@ -17,14 +17,17 @@ function user_agent(): string
 }
 
 /**
- * Records a security event (login_success, login_failed, account_locked, logout, session_expired, …).
- * $email is what was typed, for attempts on accounts that may not exist.
+ * Records a security or activity event (login_success, login_failed, report_created, report_marked_false, …).
+ * $user is the account the event concerns; the actor is whoever this server-side session belongs to (null for
+ * anonymous attempts). $email is what was typed, for attempts on accounts that may not exist.
+ * Rows are only ever inserted: no page or endpoint updates or deletes them.
  */
 function log_event(string $type, ?array $user = null, array $metadata = [], ?string $email = null, ?int $sessionId = null): void
 {
-    db()->prepare('INSERT INTO security_events (user_id, email, event_type, session_id, ip_address, user_agent, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    db()->prepare('INSERT INTO security_events (user_id, actor_id, email, event_type, session_id, ip_address, user_agent, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
         ->execute([
             $user['user_id'] ?? null,
+            $_SESSION['user_id'] ?? null,
             mb_substr($email ?? ($user['email'] ?? ''), 0, 190) ?: null,
             $type,
             $sessionId ?? ($_SESSION['session_row'] ?? null),

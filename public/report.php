@@ -79,7 +79,7 @@ include APP_ROOT . '/templates/layout/header.php';
 
 <div class="grid <?= $editing ? '' : 'grid-sidebar' ?>">
     <div class="card">
-        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate <?= $formMode ?>>
+        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate data-submit-guard <?= $formMode ?>>
             <?php if ($editing): ?><input type="hidden" name="id" value="<?= $id ?>"><?php endif; ?>
 
             <fieldset>
@@ -161,7 +161,8 @@ include APP_ROOT . '/templates/layout/header.php';
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary btn-lg"><?= $editing ? 'Save changes' : ($isPost ? 'Submit for review' : 'Save to storage') ?></button>
-                <a class="btn btn-secondary" href="<?= e($editing ? item_url('found', $id) : url($isPost ? '/' : '/browse.php?manage=1')) ?>">Cancel</a>
+                <a class="btn btn-secondary btn-lg" href="<?= e($editing ? item_url('found', $id) : url($isPost ? '/' : '/browse.php?manage=1')) ?>">Cancel</a>
+                <span class="form-hint" data-guard-hint hidden>Please complete all required fields before submitting.</span>
             </div>
         </form>
     </div>
@@ -214,10 +215,15 @@ include APP_ROOT . '/templates/layout/header.php';
     </div>
 </div>
 
+<?= false_report_notice($user) ?>
+<?php if (!$editing && ($wait = report_limit_wait($user['user_id']))): ?>
+    <div class="alert alert-warning" role="status"><?= e(report_limit_message($wait)) ?></div>
+<?php endif; ?>
+
 <div class="grid grid-sidebar">
     <div class="card">
-        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate <?= $formMode ?>>
-            <?php if ($editing): ?><input type="hidden" name="id" value="<?= $id ?>"><?php endif; ?>
+        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate data-submit-guard <?= $formMode ?>>
+            <?php if ($editing): ?><input type="hidden" name="id" value="<?= $id ?>"><?php else: ?><input type="hidden" name="confirm_duplicate" value="0"><?php endif; ?>
 
             <div class="form-group">
                 <label for="item_name">What did you lose? <span class="req" aria-hidden="true">*</span></label>
@@ -269,7 +275,8 @@ include APP_ROOT . '/templates/layout/header.php';
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary btn-lg"><?= $editing ? 'Save changes' : 'Submit report' ?></button>
-                <a class="btn btn-secondary" href="<?= e($editing ? item_url('lost', $id) : url('/')) ?>">Cancel</a>
+                <a class="btn btn-secondary btn-lg" href="<?= e($editing ? item_url('lost', $id) : url('/')) ?>">Cancel</a>
+                <span class="form-hint" data-guard-hint hidden>Please complete all required fields before submitting.</span>
             </div>
         </form>
     </div>
@@ -278,6 +285,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <div class="card card-muted">
             <h3>Before you submit</h3>
             <p class="text-sm">Check <a href="<?= e(url('/browse.php')) ?>">found items</a> first — your item may already be in storage.</p>
+            <p class="text-sm">You can file up to <?= REPORT_LIMIT_MAX ?> reports every <?= REPORT_LIMIT_WINDOW_MINUTES ?> minutes. Reports confirmed as intentionally false count against your account.</p>
             <h3 class="mt-2">What happens next</h3>
             <ol class="text-sm list-plain">
                 <li>Your report is saved with status <?= status_badge('open') ?>.</li>

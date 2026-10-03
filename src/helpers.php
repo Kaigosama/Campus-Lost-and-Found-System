@@ -45,7 +45,7 @@ function url_with(array $params): string
 
 function status_label(string $status): string
 {
-    $labels = LOST_STATUSES + FOUND_STATUSES + CLAIM_STATUSES;
+    $labels = LOST_STATUSES + FOUND_STATUSES + CLAIM_STATUSES + REPORT_MODERATION_STATUSES;
     return $labels[$status] ?? ucfirst($status);
 }
 
@@ -66,21 +66,32 @@ function format_datetime(?string $value): string
     return $value ? date('M j, Y · g:i A', strtotime($value)) : '—';
 }
 
+/** "5 minutes ago", "2 hours ago", "yesterday", "Sep 3, 2026". */
+function time_ago(string $datetime): string
+{
+    $at  = strtotime($datetime);
+    $ago = max(0, time() - $at);
+    $plural = fn (int $n, string $unit) => "$n $unit" . ($n === 1 ? '' : 's');
+    return match (true) {
+        $ago < 60                                             => 'just now',
+        $ago < 3600                                           => $plural(intdiv($ago, 60), 'minute') . ' ago',
+        $ago < 86400                                          => $plural(intdiv($ago, 3600), 'hour') . ' ago',
+        date('Y-m-d', $at) === date('Y-m-d', strtotime('-1 day')) => 'yesterday',
+        default                                               => format_date($datetime),
+    };
+}
+
 /** "Active now", "Active 5 minutes ago", "Last active yesterday"… from the last authenticated request. */
 function activity_label(?string $lastActivity, int $onlineSessions): string
 {
     if (!$lastActivity) {
         return 'Never';
     }
-    $at  = strtotime($lastActivity);
-    $ago = max(0, time() - $at);
-    $plural = fn (int $n, string $unit) => "$n $unit" . ($n === 1 ? '' : 's');
+    $ago = max(0, time() - strtotime($lastActivity));
     return match (true) {
-        $onlineSessions > 0 && $ago < 120             => 'Active now',
-        $ago < 3600                                   => 'Active ' . $plural(max(1, intdiv($ago, 60)), 'minute') . ' ago',
-        $ago < 86400                                  => 'Active ' . $plural(intdiv($ago, 3600), 'hour') . ' ago',
-        date('Y-m-d', $at) === date('Y-m-d', strtotime('-1 day')) => 'Last active yesterday',
-        default                                       => 'Last active ' . format_date($lastActivity),
+        $onlineSessions > 0 && $ago < 120 => 'Active now',
+        $ago < 86400                      => 'Active ' . ($ago < 60 ? '1 minute ago' : time_ago($lastActivity)),
+        default                           => 'Last active ' . time_ago($lastActivity),
     };
 }
 
@@ -88,11 +99,36 @@ function activity_label(?string $lastActivity, int $onlineSessions): string
 function event_badge(string $type): string
 {
     return match (true) {
-        in_array($type, ['login_success', 'email_verified', 'account_unlocked', 'account_reactivated', 'register'], true) => 'approved',
-        in_array($type, ['account_locked', 'login_blocked_locked', 'session_revoked', 'account_deactivated', 'captcha_failed'], true) => 'rejected',
-        str_starts_with($type, 'login_') => 'pending',
+        in_array($type, ['login_success', 'email_verified', 'account_unlocked', 'account_reactivated', 'register', 'claim_approved', 'post_approved'], true) => 'approved',
+        in_array($type, ['account_locked', 'login_blocked_locked', 'session_revoked', 'account_deactivated', 'captcha_failed',
+                         'report_marked_false', 'report_marked_spam', 'report_deleted', 'false_report_warning'], true) => 'rejected',
+        str_starts_with($type, 'login_') || in_array($type, ['report_rate_limited', 'report_duplicate_blocked', 'report_rejected', 'claim_rejected', 'post_rejected'], true) => 'pending',
         default => 'closed',
     };
+}
+
+/** What happened, in words, for the admin activity feed ("Submitted a lost-item report"). */
+function event_label(string $type): string
+{
+    return [
+        'login_success' => 'Logged in', 'login_failed' => 'Failed log-in attempt', 'logout' => 'Logged out',
+        'session_expired' => 'Session expired', 'session_revoked' => 'Session ended by a newer log-in',
+        'account_locked' => 'Account locked after failed log-ins', 'account_unlocked' => 'Unlocked an account',
+        'login_blocked_locked' => 'Log-in refused: account locked', 'login_blocked_inactive' => 'Log-in refused: account deactivated',
+        'login_blocked_unverified' => 'Log-in refused: email not confirmed', 'login_rate_limited' => 'Log-in refused: too many attempts',
+        'register' => 'Registered an account', 'email_verified' => 'Confirmed their email (account activated)',
+        'account_deactivated' => 'Deactivated an account', 'account_reactivated' => 'Reactivated an account', 'role_changed' => 'Changed an account role',
+        'password_changed' => 'Changed their password', 'password_reset_requested' => 'Requested a password reset',
+        'report_created' => 'Submitted a lost-item report', 'report_edited' => 'Edited a lost-item report',
+        'report_open' => 'Reopened a lost-item report', 'report_matched' => 'Matched a lost-item report to a found item', 'report_closed' => 'Closed a lost-item report',
+        'report_rejected' => 'Rejected a lost-item report', 'report_marked_false' => 'Marked a report as false', 'report_marked_spam' => 'Marked a report as spam',
+        'report_deleted' => 'Removed a false or spam report', 'report_rate_limited' => 'Hit the report submission limit',
+        'report_duplicate_blocked' => 'Exact duplicate report refused', 'false_report_warning' => 'Issued a false-report warning',
+        'claim_submitted' => 'Submitted a claim', 'claim_approved' => 'Approved a claim', 'claim_rejected' => 'Rejected a claim', 'claim_withdrawn' => 'Withdrew a claim',
+        'post_submitted' => 'Posted a found item for review', 'post_approved' => 'Approved a found-item post', 'post_rejected' => 'Rejected a found-item post',
+        'found_item_logged' => 'Logged a found item', 'found_item_deleted' => 'Deleted a found item',
+        'security_logs_exported' => 'Exported the security logs',
+    ][$type] ?? ucfirst(str_replace('_', ' ', $type));
 }
 
 function full_name(array $user): string

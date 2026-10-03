@@ -83,6 +83,52 @@ function pill_tabs(array $tabs, array $counts, string $current, string $param): 
     return $html . '</nav>';
 }
 
+/**
+ * Admin activity table from activity_events(): who acted, what they did, the account affected when it isn't
+ * themselves, the record involved (report, claim, item) and when. Reasons and notes are shown as recorded.
+ */
+function activity_table(array $events, string $id = 'activityTable'): string
+{
+    if (!$events) {
+        return empty_state('No activity yet', 'Matching events show up here as people use the system.');
+    }
+    $person = fn (?string $first, ?string $last, ?string $role) => '<span class="table-title">' . e(trim("$first $last")) . '</span>'
+        . '<span class="table-sub">' . e(ROLES[$role] ?? (string) $role) . '</span>';
+    ob_start(); ?>
+<div class="table-wrap">
+    <table class="table" id="<?= e($id) ?>">
+        <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Account affected</th><th>Record</th><th>Details</th></tr></thead>
+        <tbody>
+        <?php foreach ($events as $ev):
+            $meta   = json_decode((string) $ev['metadata'], true) ?: [];
+            $actor  = $ev['actor_id'] ?? null;
+            $target = array_filter([
+                isset($meta['report_id']) ? 'Report #' . $meta['report_id'] : null,
+                isset($meta['claim_id']) ? 'Claim #' . $meta['claim_id'] : null,
+                isset($meta['item_id']) ? 'Item #' . $meta['item_id'] : null,
+            ]);
+            $details = array_diff_key($meta, ['report_id' => 1, 'claim_id' => 1, 'item_id' => 1, 'by' => 1]);
+        ?>
+            <tr>
+                <td class="nowrap"><?= e(time_ago($ev['created_at'])) ?><span class="table-sub"><?= e(format_datetime($ev['created_at'])) ?></span></td>
+                <td>
+                    <?php if ($actor): ?><?= $person($ev['a_first'], $ev['a_last'], $ev['a_role']) ?>
+                    <?php elseif ($ev['user_id']): ?><?= $person($ev['u_first'], $ev['u_last'], $ev['u_role']) ?>
+                    <?php else: ?><span class="text-muted">Not signed in</span><span class="table-sub"><?= e($ev['email'] ?? '') ?></span><?php endif; ?>
+                </td>
+                <td><span class="badge badge-<?= e(event_badge($ev['event_type'])) ?>"><?= e(event_label($ev['event_type'])) ?></span></td>
+                <td><?= $actor && $ev['user_id'] && (int) $ev['user_id'] !== (int) $actor ? $person($ev['u_first'], $ev['u_last'], $ev['u_role']) : '<span class="text-muted">—</span>' ?></td>
+                <td class="nowrap"><?= $target ? e(implode(', ', $target)) : '<span class="text-muted">—</span>' ?></td>
+                <td class="text-sm cell-wide"><?php foreach ($details as $k => $v): ?><?= e(str_replace('_', ' ', (string) $k)) ?>: <?= e(is_scalar($v) ? (string) $v : json_encode($v)) ?><br><?php endforeach; ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php
+    return ob_get_clean();
+}
+
 /** Render a full-page message (404, 403, …) inside the normal layout and stop. */
 function abort(int $code, string $title, string $text = '', string $backUrl = '', string $backLabel = 'Go back', string $icon = '&#128269;'): void
 {

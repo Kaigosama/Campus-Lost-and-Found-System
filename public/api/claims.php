@@ -61,6 +61,7 @@ if ($action === 'create') {
         ->execute([$itemId, $user['user_id'], $reportId, $proof]);
     $claimId = (int) $pdo->lastInsertId();
     $status  = 'pending';
+    log_event('claim_submitted', $user, ['claim_id' => $claimId, 'item_id' => $itemId, 'item_name' => $item['item_name']]);
     $message = 'Your claim was submitted. Staff will review it, usually within one working day.';
 
 } elseif ($action === 'review') {
@@ -97,6 +98,7 @@ if ($action === 'create') {
             ->execute([$claim['item_id'], $claim['report_id']]);
     }
     $pdo->commit();
+    log_event('claim_' . $status, find_user($claim['user_id']), ['claim_id' => $claimId, 'item_id' => $claim['item_id'], 'note' => $note]);
     $message = "Claim #$claimId " . $status . '. The claimant can now see your note.';
 
 } elseif ($action === 'withdraw') {
@@ -109,6 +111,7 @@ if ($action === 'create') {
         json_error(409, 'Only pending claims can be withdrawn.');
     }
     $pdo->prepare('DELETE FROM claims WHERE claim_id = ?')->execute([$claimId]);
+    log_event('claim_withdrawn', $user, ['claim_id' => $claimId, 'item_id' => $claim['item_id']]);
     $status  = 'withdrawn';
     $message = "Claim #$claimId withdrawn.";
 

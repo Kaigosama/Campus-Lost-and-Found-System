@@ -23,6 +23,7 @@ $sort     = $_GET['sort'] ?? 'newest';
 if ($type === 'lost') {
     $pageTitle = 'All lost reports';
     $rows = search_rows(array_values(all_lost_reports()), $q, ['status' => $status, 'category' => $category]);
+    if ($status === '') $rows = array_values(array_filter($rows, fn ($r) => !is_moderated_report($r)));   // rejected / false / spam only when asked for
     if ($from) $rows = array_values(array_filter($rows, fn ($r) => $r['date_lost'] >= $from));
     if ($to)   $rows = array_values(array_filter($rows, fn ($r) => $r['date_lost'] <= $to));
     $rows = newest_first($rows);
@@ -87,7 +88,7 @@ include APP_ROOT . '/templates/layout/header.php';
     </div>
     <div class="form-group filter-extra">
         <label for="status">Status</label>
-        <select id="status" name="status"><option value="">Any</option><?= options(LOST_STATUSES, $status) ?></select>
+        <select id="status" name="status"><option value="">Any active</option><?= options(LOST_STATUSES + REPORT_MODERATION_STATUSES, $status) ?></select>
     </div>
     <div class="form-group filter-extra">
         <label for="category">Category</label>

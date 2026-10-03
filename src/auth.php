@@ -57,7 +57,7 @@ function redirect_ended_session(): void
 function session_problem(array $user): ?string
 {
     if (!$user['is_active']) {
-        return 'This account has been deactivated. Contact the Lost & Found office.';
+        return deactivated_message($user);
     }
     if (!hash_equals($_SESSION['password_sig'] ?? '', password_sig($user['password_hash']))) {
         return 'Your password was changed. Log in with the new password.';
@@ -302,6 +302,14 @@ function is_staff(): bool
 function is_admin(): bool
 {
     return has_role(ADMIN_ROLES);
+}
+
+/** Whether the signed-in admin may change $target. Mirrors api/update_user.php, which enforces it. */
+function can_manage_user(array $target): bool
+{
+    $me = current_user();
+    return is_admin() && $target['user_id'] !== $me['user_id'] && $target['role'] !== 'master_admin'
+        && ($me['role'] === 'master_admin' || !in_array($target['role'], ADMIN_ROLES, true));
 }
 
 /** Send guests to the login page, then back here. */

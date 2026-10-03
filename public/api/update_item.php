@@ -66,6 +66,7 @@ if ($type === 'found') {
     db()->prepare('UPDATE lost_reports SET item_name = ?, category = ?, description = ?, location_lost = ?, date_lost = ?, image_url = ?
                    WHERE report_id = ?')
         ->execute([$v['item_name'], $v['category'], $v['description'], $v['location_lost'], $v['date_lost'], $imageUrl, $id]);
+    log_event('report_edited', $user, ['report_id' => $id, 'item_name' => $v['item_name']]);
 }
 
 $stmt = db()->prepare($type === 'found' ? 'SELECT * FROM found_items WHERE item_id = ?' : 'SELECT * FROM lost_reports WHERE report_id = ?');

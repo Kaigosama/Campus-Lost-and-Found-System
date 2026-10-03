@@ -29,6 +29,8 @@ const ADMIN_ROLES = ['admin', 'master_admin'];
 /** Who handles found items, lost reports, claims and student posts. Admins manage accounts only and see none of these records. */
 const REVIEWER_ROLES = ['staff'];
 const LOST_STATUSES  = ['open' => 'Open', 'matched' => 'Matched', 'closed' => 'Closed'];
+/** Staff outcomes for a lost report (api/moderate_report.php). Final: the report leaves the normal lists and can't be edited. */
+const REPORT_MODERATION_STATUSES = ['rejected' => 'Rejected', 'false_report' => 'False report', 'spam' => 'Spam'];
 const FOUND_STATUSES = ['stored' => 'In Storage', 'returned' => 'Returned', 'disposed' => 'Disposed'];
 const CLAIM_STATUSES = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected'];
 
@@ -51,6 +53,14 @@ const LOCKED_MESSAGE   = 'This account is locked after too many failed log-in at
 const LOGIN_MAX_PER_IP     = 20;
 const RESET_MAX_PER_IP     = 5;
 const LIMIT_WINDOW_MINUTES = 15;
+/** Lost reports one account may file per REPORT_LIMIT_WINDOW_MINUTES (counted in lost_reports, so it holds across browsers). */
+const REPORT_LIMIT_MAX            = 3;
+const REPORT_LIMIT_WINDOW_MINUTES = 60;
+/** The account's own open/matched reports from this many days back are checked for duplicates of a new one. */
+const DUPLICATE_LOOKBACK_DAYS = 30;
+/** Confirmed false reports that deactivate a student / faculty account; each one before that is a warning. */
+const FALSE_REPORTS_TO_DEACTIVATE = 2;
+const OFFICE_INFO = 'the Lost & Found office (Admin Bldg, Rm 104, Mon–Fri 8:00 AM–5:00 PM)';
 /** Person names: letters (any script), spaces, hyphens, apostrophes and periods — and must start with a letter. */
 const NAME_PATTERN    = "/^\\p{L}[\\p{L}\\p{M} .'\\-]*$/u";
 

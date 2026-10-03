@@ -38,6 +38,7 @@
 
 /* ---------- 2. Reset & base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* the attribute wins over display rules such as .form-hint's */
 html { -webkit-text-size-adjust: 100%; }
 body {
     margin: 0;
@@ -296,6 +297,9 @@ a.form-hint { display: inline-block; padding: .3rem 0; margin-top: .1rem; }
 .is-invalid:focus-visible { outline-color: var(--red); }
 .form-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
 .form-actions .spacer { flex: 1; }
+.form-actions .form-hint { margin: 0; }
+/* Phones: the form's main buttons stack at full width, the same size. */
+@media (max-width: 479px) { .form-actions > .btn { flex: 1 1 100%; } }
 fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem .25rem; margin: 0 0 1.25rem; }
 legend { font-weight: 700; padding: 0 .4rem; }
 fieldset.staff-only { border-color: var(--blue); background: var(--blue-light); }
@@ -413,7 +417,7 @@ img[data-lightbox]:not(a img) { cursor: zoom-in; }
 .badge-open, .badge-stored { background: var(--blue-light); color: var(--blue); }
 .badge-pending, .badge-matched { background: var(--warning-bg); color: var(--warning); }
 .badge-approved, .badge-returned, .badge-active { background: var(--success-bg); color: var(--success); }
-.badge-rejected, .badge-disposed, .badge-inactive { background: var(--red-light); color: var(--red); }
+.badge-rejected, .badge-disposed, .badge-inactive, .badge-false_report, .badge-spam { background: var(--red-light); color: var(--red); }
 .badge-closed { background: var(--neutral-bg); color: var(--neutral); }
 .badge-role-admin { background: var(--red-light); color: var(--red); }
 .badge-role-staff { background: var(--blue-light); color: var(--blue); }

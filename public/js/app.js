@@ -284,7 +284,28 @@
     function setBusy(form, busy) {
         form.querySelectorAll('button, select').forEach(function (el) { el.disabled = busy; });
         form.setAttribute('aria-busy', busy ? 'true' : 'false');
+        if (!busy) guardSubmit(form);
     }
+
+    // form[data-submit-guard]: the submit button stays disabled until every field passes validateField(), checked
+    // on each keystroke and change. Feedback only: the API validates every field again.
+    function guardSubmit(form) {
+        if (!form.hasAttribute('data-submit-guard')) return;
+        var ready = Array.prototype.every.call(form.querySelectorAll('input, select, textarea'), function (field) { return !validateField(field); });
+        form.querySelectorAll('button[type="submit"]').forEach(function (button) { button.disabled = !ready; });
+        var hint = form.querySelector('[data-guard-hint]');
+        if (hint) hint.hidden = ready;
+    }
+    document.querySelectorAll('form[data-submit-guard]').forEach(function (form) {
+        ['input', 'change'].forEach(function (type) {
+            form.addEventListener(type, function (event) {
+                var confirmDup = form.querySelector('[name="confirm_duplicate"]');
+                if (confirmDup && event.target !== confirmDup) confirmDup.value = '0';   // edited after a duplicate warning: check again
+                guardSubmit(form);
+            });
+        });
+        guardSubmit(form);
+    });
 
     function showApiError(form, error) {
         var errors = error.data && error.data.errors;
@@ -320,10 +341,55 @@
         }
     }
 
+    // The server found reports of the user's own that look like this one: list them and let the user decide.
+    // "Continue anyway" resubmits with confirm_duplicate=1; changing any field asks again.
+    function showDuplicates(form, data) {
+        var box = alertNode('warning', data.error);
+        box.classList.add('form-alert');
+        var list = document.createElement('ul');
+        list.className = 'mt-1 mb-1';
+        data.matches.forEach(function (match) {
+            var li = document.createElement('li');
+            li.innerHTML = '<a href="' + escapeHtml(match.url) + '">#' + escapeHtml(match.report_id) + ' ' + escapeHtml(match.item_name) + '</a> — lost '
+                + escapeHtml(formatDate(match.date_lost)) + ' at ' + escapeHtml(match.location_lost) + ' (' + escapeHtml(STATUS_LABELS[match.status] || match.status) + ')';
+            list.appendChild(li);
+        });
+        var actions = document.createElement('div');
+        actions.className = 'btn-row';
+        actions.innerHTML = '<a class="btn btn-outline btn-sm" href="' + escapeHtml(BASE + '/?tab=reports') + '">View existing reports</a>'
+            + '<button type="button" class="btn btn-primary btn-sm" data-dup="continue">Continue anyway</button>'
+            + '<button type="button" class="btn btn-secondary btn-sm" data-dup="cancel">Cancel</button>';
+        box.appendChild(list);
+        box.appendChild(actions);
+        formAlert(form, '', '');
+        form.insertBefore(box, form.firstChild);
+        box.scrollIntoView({ behavior: REDUCED_MOTION ? 'auto' : 'smooth', block: 'nearest' });
+        actions.addEventListener('click', function (event) {
+            var choice = event.target.getAttribute('data-dup');
+            if (!choice) return;
+            box.remove();
+            if (choice === 'continue') {
+                form.querySelector('[name="confirm_duplicate"]').value = '1';
+                form.requestSubmit();
+            }
+        });
+    }
+
     var handlers = {
         add_item: function (form, data, formData) {
             return ClafsApi.addItem(form.dataset.type || 'lost', formData)
-                .then(function (result) { window.location.href = result.url; });
+                .then(function (result) { window.location.href = result.url; })
+                .catch(function (error) {
+                    if (error.status === 409 && error.data && error.data.duplicate) return showDuplicates(form, error.data);
+                    throw error;
+                });
+        },
+        moderate_report: function (form, data) {
+            return ClafsApi.moderateReport(parseInt(data.report_id, 10), data.action, data.reason)
+                .then(function (result) {
+                    if (result.status !== 'deleted') setBadge('lost-' + result.report_id, result.status);
+                    finish(form, result.message);
+                });
         },
         update_item: function (form, data, formData) {
             return ClafsApi.updateItem(form.dataset.type || 'lost', parseInt(data.id, 10), formData)
@@ -369,6 +435,7 @@
             if ('role' in data) changes.role = data.role;
             if ('is_active' in data) changes.is_active = data.is_active;
             if ('unlock' in data) changes.unlock = data.unlock;
+            if ('note' in data) changes.note = data.note;
             return ClafsApi.updateUser(parseInt(data.user_id, 10), changes).then(function (result) {
                 setBadge('user-' + result.user_id, result.is_active ? 'active' : 'inactive');
                 if (!result.locked) {

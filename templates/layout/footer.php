@@ -30,7 +30,7 @@
     </div>
 </section>
 
-<script type="application/json" id="clafs-config"><?= json_encode(['statusLabels' => LOST_STATUSES + FOUND_STATUSES + CLAIM_STATUSES + ['active' => 'Active', 'inactive' => 'Deactivated']], JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
+<script type="application/json" id="clafs-config"><?= json_encode(['statusLabels' => LOST_STATUSES + FOUND_STATUSES + CLAIM_STATUSES + REPORT_MODERATION_STATUSES + ['active' => 'Active', 'inactive' => 'Deactivated']], JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 <script src="<?= e(asset('js/api.js')) ?>"></script>
 <script src="<?= e(asset('js/app.js')) ?>"></script>
 </body>

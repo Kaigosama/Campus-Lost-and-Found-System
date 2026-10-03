@@ -56,6 +56,8 @@ if ($type === 'found' && isset($in['moderation'])) {
     }
     $pdo->prepare('UPDATE found_items SET moderation_status = ?, moderated_by = ?, moderation_note = ?, moderated_at = NOW(), storage_location = ? WHERE item_id = ?')
         ->execute([$status, $user['user_id'], $note ?: null, $storage, $id]);
+    log_event($status === 'approved' ? 'post_approved' : 'post_rejected', find_user($row['user_id']),
+        ['item_id' => $id, 'item_name' => $row['item_name']] + ($note !== '' ? ['reason' => $note] : []));
     json_response([
         'ok' => true, 'type' => 'found', 'id' => $id, 'previous' => 'pending', 'status' => $status, 'rejected_claims' => [],
         'message' => $status === 'approved' ? "Post #$id approved. It is now listed publicly." : "Post #$id rejected. The poster can see your reason.",
@@ -90,8 +92,11 @@ if ($type === 'found') {
         json_error(422, 'Invalid status.', ['allowed' => array_keys(LOST_STATUSES)]);
     }
     $row = find_lost_report($id);
-    if (!$row || (!is_staff() && $row['user_id'] !== $user['user_id'])) {
+    if (!$row || $row['deleted_at'] !== null || (!is_staff() && $row['user_id'] !== $user['user_id'])) {
         json_error(404, 'Report not found.');
+    }
+    if (is_moderated_report($row)) {
+        json_error(409, 'This report was closed by staff moderation (' . status_label($row['status']) . ') and can no longer change status.');
     }
     if (!is_staff() && !($row['status'] === 'open' && $status === 'closed')) {
         json_error(403, 'You can only close your own open report.');
@@ -104,6 +109,9 @@ if ($type === 'found') {
         }
     }
     $pdo->prepare('UPDATE lost_reports SET status = ?, matched_item_id = ? WHERE report_id = ?')->execute([$status, $matchedItem, $id]);
+    if ($status !== $row['status']) {
+        log_event('report_' . $status, find_user($row['user_id']), ['report_id' => $id, 'item_name' => $row['item_name']] + ($matchedItem ? ['item_id' => $matchedItem] : []));
+    }
 }
 
 json_response([

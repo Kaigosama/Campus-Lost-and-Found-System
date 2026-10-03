@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         record_attempt($ipBucket);
         $error = record_failed_login($found) ? $lockedMessage : 'Incorrect email or password.';
     } elseif (!$found['is_active']) {
-        $error = 'This account has been deactivated. Contact the Lost & Found office.';
+        $error = deactivated_message($found);
         log_event('login_blocked_inactive', $found);
     } elseif (!$found['email_verified']) {
         $unverified = true;

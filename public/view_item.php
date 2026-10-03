@@ -12,13 +12,16 @@ $user = current_user();
 if ($type === 'lost') {
     require_login();
     $report = find_lost_report($id);
-    if (!$report || ($report['user_id'] !== $user['user_id'] && !is_staff())) {
+    // Removed (soft-deleted) reports stay visible to staff only, for audits.
+    if (!$report || (!is_staff() && ($report['user_id'] !== $user['user_id'] || $report['deleted_at'] !== null))) {
         abort(404, 'Report not found', 'This lost report does not exist or you do not have access to it.', url('/?tab=reports'), 'Back to my reports');
     }
     $isOwner      = $report['user_id'] === $user['user_id'];
     $owner        = find_user($report['user_id']);
     $linkedClaims = where(all_claims(), 'report_id', $report['report_id']);
     $matchedItem  = $report['matched_item_id'] ? find_found_item((int) $report['matched_item_id']) : null;
+    $moderator    = find_user($report['moderated_by']);
+    $ownerViolations = is_staff() ? account_violations($report['user_id']) : [];
     $pageTitle    = $report['item_name'];
 } else {
     $item = find_found_item($id);
@@ -126,8 +129,23 @@ include APP_ROOT . '/templates/layout/header.php';
                     Staff matched this report to a found item. Check your <a href="<?= e(url('/?tab=my_claims')) ?>">claims</a> for next steps.
                 <?php endif; ?>
             </div>
-        <?php else: ?>
+        <?php elseif ($report['status'] === 'closed'): ?>
             <div class="alert alert-info mb-0">This report is closed. Thanks for letting us know!</div>
+        <?php else: ?>
+            <div class="alert alert-error mb-0" role="status">
+                <strong><?= e(status_label($report['status'])) ?>.</strong>
+                <?= match ($report['status']) {
+                    'false_report' => 'Lost &amp; Found staff determined that this report contains false or misleading information.',
+                    'spam'         => 'Lost &amp; Found staff marked this report as spam.',
+                    default        => 'Lost &amp; Found staff did not accept this report.',
+                } ?>
+                Reason: <?= e($report['moderation_reason']) ?>
+                <?php if (is_staff()): ?><br><small>By <?= e($moderator ? full_name($moderator) : '—') ?> &middot; <?= e(format_datetime($report['moderated_at'])) ?></small><?php endif; ?>
+            </div>
+            <?php if ($report['deleted_at'] !== null): $deleter = find_user($report['deleted_by']); ?>
+                <div class="alert alert-info mt-2 mb-0"><strong>Removed</strong> from every list by <?= e($deleter ? full_name($deleter) : '—') ?>
+                    on <?= e(format_datetime($report['deleted_at'])) ?>. Reason: <?= e($report['deletion_reason']) ?></div>
+            <?php endif; ?>
         <?php endif; ?>
 
         <?php if (is_staff() && $report['status'] === 'open'): ?>
@@ -148,6 +166,73 @@ include APP_ROOT . '/templates/layout/header.php';
                     </div>
                     <button type="submit" class="btn btn-accent btn-sm">Mark as matched</button>
                 </form>
+            </div>
+        <?php endif; ?>
+
+        <?php if (is_staff() && $report['deleted_at'] === null && in_array($report['status'], ['open', 'matched'], true)):
+            $nextViolation = count($ownerViolations) + 1;
+            $deactivates   = $nextViolation >= FALSE_REPORTS_TO_DEACTIVATE; ?>
+            <div class="card card-staff mt-2" data-replace>
+                <h3>Moderate this report</h3>
+                <p class="text-sm text-muted">
+                    <strong>Reject</strong>: incomplete, already found, an accidental duplicate or otherwise not usable. No penalty.<br>
+                    <strong>False report</strong>: confirmed intentionally false, misleading or abusive. Violation <?= $nextViolation ?> of <?= FALSE_REPORTS_TO_DEACTIVATE ?>:
+                    <?= $deactivates ? "<strong>the reporter's account will be deactivated.</strong>" : 'the reporter gets a warning.' ?><br>
+                    <strong>Spam</strong>: junk or repeated submissions. Hidden from lists; no penalty by itself.
+                </p>
+                <form method="post" action="<?= e(item_url('lost', $report['report_id'])) ?>" class="form" data-validate data-api="moderate_report" data-done="replace">
+                    <input type="hidden" name="report_id" value="<?= $report['report_id'] ?>">
+                    <div class="form-group">
+                        <label for="mod_reason">Reason <span class="req" aria-hidden="true">*</span></label>
+                        <textarea id="mod_reason" name="reason" required minlength="10" maxlength="1000"
+                                  placeholder="Shown to the reporter, e.g. the described item was never lost; the student admitted the report was a prank."></textarea>
+                    </div>
+                    <div class="btn-row">
+                        <button type="submit" name="action" value="rejected" class="btn btn-secondary btn-sm" data-confirm="Reject this report?">Reject</button>
+                        <button type="submit" name="action" value="false_report" class="btn btn-danger btn-sm"
+                                data-confirm="<?= e($deactivates
+                                    ? "Confirm this is a false report? It is the reporter's violation $nextViolation: their account will be deactivated and logged out."
+                                    : 'Confirm this is a false report? The reporter will receive a warning.') ?>">False report</button>
+                        <button type="submit" name="action" value="spam" class="btn btn-danger btn-sm" data-confirm="Mark this report as spam?">Spam</button>
+                    </div>
+                </form>
+            </div>
+        <?php elseif (is_staff() && $report['deleted_at'] === null && in_array($report['status'], ['false_report', 'spam'], true)): ?>
+            <div class="card card-staff mt-2" data-replace>
+                <h3>Remove report</h3>
+                <p class="text-sm text-muted">Takes this report out of every list, the reporter's included. It stays on record for audits, with your name and reason.</p>
+                <form method="post" action="<?= e(item_url('lost', $report['report_id'])) ?>" class="form" data-validate data-api="moderate_report" data-done="replace">
+                    <input type="hidden" name="report_id" value="<?= $report['report_id'] ?>">
+                    <input type="hidden" name="action" value="delete">
+                    <div class="form-group">
+                        <label for="del_reason">Reason <span class="req" aria-hidden="true">*</span></label>
+                        <textarea id="del_reason" name="reason" required minlength="10" maxlength="1000"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-danger btn-sm" data-confirm="Remove this report from every list?">Remove report</button>
+                </form>
+            </div>
+        <?php endif; ?>
+
+        <?php if (is_staff()): ?>
+            <div class="card card-muted mt-2">
+                <h3>Reporter's false-report history</h3>
+                <?php if ($ownerViolations): ?>
+                    <ul class="timeline">
+                        <?php foreach ($ownerViolations as $i => $v): ?>
+                            <li>
+                                <time><?= e(format_date($v['created_at'])) ?></time>
+                                <div>
+                                    Violation #<?= $i + 1 ?>: report #<?= (int) $v['report_id'] ?> <?= e($v['item_name']) ?>
+                                    <span class="badge badge-<?= $v['action_taken'] === 'warning' ? 'pending' : 'rejected' ?>"><?= $v['action_taken'] === 'warning' ? 'Warning' : 'Deactivated' ?></span>
+                                    <div class="text-sm text-muted"><?= e($v['reason']) ?> &middot; issued by <?= e(trim($v['first_name'] . ' ' . $v['last_name']) ?: '—') ?></div>
+                                </div>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php else: ?>
+                    <p class="text-sm mb-0">No confirmed false reports.</p>
+                <?php endif; ?>
+                <?php if (!$owner['is_active']): ?><p class="text-sm mb-0 mt-1"><span class="badge badge-inactive">Account deactivated</span></p><?php endif; ?>
             </div>
         <?php endif; ?>
     </aside>
