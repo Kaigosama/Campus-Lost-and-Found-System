@@ -176,6 +176,28 @@
         });
     });
 
+    // Show / Hide button inside every password field. Runs after the strength meter is placed, so the meter stays
+    // below the wrapper. Fields go back to hidden on submit, so password managers still see a password field.
+    document.querySelectorAll('input[type="password"]').forEach(function (input) {
+        var wrap = document.createElement('div');
+        wrap.className = 'password-field';
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'password-toggle';
+        wrap.appendChild(button);
+        function show(visible) {
+            input.type = visible ? 'text' : 'password';
+            button.textContent = visible ? 'Hide' : 'Show';
+            button.setAttribute('aria-label', (visible ? 'Hide' : 'Show') + ' password');
+            button.setAttribute('aria-pressed', String(visible));
+        }
+        button.addEventListener('click', function () { show(input.type === 'password'); input.focus(); });
+        if (input.form) input.form.addEventListener('submit', function () { show(false); });
+        show(false);
+    });
+
     /* ---- Validation ---- */
     function labelOf(field) { return field.dataset.label || ''; }
 
