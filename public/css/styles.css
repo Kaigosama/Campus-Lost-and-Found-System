@@ -33,7 +33,7 @@
     --shadow: 0 1px 2px rgba(16, 24, 40, .06);
     --shadow-lg: 0 6px 18px -6px rgba(16, 24, 40, .16);
     --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --container: 1140px;
+    --container: 1440px;
 }
 
 /* ---------- 2. Reset & base ---------- */
@@ -63,7 +63,7 @@ small { color: var(--muted); }
 hr { border: 0; border-top: 1px solid var(--border); margin: 1.5rem 0; }
 code { background: var(--neutral-bg); padding: .1em .35em; border-radius: var(--radius-sm); font-size: .9em; }
 
-.container { width: 100%; max-width: var(--container); margin: 0 auto; padding: 0 1rem; }
+.container { width: 100%; max-width: var(--container); margin: 0 auto; padding: 0 clamp(1rem, 3vw, 2.5rem); }
 .page { flex: 1; padding-top: 1.5rem; padding-bottom: 3rem; }
 
 .sr-only {
@@ -406,13 +406,16 @@ img[data-lightbox]:not(a img) { cursor: zoom-in; }
 .table-sub { display: block; font-size: .8rem; color: var(--muted); }
 .table-tools { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; justify-content: space-between; margin-bottom: .75rem; }
 .table-tools input[type="search"] { max-width: 320px; }
-/* Manage found items: tighter cells and stacked controls so the whole table fits without sideways scrolling. */
+/* Manage found items: tighter cells, and below 1200px stacked controls, so the whole table fits without sideways scrolling. */
 .table-manage th, .table-manage td { padding: .6rem .5rem; }
 .table-manage .table-title { min-width: 150px; }
-.table-manage .inline-form { flex-direction: column; align-items: stretch; }
-.table-manage .actions { white-space: normal; width: 1%; }
-.table-manage .actions .btn, .table-manage .actions form { display: flex; width: 100%; margin: 0; }
-.table-manage .actions .btn + form { margin-top: .35rem; }
+.table-manage .actions .btn + form { margin-left: .3rem; }
+@media (max-width: 1199px) {
+    .table-manage .inline-form { flex-direction: column; align-items: stretch; }
+    .table-manage .actions { white-space: normal; width: 1%; }
+    .table-manage .actions .btn, .table-manage .actions form { display: flex; width: 100%; margin: 0; }
+    .table-manage .actions .btn + form { margin: .35rem 0 0; }
+}
 .table select.inline-select { width: auto; padding: .35rem 2rem .35rem .6rem; font-size: .85rem; }
 .filter-empty { padding: 2rem; text-align: center; color: var(--muted); }
 
