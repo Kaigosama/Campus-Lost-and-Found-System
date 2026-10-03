@@ -34,7 +34,12 @@ const REPORT_MODERATION_STATUSES = ['rejected' => 'Rejected', 'false_report' => 
 const FOUND_STATUSES = ['stored' => 'In Storage', 'returned' => 'Returned', 'disposed' => 'Disposed'];
 const CLAIM_STATUSES = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected'];
 
-const CAMPUS_LOCATIONS = ['Library', 'Cafeteria', 'Gymnasium', 'Student Lounge', 'Parking Area', 'North Building', 'South Building', 'Admin Building', 'Chapel', 'Covered Court'];
+/** The only choices for where an item was found or lost (Mapúa Makati campus); database/migrations/009 moved older values onto them. */
+const CAMPUS_LOCATIONS = [
+    'Main Entrance & Lobby', 'Hallways & Elevators', 'Classrooms', 'Computer Labs', 'Science & Health Labs',
+    'Media Studios', 'Library', 'Student Lounge', 'Canteen & Café', 'Gymnasium', 'Cinema', 'Prayer Room',
+    'Student Services Office', 'Restrooms', 'Parking Area', 'Other',
+];
 
 const MAX_UPLOAD_MB   = 5;
 const UPLOAD_DIR      = APP_ROOT . '/public/uploads';

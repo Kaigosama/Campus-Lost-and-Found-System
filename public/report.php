@@ -108,8 +108,10 @@ include APP_ROOT . '/templates/layout/header.php';
 
                 <div class="form-group">
                     <label for="location_found">Where was it found? <span class="req" aria-hidden="true">*</span></label>
-                    <input type="text" id="location_found" name="location_found" required maxlength="150" list="campus-locations"
-                           value="<?= e($row['location_found'] ?? '') ?>" placeholder="e.g. Gymnasium bleachers">
+                    <select id="location_found" name="location_found" required>
+                        <option value="">Select a location…</option>
+                        <?= options(CAMPUS_LOCATIONS, $row['location_found'] ?? null, false) ?>
+                    </select>
                 </div>
 
                 <div class="form-group">
@@ -247,8 +249,10 @@ include APP_ROOT . '/templates/layout/header.php';
 
             <div class="form-group">
                 <label for="location_lost">Where did you last have it? <span class="req" aria-hidden="true">*</span></label>
-                <input type="text" id="location_lost" name="location_lost" required maxlength="150" list="campus-locations"
-                       value="<?= e($row['location_lost'] ?? '') ?>" placeholder="e.g. Library, 3rd floor">
+                <select id="location_lost" name="location_lost" required>
+                    <option value="">Select a location…</option>
+                    <?= options(CAMPUS_LOCATIONS, $row['location_lost'] ?? null, false) ?>
+                </select>
             </div>
 
             <div class="form-group">
@@ -296,7 +300,5 @@ include APP_ROOT . '/templates/layout/header.php';
     </aside>
 </div>
 <?php endif; ?>
-
-<datalist id="campus-locations"><?php foreach (CAMPUS_LOCATIONS as $loc): ?><option value="<?= e($loc) ?>"><?php endforeach; ?></datalist>
 
 <?php include APP_ROOT . '/templates/layout/footer.php'; ?>

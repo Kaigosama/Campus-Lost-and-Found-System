@@ -38,6 +38,10 @@ function validate_item_input(array $in, string $type, bool $needsStorage = true)
     if (!in_array($values['category'], CATEGORIES, true)) {
         $errors['category'] = 'Choose a valid category.';
     }
+    $locationKey = $type === 'found' ? 'location_found' : 'location_lost';
+    if (!isset($errors[$locationKey]) && !in_array($values[$locationKey], CAMPUS_LOCATIONS, true)) {
+        $errors[$locationKey] = 'Choose a location from the list.';
+    }
     $values[$dateKey] = $field($dateKey);
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $values[$dateKey]) || !strtotime($values[$dateKey])) {
         $errors[$dateKey] = 'Enter a valid date.';
