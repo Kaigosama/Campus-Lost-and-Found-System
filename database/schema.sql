@@ -138,7 +138,7 @@ ALTER TABLE claims
 
 -- =====================================================================
 -- 6. Seed data — sample accounts, found items, lost reports and claims.
---    Every password is "password123" (bcrypt); change before any real use.
+--    The accounts share one sample password (bcrypt); change it before any real use.
 -- =====================================================================
 
 INSERT INTO users (user_id, first_name, last_name, email, password_hash, role, is_active, created_at, updated_at) VALUES

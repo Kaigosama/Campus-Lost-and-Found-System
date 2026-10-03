@@ -76,7 +76,7 @@ if ($n = delete_expired_unverified()) {
     log_line("Deleted $n unverified student/faculty account(s) whose confirmation link expired.");
 }
 
-// The seeded accounts share the password printed in the README; SEED_PASSWORD replaces it on a public deploy,
+// The seeded accounts share one sample password; SEED_PASSWORD replaces it on a public deploy,
 // including on accounts a later migration adds.
 const SAMPLE_PASSWORD_HASH = '$2y$10$IAwEs/B32tlkg/sfgBNKRe5sveKeQ9wBgzD87w3nhoFjEtWd0AFAi';
 $seedPassword = (string) getenv('SEED_PASSWORD');

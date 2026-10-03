@@ -89,7 +89,7 @@ define('DB_PASS', 'your-password');
 
 ## Usage
 
-Log in at `/login.php` with a sample account. The password for each is `password123`.
+Log in at `/login.php` with a sample account.
 
 | Email | Role |
 |---|---|
@@ -134,7 +134,7 @@ The site deploys to [Railway](https://railway.com) from this repository.
    | Variable | Value |
    |---|---|
    | `MYSQL_URL` | `${{MySQL.MYSQL_URL}}` |
-   | `SEED_PASSWORD` | a private password for the sample accounts, replacing `password123` |
+   | `SEED_PASSWORD` | a private password for the sample accounts |
    | `APP_URL` | the site's `https://` address, used in emailed links |
    | `BREVO_API_KEY` | API key from [Brevo](https://www.brevo.com), for verification, reset and security emails |
    | `MAIL_FROM` | a dedicated sender address for system mail, verified in Brevo |
