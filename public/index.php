@@ -439,7 +439,8 @@ include APP_ROOT . '/templates/layout/header.php';
         </div>
 
     <?php else: ?>
-        <?php $myApprovedClaims = count_where($myClaims, 'status', 'approved'); ?>
+        <?php   // approved claims stay "approved" after pickup; only those whose item is still in storage await collection
+        $myApprovedClaims = count(array_filter($myClaims, fn ($c) => $c['status'] === 'approved' && find_found_item($c['item_id'])['status'] === 'stored')); ?>
         <?= false_report_notice($user) ?>
         <div class="stat-grid">
             <div class="stat-card">
@@ -506,7 +507,7 @@ include APP_ROOT . '/templates/layout/header.php';
                                 <time><?= e(format_date($claim['date_claimed'])) ?></time>
                                 <div>
                                     <a href="<?= e(item_url('found', $item['item_id'])) ?>" class="fw-600"><?= e($item['item_name']) ?></a>
-                                    <div><?= status_badge($claim['status']) ?></div>
+                                    <div><?= status_badge($claim['status'] === 'approved' && $item['status'] === 'returned' ? 'returned' : $claim['status']) ?></div>
                                 </div>
                             </li>
                         <?php endforeach; ?>
@@ -585,7 +586,7 @@ include APP_ROOT . '/templates/layout/header.php';
                             <small>Claim #<?= $claim['claim_id'] ?> &middot; submitted <?= e(format_datetime($claim['created_at'])) ?></small>
                         </div>
                     </div>
-                    <?= status_badge($claim['status']) ?>
+                    <?= status_badge($claim['status'] === 'approved' && $item['status'] === 'returned' ? 'returned' : $claim['status']) ?>
                 </div>
 
                 <div class="grid grid-2">
@@ -605,6 +606,9 @@ include APP_ROOT . '/templates/layout/header.php';
                                 <strong><?= $claim['status'] === 'approved' ? 'Approved.' : 'Not approved.' ?></strong> <?= e($claim['review_note']) ?>
                             </div>
                             <p class="text-sm mb-0">Reviewed by <?= e(full_name($reviewer)) ?> on <?= e(format_datetime($claim['reviewed_at'])) ?></p>
+                            <?php if ($claim['status'] === 'approved' && $item['status'] === 'returned'): ?>
+                                <p class="text-sm mb-0">Collected on <?= e(format_datetime($item['returned_at'])) ?>.</p>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </div>
