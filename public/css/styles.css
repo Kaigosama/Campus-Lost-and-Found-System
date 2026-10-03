@@ -370,7 +370,8 @@ fieldset.staff-only legend { color: var(--blue-dark); }
     font-size: .8rem; font-weight: 600;
 }
 .photo-large { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--border); }
-.photo-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: .6rem; }
+/* max-width: none — the global img max-width: 100% lets a table cell squeeze the thumbnail into a sliver on phones. */
+.photo-thumb { width: 56px; height: 56px; max-width: none; flex-shrink: 0; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: .6rem; }
 .photo-thumb svg { width: 20px; height: 20px; }
 .photo-thumb span { display: none; }
 
