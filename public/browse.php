@@ -59,6 +59,7 @@ if ($type === 'lost') {
     }
 } else {
     $pageTitle = 'Found items';
+    if ($from !== '') $from = max($from, earliest_item_date());   // items are dated within the past year
     $rows = search_rows(array_values(public_found_items()), $q, ['category' => $category]);
     if ($from) $rows = array_values(array_filter($rows, fn ($i) => $i['date_found'] >= $from));
     usort($rows, fn ($a, $b) => $sort === 'oldest'
@@ -253,7 +254,7 @@ include APP_ROOT . '/templates/layout/header.php';
     </div>
     <div class="form-group filter-extra">
         <label for="from">Found since</label>
-        <input type="date" id="from" name="from" value="<?= e($from) ?>">
+        <input type="date" id="from" name="from" value="<?= e($from) ?>" min="<?= earliest_item_date() ?>" max="<?= date('Y-m-d') ?>">
     </div>
     <div class="form-group filter-extra">
         <label for="sort">Sort</label>

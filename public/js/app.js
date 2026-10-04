@@ -604,7 +604,15 @@
             clearTimeout(liveTimer);
             liveTimer = setTimeout(runSearch, 300);
         });
-        liveForm.addEventListener('change', function () { clearTimeout(liveTimer); runSearch(); });
+        liveForm.addEventListener('change', function (event) {
+            var field = event.target; // a typed date outside min/max snaps to the nearest allowed day
+            if (field.type === 'date' && field.value) {
+                if (field.min && field.value < field.min) field.value = field.min;
+                if (field.max && field.value > field.max) field.value = field.max;
+            }
+            clearTimeout(liveTimer);
+            runSearch();
+        });
         liveForm.addEventListener('submit', function (event) { event.preventDefault(); clearTimeout(liveTimer); runSearch(); });
     }
 
