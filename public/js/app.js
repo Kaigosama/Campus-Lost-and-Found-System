@@ -219,7 +219,12 @@
         if (field.required && !value) return label ? label + ' is required.' : 'This field is required.';
         if (!value) return '';
 
-        if (field.hasAttribute('data-password-policy')) return passwordError(field.value);
+        if (field.hasAttribute('data-password-policy')) {
+            var policy = passwordError(field.value);
+            if (policy) return policy;
+            var old = field.dataset.differs && field.form.querySelector('[name="' + field.dataset.differs + '"]');
+            return old && old.value === field.value ? 'Choose a password different from your current one.' : '';
+        }
         var minLength = parseInt(field.getAttribute('minlength'), 10);
         if (minLength && value.length < minLength) {
             return label ? label + ' must contain at least ' + minLength + ' characters.' : 'Must be at least ' + minLength + ' characters.';

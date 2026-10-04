@@ -1121,7 +1121,7 @@ include APP_ROOT . '/templates/layout/header.php';
 
         <div class="card">
             <h2>Change password</h2>
-            <form method="post" action="<?= e(url('/?tab=account')) ?>" class="form" data-validate>
+            <form method="post" action="<?= e(url('/?tab=account')) ?>" class="form" data-validate data-submit-guard>
                 <input type="email" name="username" value="<?= e($user['email']) ?>" autocomplete="username" hidden>
                 <div class="form-group">
                     <label for="current_password">Current password <span class="req" aria-hidden="true">*</span></label>
@@ -1130,7 +1130,7 @@ include APP_ROOT . '/templates/layout/header.php';
                 </div>
                 <div class="form-group">
                     <label for="new_password">New password <span class="req" aria-hidden="true">*</span></label>
-                    <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-label="New password" data-password-policy<?= $inv('new_password') ?>>
+                    <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-label="New password" data-password-policy data-differs="current_password"<?= $inv('new_password') ?>>
                     <?= $err('new_password') ?>
                 </div>
                 <div class="form-group">
