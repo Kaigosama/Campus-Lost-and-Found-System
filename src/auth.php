@@ -161,14 +161,15 @@ function account_locked(array $user): bool
     return $user['role'] !== 'master_admin' && $user['locked_at'] !== null;
 }
 
-/** Counts a wrong password for $user; the LOCKOUT_ATTEMPTS-th in a row locks the account. Returns true if it locked now. */
-function record_failed_login(array $user): bool
+/**
+ * Counts a wrong password for $user (at log-in, or as the current password when changing it); the LOCKOUT_ATTEMPTS-th
+ * in a row locks the account. $event is what gets logged. Returns true if it locked now.
+ */
+function record_failed_login(array $user, string $event = 'login_failed'): bool
 {
     db()->prepare('UPDATE users SET failed_login_attempts = LEAST(failed_login_attempts + 1, 255) WHERE user_id = ?')->execute([$user['user_id']]);
-    $stmt = db()->prepare('SELECT failed_login_attempts FROM users WHERE user_id = ?');
-    $stmt->execute([$user['user_id']]);
-    $attempts = (int) $stmt->fetchColumn();
-    log_event('login_failed', $user, ['consecutive_failures' => $attempts]);
+    $attempts = failed_password_attempts($user);
+    log_event($event, $user, ['consecutive_failures' => $attempts]);
 
     if ($attempts < LOCKOUT_ATTEMPTS) {
         return false;
@@ -186,6 +187,14 @@ function record_failed_login(array $user): bool
         . 'Visit ' . OFFICE_INFO . ' with your ID to have it unlocked. '
         . "If these attempts weren't you, tell the office so they can check your account.");
     return true;
+}
+
+/** Wrong passwords in a row since the last successful log-in or password change. */
+function failed_password_attempts(array $user): int
+{
+    $stmt = db()->prepare('SELECT failed_login_attempts FROM users WHERE user_id = ?');
+    $stmt->execute([$user['user_id']]);
+    return (int) $stmt->fetchColumn();
 }
 
 /* ---------------------------------------------------------------- Registration */
@@ -264,13 +273,31 @@ function set_password(array $user, string $password, int $keepSessionId = 0): st
     return $hash;
 }
 
-/** Validates the change-password form for the logged-in user and saves it. Returns field errors; empty means it changed. */
+/**
+ * Validates the change-password form for the logged-in user and saves it. Returns field errors; empty means it changed.
+ * A wrong current password counts like a wrong log-in, so someone at an unattended, logged-in browser can't keep
+ * guessing: the LOCKOUT_ATTEMPTS-th in a row locks the account (the master admin is only logged out), ends every
+ * session of the account and sends this browser to the login page. That path does not return.
+ */
 function change_password(array $user, array $in): array
 {
     $current = (string) ($in['current_password'] ?? '');
     $errors  = new_password_errors($in, $current);
     if (!password_verify($current, $user['password_hash'])) {
-        $errors = ['current_password' => 'Your current password is incorrect.'] + $errors;
+        $locked = record_failed_login($user, 'password_change_failed');
+        $left   = $locked ? 0 : LOCKOUT_ATTEMPTS - failed_password_attempts($user);
+        if ($left <= 0) {
+            if ($ended = revoke_sessions($user['user_id'])) {
+                log_event('session_revoked', $user, ['reason' => 'too many wrong current passwords', 'sessions' => $ended]);
+            }
+            $_SESSION = ['auth_notice' => $locked
+                ? 'Your account was locked after ' . LOCKOUT_ATTEMPTS . ' wrong current passwords. Visit ' . OFFICE_INFO . ' with your ID to have it unlocked.'
+                : 'You were logged out after ' . LOCKOUT_ATTEMPTS . ' wrong current passwords. Log in again to change your password.'];
+            header('Location: ' . url('/login.php'));
+            exit;
+        }
+        $errors = ['current_password' => 'Your current password is incorrect. ' . $left . ($left === 1 ? ' try' : ' tries')
+            . ' left before ' . ($user['role'] === 'master_admin' ? 'you are logged out.' : 'your account is locked.')] + $errors;
     }
     if ($errors) {
         return $errors;

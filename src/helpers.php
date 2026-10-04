@@ -102,7 +102,7 @@ function event_badge(string $type): string
         in_array($type, ['login_success', 'email_verified', 'account_unlocked', 'account_reactivated', 'register', 'claim_approved', 'post_approved'], true) => 'approved',
         in_array($type, ['account_locked', 'login_blocked_locked', 'session_revoked', 'account_deactivated', 'captcha_failed',
                          'report_marked_false', 'report_marked_spam', 'report_deleted', 'false_report_warning'], true) => 'rejected',
-        str_starts_with($type, 'login_') || in_array($type, ['report_rate_limited', 'report_duplicate_blocked', 'report_rejected', 'claim_rejected', 'post_rejected'], true) => 'pending',
+        str_starts_with($type, 'login_') || in_array($type, ['password_change_failed', 'report_rate_limited', 'report_duplicate_blocked', 'report_rejected', 'claim_rejected', 'post_rejected'], true) => 'pending',
         default => 'closed',
     };
 }
@@ -112,13 +112,14 @@ function event_label(string $type): string
 {
     return [
         'login_success' => 'Logged in', 'login_failed' => 'Failed log-in attempt', 'logout' => 'Logged out',
-        'session_expired' => 'Session expired', 'session_revoked' => 'Session ended by a newer log-in',
-        'account_locked' => 'Account locked after failed log-ins', 'account_unlocked' => 'Unlocked an account',
+        'session_expired' => 'Session expired', 'session_revoked' => 'Session ended early',
+        'account_locked' => 'Account locked after wrong passwords', 'account_unlocked' => 'Unlocked an account',
         'login_blocked_locked' => 'Log-in refused: account locked', 'login_blocked_inactive' => 'Log-in refused: account deactivated',
         'login_blocked_unverified' => 'Log-in refused: email not confirmed', 'login_rate_limited' => 'Log-in refused: too many attempts',
         'register' => 'Registered an account', 'email_verified' => 'Confirmed their email (account activated)',
         'account_deactivated' => 'Deactivated an account', 'account_reactivated' => 'Reactivated an account', 'role_changed' => 'Changed an account role',
-        'password_changed' => 'Changed their password', 'password_reset_requested' => 'Requested a password reset',
+        'password_changed' => 'Changed their password', 'password_change_failed' => 'Wrong current password when changing password',
+'password_reset_requested' => 'Requested a password reset',
         'report_created' => 'Submitted a lost-item report', 'report_edited' => 'Edited a lost-item report',
         'report_open' => 'Reopened a lost-item report', 'report_matched' => 'Matched a lost-item report to a found item', 'report_closed' => 'Closed a lost-item report',
         'report_rejected' => 'Rejected a lost-item report', 'report_marked_false' => 'Marked a report as false', 'report_marked_spam' => 'Marked a report as spam',
