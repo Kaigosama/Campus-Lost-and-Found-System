@@ -51,47 +51,46 @@ function item_card(array $item): string
     return ob_get_clean();
 }
 
+/** First / Prev, up to five page numbers centred on the current page, Next / Last. */
 function pagination(int $page, int $totalPages): string
 {
     if ($totalPages <= 1) {
         return '';
     }
-    ob_start(); ?>
-<nav class="pagination" aria-label="Pagination">
-    <?php if ($page > 1): ?>
-        <a href="<?= e(url_with(['page' => $page - 1])) ?>" rel="prev">&laquo; Prev</a>
-    <?php else: ?>
-        <span class="disabled">&laquo; Prev</span>
-    <?php endif; ?>
-    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-        <?php if ($i === $page): ?>
-            <span class="current" aria-current="page"><?= $i ?></span>
-        <?php else: ?>
-            <a href="<?= e(url_with(['page' => $i])) ?>"><?= $i ?></a>
-        <?php endif; ?>
-    <?php endfor; ?>
-    <?php if ($page < $totalPages): ?>
-        <a href="<?= e(url_with(['page' => $page + 1])) ?>" rel="next">Next &raquo;</a>
-    <?php else: ?>
-        <span class="disabled">Next &raquo;</span>
-    <?php endif; ?>
-</nav>
-<?php
-    return ob_get_clean();
+    $first = max(1, min($page - 2, $totalPages - 4));
+    $last  = min($totalPages, $first + 4);
+    $link  = fn (int $n, string $text, bool $usable, string $rel = '') => $usable
+        ? '<a href="' . e(url_with(['page' => $n])) . '"' . ($rel ? ' rel="' . $rel . '"' : '') . '>' . $text . '</a>'
+        : '<span class="disabled">' . $text . '</span>';
+    $html = '<nav class="pagination" aria-label="Pagination">'
+        . $link(1, '&laquo; First', $page > 1)
+        . $link($page - 1, '&lsaquo; Prev', $page > 1, 'prev');
+    for ($i = $first; $i <= $last; $i++) {
+        $html .= $i === $page ? '<span class="current" aria-current="page">' . $i . '</span>' : $link($i, (string) $i, true);
+    }
+    return $html
+        . $link($page + 1, 'Next &rsaquo;', $page < $totalPages, 'next')
+        . $link($totalPages, 'Last &raquo;', $page < $totalPages)
+        . '</nav>';
 }
 
-/** Prev / Next arrows only, for a table paged by its own query parameter ($param) and scrolled back to #$anchor. */
+/** First / Prev / Next / Last arrows only, for a table paged by its own query parameter ($param) and scrolled back to #$anchor. */
 function arrow_pager(int $page, int $totalPages, string $param, string $anchor): string
 {
     if ($totalPages <= 1) {
         return '';
     }
-    $link = fn (int $n, string $rel, string $label) => '<a href="' . e(url_with([$param => $n]) . '#' . $anchor) . '" rel="' . $rel . '" aria-label="' . $label . ' page">' . ($rel === 'prev' ? '&larr;' : '&rarr;') . '</a>';
-    $html = '<nav class="pagination" aria-label="' . e($anchor) . ' pages">';
-    $html .= $page > 1 ? $link($page - 1, 'prev', 'Previous') : '<span class="disabled" aria-hidden="true">&larr;</span>';
-    $html .= '<span class="page-of">Page ' . $page . ' of ' . $totalPages . '</span>';
-    $html .= $page < $totalPages ? $link($page + 1, 'next', 'Next') : '<span class="disabled" aria-hidden="true">&rarr;</span>';
-    return $html . '</nav>';
+    // [target page, symbol, label, usable?]
+    $arrow = fn (int $n, string $symbol, string $label, bool $usable) => $usable
+        ? '<a href="' . e(url_with([$param => $n]) . '#' . $anchor) . '" aria-label="' . $label . ' page" title="' . $label . ' page">' . $symbol . '</a>'
+        : '<span class="disabled" aria-hidden="true">' . $symbol . '</span>';
+    return '<nav class="pagination" aria-label="' . e($anchor) . ' pages">'
+        . $arrow(1, '&laquo;', 'First', $page > 1)
+        . $arrow($page - 1, '&larr;', 'Previous', $page > 1)
+        . '<span class="page-of">Page ' . $page . ' of ' . $totalPages . '</span>'
+        . $arrow($page + 1, '&rarr;', 'Next', $page < $totalPages)
+        . $arrow($totalPages, '&raquo;', 'Last', $page < $totalPages)
+        . '</nav>';
 }
 
 /** Filter tabs from [key => label] with a count per key; $param is the query parameter that selects a tab. */
