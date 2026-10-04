@@ -371,12 +371,6 @@ include APP_ROOT . '/templates/layout/header.php';
         $pendingClaims = newest_first(where(all_claims(), 'status', 'pending'));
         $openReports   = count_where(all_lost_reports(), 'status', 'open');
         ?>
-        <?php if ($pendingPosts): ?>
-            <div class="alert alert-warning">
-                <strong><?= count($pendingPosts) ?> found-item post<?= count($pendingPosts) === 1 ? '' : 's' ?></strong> from students and faculty
-                <?= count($pendingPosts) === 1 ? 'is' : 'are' ?> waiting for review. <a href="<?= e(url('/?tab=moderation')) ?>">Review posts</a>
-            </div>
-        <?php endif; ?>
         <div class="stat-grid">
             <div class="stat-card warning">
                 <span class="stat-label">Pending claims</span>

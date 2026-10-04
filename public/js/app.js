@@ -294,9 +294,7 @@
     // Browser autofill counts as filled in, even before its value can be read (Chrome hides an autofilled password
     // from scripts until the user interacts with the page).
     function autofilled(field) {
-        try { return field.matches(':autofill'); } catch (e) {
-            try { return field.matches(':-webkit-autofill'); } catch (e2) { return false; }
-        }
+        try { return field.matches(':autofill'); } catch (e) { return false; }
     }
 
     // Has any field changed from how the page loaded?

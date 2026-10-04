@@ -168,7 +168,9 @@ function account_locked(array $user): bool
 function record_failed_login(array $user, string $event = 'login_failed'): bool
 {
     db()->prepare('UPDATE users SET failed_login_attempts = LEAST(failed_login_attempts + 1, 255) WHERE user_id = ?')->execute([$user['user_id']]);
-    $attempts = failed_password_attempts($user);
+    $stmt = db()->prepare('SELECT failed_login_attempts FROM users WHERE user_id = ?');
+    $stmt->execute([$user['user_id']]);
+    $attempts = (int) $stmt->fetchColumn();
     log_event($event, $user, ['consecutive_failures' => $attempts]);
 
     if ($attempts < LOCKOUT_ATTEMPTS) {
@@ -187,14 +189,6 @@ function record_failed_login(array $user, string $event = 'login_failed'): bool
         . 'Visit ' . OFFICE_INFO . ' with your ID to have it unlocked. '
         . "If these attempts weren't you, tell the office so they can check your account.");
     return true;
-}
-
-/** Wrong passwords in a row since the last successful log-in or password change. */
-function failed_password_attempts(array $user): int
-{
-    $stmt = db()->prepare('SELECT failed_login_attempts FROM users WHERE user_id = ?');
-    $stmt->execute([$user['user_id']]);
-    return (int) $stmt->fetchColumn();
 }
 
 /* ---------------------------------------------------------------- Registration */
@@ -285,7 +279,7 @@ function change_password(array $user, array $in): array
     $errors  = new_password_errors($in, $current);
     if (!password_verify($current, $user['password_hash'])) {
         $locked = record_failed_login($user, 'password_change_failed');
-        $left   = $locked ? 0 : LOCKOUT_ATTEMPTS - failed_password_attempts($user);
+        $left   = $locked ? 0 : LOCKOUT_ATTEMPTS - (int) $user['failed_login_attempts'] - 1;   // $user is the row from before this miss
         if ($left <= 0) {
             if ($ended = revoke_sessions($user['user_id'])) {
                 log_event('session_revoked', $user, ['reason' => 'too many wrong current passwords', 'sessions' => $ended]);
