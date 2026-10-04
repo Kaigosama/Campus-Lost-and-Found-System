@@ -322,6 +322,8 @@ fieldset.staff-only legend { color: var(--blue-dark); }
 .filter-bar .form-group.grow { flex: 2 1 220px; }
 .filter-bar label { font-size: .8rem; margin-bottom: .25rem; }
 .filter-bar .btn { flex: 0 0 auto; }
+/* One height for every control in the row: date inputs render taller and buttons shorter than text fields. */
+.filter-bar :is(input, select, .btn) { height: 2.875rem; }
 /* app.js collapses the secondary filters behind "More filters" on phones; without JS they all stay visible. */
 .filter-toggle { display: none; }
 @media (max-width: 639px) {
