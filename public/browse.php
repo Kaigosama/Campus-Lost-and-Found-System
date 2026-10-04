@@ -202,7 +202,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     <form method="post" action="<?= e(url('/browse.php?manage=1')) ?>" class="inline-form" data-api="update_status" data-type="found" data-confirm="Change this item's status?">
                         <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
                         <label for="status-<?= $item['item_id'] ?>" class="sr-only">Status of <?= e($item['item_name']) ?></label>
-                        <select id="status-<?= $item['item_id'] ?>" name="status" class="inline-select">
+                        <select id="status-<?= $item['item_id'] ?>" name="status" class="inline-select" required>
                             <?= options(FOUND_STATUSES, $item['status']) ?>
                         </select>
                         <button type="submit" class="btn btn-secondary btn-sm">Save<span class="sr-only"> status of <?= e($item['item_name']) ?></span></button>

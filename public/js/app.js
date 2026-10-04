@@ -286,19 +286,43 @@
         if (!busy) { guardSubmit(form); syncReset(form); }
     }
 
-    // A reset button is enabled only once a field differs from how the page loaded, so there is something to undo.
-    function syncReset(form) {
-        var button = form.querySelector('button[type="reset"]');
-        if (!button) return;
-        button.disabled = !Array.prototype.some.call(form.elements, function (field) {
+    // Browser autofill counts as filled in, even before its value can be read (Chrome hides an autofilled password
+    // from scripts until the user interacts with the page).
+    function autofilled(field) {
+        try { return field.matches(':autofill'); } catch (e) {
+            try { return field.matches(':-webkit-autofill'); } catch (e2) { return false; }
+        }
+    }
+
+    // Has any field changed from how the page loaded?
+    function isDirty(form) {
+        return Array.prototype.some.call(form.elements, function (field) {
+            if (field.type === 'hidden' || !('value' in field) || field.tagName === 'BUTTON') return false;
+            if (autofilled(field)) return true;
             if (field.type === 'file') return field.files.length > 0;
             if (field.type === 'checkbox' || field.type === 'radio') return field.checked !== field.defaultChecked;
             if (field.tagName === 'SELECT') { // with no `selected` attribute the first option is the default
                 var initial = Array.prototype.findIndex.call(field.options, function (o) { return o.defaultSelected; });
                 return field.selectedIndex !== Math.max(initial, 0);
             }
-            return 'defaultValue' in field && field.type !== 'hidden' && field.value !== field.defaultValue;
+            return 'defaultValue' in field && field.value !== field.defaultValue;
         });
+    }
+
+    // Does every enabled required field hold something?
+    function requiredFilled(form) {
+        return Array.prototype.every.call(form.querySelectorAll('[required]'), function (field) {
+            if (field.disabled) return true;
+            if (field.type === 'checkbox') return field.checked;
+            if (field.type === 'file') return field.files.length > 0;
+            return field.value.trim() !== '' || autofilled(field);
+        });
+    }
+
+    // A reset button is enabled only once a field differs from how the page loaded, so there is something to undo.
+    function syncReset(form) {
+        var button = form.querySelector('button[type="reset"]');
+        if (button) button.disabled = !isDirty(form);
     }
     document.querySelectorAll('button[type="reset"]').forEach(function (button) {
         var form = button.form;
@@ -337,21 +361,29 @@
         });
     });
 
-    // form[data-submit-guard]: the submit button stays disabled until every field passes validateField(), checked
-    // on each keystroke and change. A button with data-requires="<name>" waits only for that field to hold at least
-    // data-min (default 1) characters, e.g. Approve needs a storage location and Reject a reason.
-    // Feedback only: the API validates every field again.
+    // Submit buttons stay disabled until the user has filled the form in. That covers forms with required fields and
+    // role="search" filter bars: a field must differ from how the page loaded, and every required field must hold
+    // something. form[data-submit-guard] also waits for every field to pass validateField(). A button with
+    // data-requires="<name>" waits only for that field to hold at least data-min (default 1) characters,
+    // e.g. Approve needs a storage location and Reject a reason. Feedback only: the API validates every field again.
+    function guarded(form) {
+        return form.hasAttribute('data-submit-guard') || form.matches('[role="search"]') || !!form.querySelector('[required]');
+    }
     function guardSubmit(form) {
-        if (!form.hasAttribute('data-submit-guard')) return;
-        var ready = Array.prototype.every.call(form.querySelectorAll('input, select, textarea'), function (field) { return !validateField(field); });
+        if (!guarded(form) || form.getAttribute('aria-busy') === 'true') return;   // setBusy() runs it again when done
+        var valid = form.hasAttribute('data-submit-guard')
+            ? Array.prototype.every.call(form.querySelectorAll('input, select, textarea'), function (field) { return !validateField(field); })
+            : requiredFilled(form);
+        var ready = valid && isDirty(form);
         form.querySelectorAll('button[type="submit"]').forEach(function (button) {
             var needed = button.dataset.requires && form.querySelector('[name="' + button.dataset.requires + '"]');
             button.disabled = needed ? needed.value.trim().length < (parseInt(button.dataset.min, 10) || 1) : !ready;
         });
         var hint = form.querySelector('[data-guard-hint]');
-        if (hint) hint.hidden = ready;
+        if (hint) hint.hidden = valid;
     }
-    document.querySelectorAll('form[data-submit-guard]').forEach(function (form) {
+    document.querySelectorAll('form').forEach(function (form) {
+        if (!guarded(form)) return;
         ['input', 'change'].forEach(function (type) {
             form.addEventListener(type, function (event) {
                 var confirmDup = form.querySelector('[name="confirm_duplicate"]');
@@ -360,6 +392,10 @@
             });
         });
         guardSubmit(form);
+    });
+    // Autofill lands after load without an input event: look again once it has had time to fill the fields.
+    [500, 1500, 3000].forEach(function (ms) {
+        setTimeout(function () { document.querySelectorAll('form').forEach(guardSubmit); }, ms);
     });
 
     function showApiError(form, error) {
@@ -531,7 +567,16 @@
         if (event.submitter && event.submitter.name) formData.append(event.submitter.name, event.submitter.value);
         setBusy(form, true);
         handler(form, fields(formData), formData)
-            .then(function () { if (document.body.contains(form)) setBusy(form, false); })
+            .then(function () {
+                if (!document.body.contains(form)) return;
+                // Saved: what is in the form now is the new starting point, so the buttons wait for the next change.
+                Array.prototype.forEach.call(form.elements, function (field) {
+                    if (field.tagName === 'SELECT') Array.prototype.forEach.call(field.options, function (o) { o.defaultSelected = o.selected; });
+                    else if (field.type === 'checkbox' || field.type === 'radio') field.defaultChecked = field.checked;
+                    else if ('defaultValue' in field && field.type !== 'file') field.defaultValue = field.value;
+                });
+                setBusy(form, false);
+            })
             .catch(function (error) {
                 showApiError(form, error);
                 setBusy(form, false);
