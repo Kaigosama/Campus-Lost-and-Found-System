@@ -333,6 +333,12 @@ fieldset.staff-only legend { color: var(--blue-dark); }
 
 /* ---------- 9. Item cards grid ---------- */
 .item-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+/* One full row: hide cards past the column count. Breakpoints = n columns of 240px + (n-1) 16px gaps.
+   Below two columns, three cards stack. */
+.item-grid-row { container-type: inline-size; }
+@container (width < 1264px) { .item-grid-row > :nth-child(n+5) { display: none; } }
+@container (width < 1008px) { .item-grid-row > :nth-child(n+4) { display: none; } }
+@container (496px <= width < 752px) { .item-grid-row > :nth-child(n+3) { display: none; } }
 [data-live-results][aria-busy="true"] { opacity: .5; transition: opacity .15s; }
 /* The title link is stretched over the whole card, so each card is one tab stop and one big click target. */
 .item-card {

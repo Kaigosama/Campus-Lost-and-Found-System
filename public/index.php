@@ -29,7 +29,7 @@ if (!$user) {
     $storedCount   = count(public_found_items());
     $returnedCount = count_where(all_found_items(), 'status', 'returned');
     $openReports   = count_where(all_lost_reports(), 'status', 'open');
-    $recentItems   = array_slice(newest_first(array_values(public_found_items()), 'date_found'), 0, 3);
+    $recentItems   = array_slice(newest_first(array_values(public_found_items()), 'date_found'), 0, 5); // CSS trims to one full row
     $reunited      = array_slice(newest_first(where(all_found_items(), 'status', 'returned'), 'updated_at'), 0, 3);
 
     include APP_ROOT . '/templates/layout/header.php';
@@ -98,7 +98,7 @@ if (!$user) {
         <h2>Recently turned in</h2>
         <a href="<?= e(url('/browse.php')) ?>">See all found items &rarr;</a>
     </div>
-    <div class="item-grid">
+    <div class="item-grid item-grid-row">
         <?php foreach ($recentItems as $item) echo item_card($item); ?>
     </div>
 </section>
