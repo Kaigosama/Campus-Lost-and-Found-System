@@ -493,6 +493,7 @@ img[data-lightbox]:not(a img) { cursor: zoom-in; }
 .pagination a:hover { border-color: var(--blue); color: var(--blue); text-decoration: none; }
 .pagination .current { background: var(--blue); border-color: var(--blue); color: #fff; }
 .pagination .disabled { opacity: .45; }
+.pagination .page-of { border-color: transparent; background: none; color: var(--muted); }
 
 /* ---------- 14. Landing page ---------- */
 .hero {

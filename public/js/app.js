@@ -329,9 +329,12 @@
         });
     });
 
-    // form[data-auto-submit]: changing any field submits the form, so it needs no Apply button.
+    // form[data-auto-submit]: changing a select or date submits the form, so it needs no Apply button.
+    // Typed searches wait for Enter or the Search button (a "change" on blur would race a click on Reset).
     document.querySelectorAll('form[data-auto-submit]').forEach(function (form) {
-        form.addEventListener('change', function () { form.submit(); });
+        form.addEventListener('change', function (event) {
+            if (!event.target.matches('input[type="search"], input[type="text"]')) form.submit();
+        });
     });
 
     // form[data-submit-guard]: the submit button stays disabled until every field passes validateField(), checked

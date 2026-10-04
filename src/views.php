@@ -80,6 +80,20 @@ function pagination(int $page, int $totalPages): string
     return ob_get_clean();
 }
 
+/** Prev / Next arrows only, for a table paged by its own query parameter ($param) and scrolled back to #$anchor. */
+function arrow_pager(int $page, int $totalPages, string $param, string $anchor): string
+{
+    if ($totalPages <= 1) {
+        return '';
+    }
+    $link = fn (int $n, string $rel, string $label) => '<a href="' . e(url_with([$param => $n]) . '#' . $anchor) . '" rel="' . $rel . '" aria-label="' . $label . ' page">' . ($rel === 'prev' ? '&larr;' : '&rarr;') . '</a>';
+    $html = '<nav class="pagination" aria-label="' . e($anchor) . ' pages">';
+    $html .= $page > 1 ? $link($page - 1, 'prev', 'Previous') : '<span class="disabled" aria-hidden="true">&larr;</span>';
+    $html .= '<span class="page-of">Page ' . $page . ' of ' . $totalPages . '</span>';
+    $html .= $page < $totalPages ? $link($page + 1, 'next', 'Next') : '<span class="disabled" aria-hidden="true">&rarr;</span>';
+    return $html . '</nav>';
+}
+
 /** Filter tabs from [key => label] with a count per key; $param is the query parameter that selects a tab. */
 function pill_tabs(array $tabs, array $counts, string $current, string $param): string
 {
