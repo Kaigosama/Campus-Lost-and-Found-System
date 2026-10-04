@@ -22,6 +22,9 @@ $sort     = $_GET['sort'] ?? 'newest';
 
 if ($type === 'lost') {
     $pageTitle = 'All lost reports';
+    // reports are dated within the past year: keep both ends of the range inside it
+    if ($from !== '') $from = min(max($from, earliest_item_date()), date('Y-m-d'));
+    if ($to !== '')   $to   = min(max($to, earliest_item_date()), date('Y-m-d'));
     $rows = search_rows(array_values(all_lost_reports()), $q, ['status' => $status, 'category' => $category]);
     if ($status === '') $rows = array_values(array_filter($rows, fn ($r) => !is_moderated_report($r)));   // rejected / false / spam only when asked for
     if ($from) $rows = array_values(array_filter($rows, fn ($r) => $r['date_lost'] >= $from));
@@ -97,11 +100,11 @@ include APP_ROOT . '/templates/layout/header.php';
     </div>
     <div class="form-group filter-extra">
         <label for="from">Lost from</label>
-        <input type="date" id="from" name="from" value="<?= e($from) ?>">
+        <input type="date" id="from" name="from" value="<?= e($from) ?>" min="<?= earliest_item_date() ?>" max="<?= date('Y-m-d') ?>">
     </div>
     <div class="form-group filter-extra">
         <label for="to">Lost to</label>
-        <input type="date" id="to" name="to" value="<?= e($to) ?>">
+        <input type="date" id="to" name="to" value="<?= e($to) ?>" min="<?= earliest_item_date() ?>" max="<?= date('Y-m-d') ?>">
     </div>
     <button type="submit" class="btn btn-primary">Filter</button>
     <a class="btn btn-secondary" href="<?= e(url('/browse.php?type=lost')) ?>">Reset</a>
