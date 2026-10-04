@@ -283,8 +283,25 @@
     function setBusy(form, busy) {
         form.querySelectorAll('button, select').forEach(function (el) { el.disabled = busy; });
         form.setAttribute('aria-busy', busy ? 'true' : 'false');
-        if (!busy) guardSubmit(form);
+        if (!busy) { guardSubmit(form); syncReset(form); }
     }
+
+    // A reset button is enabled only once a field differs from how the page loaded, so there is something to undo.
+    function syncReset(form) {
+        var button = form.querySelector('button[type="reset"]');
+        if (!button) return;
+        button.disabled = !Array.prototype.some.call(form.elements, function (field) {
+            if (field.type === 'file') return field.files.length > 0;
+            if (field.type === 'checkbox' || field.type === 'radio') return field.checked !== field.defaultChecked;
+            if (field.tagName === 'SELECT') return Array.prototype.some.call(field.options, function (o) { return o.selected !== o.defaultSelected; });
+            return 'defaultValue' in field && field.type !== 'hidden' && field.value !== field.defaultValue;
+        });
+    }
+    document.querySelectorAll('button[type="reset"]').forEach(function (button) {
+        var form = button.form;
+        ['input', 'change'].forEach(function (type) { form.addEventListener(type, function () { syncReset(form); }); });
+        syncReset(form);
+    });
 
     // input[data-other-for="<select name>"]: typed into only while that select is on "Other". Disabled, it is skipped
     // by validation and left out of the request.
@@ -293,6 +310,19 @@
         select.addEventListener('change', function () {
             input.disabled = select.value !== 'Other';
             if (input.disabled) clearError(input); else input.focus();
+        });
+    });
+
+    // A reset button restores the fields but not the state scripts keep: once it has run, clear errors and
+    // replay "change" on selects and file inputs so "Other" boxes, photo previews and the submit guard catch up.
+    document.addEventListener('reset', function (event) {
+        var form = event.target;
+        setTimeout(function () {
+            form.querySelectorAll('.is-invalid').forEach(clearError);
+            formAlert(form, '', '');
+            form.querySelectorAll('select, input[type="file"]').forEach(function (field) {
+                field.dispatchEvent(new Event('change', { bubbles: true }));
+            });
         });
     });
 

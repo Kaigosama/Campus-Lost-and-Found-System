@@ -17,6 +17,15 @@ function empty_state(string $title, string $text = '', string $actionUrl = '', s
     return $html . '</div>';
 }
 
+/**
+ * Reset button for a long form: puts every field back to how the page loaded (blank, or the saved values when editing).
+ * app.js keeps it disabled until a field has changed.
+ */
+function reset_button(): string
+{
+    return '<button type="reset" class="btn btn-ghost btn-lg" data-confirm="Are you sure you would like to reset?">Reset</button>';
+}
+
 /** Found-item card for the browse grid. Public fields only. */
 function item_card(array $item): string
 {

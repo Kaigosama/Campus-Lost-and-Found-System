@@ -168,6 +168,7 @@ include APP_ROOT . '/templates/layout/header.php';
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary btn-lg"><?= $editing ? 'Save changes' : ($isPost ? 'Submit for review' : 'Save to storage') ?></button>
+                <?= reset_button() ?>
                 <a class="btn btn-secondary btn-lg" href="<?= e($editing ? item_url('found', $id) : url($isPost ? '/' : '/browse.php?manage=1')) ?>">Cancel</a>
                 <span class="form-hint" data-guard-hint hidden>Please complete all required fields before submitting.</span>
             </div>
@@ -286,6 +287,7 @@ include APP_ROOT . '/templates/layout/header.php';
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary btn-lg"><?= $editing ? 'Save changes' : 'Submit report' ?></button>
+                <?= reset_button() ?>
                 <a class="btn btn-secondary btn-lg" href="<?= e($editing ? item_url('lost', $id) : url('/')) ?>">Cancel</a>
                 <span class="form-hint" data-guard-hint hidden>Please complete all required fields before submitting.</span>
             </div>
