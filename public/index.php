@@ -426,6 +426,32 @@ include APP_ROOT . '/templates/layout/header.php';
             <?php endif; ?>
         </div>
 
+        <div class="card">
+            <div class="card-header">
+                <h2>Posts awaiting review</h2>
+                <a href="<?= e(url('/?tab=moderation')) ?>" class="btn btn-outline btn-sm">All posts</a>
+            </div>
+            <?php if ($pendingPosts): ?>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Item</th><th>Posted by</th><th>Submitted</th><th class="actions"></th></tr></thead>
+                    <tbody>
+                    <?php foreach ($pendingPosts as $post): ?>
+                        <tr>
+                            <td><span class="table-title"><?= e($post['item_name']) ?></span><span class="table-sub"><?= e($post['category']) ?></span></td>
+                            <td><?= e(full_name(find_user($post['user_id']))) ?></td>
+                            <td class="nowrap"><?= e(format_datetime($post['created_at'])) ?></td>
+                            <td class="actions"><a class="btn btn-primary btn-sm" href="<?= e(item_url('found', $post['item_id'])) ?>">Review</a></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php else: ?>
+                <p class="text-muted mb-0">No posts waiting for review.</p>
+            <?php endif; ?>
+        </div>
+
     <?php else: ?>
         <?php   // approved claims stay "approved" after pickup; only those whose item is still in storage await collection
         $myApprovedClaims = count(array_filter($myClaims, fn ($c) => $c['status'] === 'approved' && find_found_item($c['item_id'])['status'] === 'stored')); ?>
