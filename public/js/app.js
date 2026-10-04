@@ -326,6 +326,11 @@
         });
     });
 
+    // form[data-auto-submit]: changing any field submits the form, so it needs no Apply button.
+    document.querySelectorAll('form[data-auto-submit]').forEach(function (form) {
+        form.addEventListener('change', function () { form.submit(); });
+    });
+
     // form[data-submit-guard]: the submit button stays disabled until every field passes validateField(), checked
     // on each keystroke and change. A button with data-requires="<name>" waits only for that field to hold at least
     // data-min (default 1) characters, e.g. Approve needs a storage location and Reject a reason.

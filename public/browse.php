@@ -151,7 +151,7 @@ include APP_ROOT . '/templates/layout/header.php';
 
 <div class="table-tools">
     <input type="search" placeholder="Quick filter this list…" aria-label="Filter table" data-table-filter="#itemsTable">
-    <form method="get" action="<?= e(url('/browse.php')) ?>" class="flex gap-1 items-center">
+    <form method="get" action="<?= e(url('/browse.php')) ?>" class="flex gap-1 items-center" data-auto-submit>
         <input type="hidden" name="manage" value="1">
         <?php if ($status): ?><input type="hidden" name="status" value="<?= e($status) ?>"><?php endif; ?>
         <label for="category" class="sr-only">Category</label>
@@ -163,7 +163,10 @@ include APP_ROOT . '/templates/layout/header.php';
         <select id="manage-sort" name="sort" class="inline-select">
             <?= options(array_map(fn ($s) => $s[0], $manageSorts), $sort) ?>
         </select>
-        <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
+        <noscript><button type="submit" class="btn btn-secondary btn-sm">Apply</button></noscript>
+        <?php if ($category !== '' || $sort !== 'newest'): ?>
+            <a class="btn btn-ghost btn-sm" href="<?= e(url('/browse.php?manage=1&sort=newest' . ($status ? '&status=' . rawurlencode($status) : ''))) ?>">Clear</a>
+        <?php endif; ?>
     </form>
     <span class="text-sm text-muted">Showing <span data-filter-count="#itemsTable"><?= count($rows) ?></span></span>
 </div>
