@@ -293,7 +293,10 @@
         button.disabled = !Array.prototype.some.call(form.elements, function (field) {
             if (field.type === 'file') return field.files.length > 0;
             if (field.type === 'checkbox' || field.type === 'radio') return field.checked !== field.defaultChecked;
-            if (field.tagName === 'SELECT') return Array.prototype.some.call(field.options, function (o) { return o.selected !== o.defaultSelected; });
+            if (field.tagName === 'SELECT') { // with no `selected` attribute the first option is the default
+                var initial = Array.prototype.findIndex.call(field.options, function (o) { return o.defaultSelected; });
+                return field.selectedIndex !== Math.max(initial, 0);
+            }
             return 'defaultValue' in field && field.type !== 'hidden' && field.value !== field.defaultValue;
         });
     }
