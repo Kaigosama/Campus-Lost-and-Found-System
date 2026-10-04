@@ -64,7 +64,7 @@ if ($type === 'lost') {
     usort($rows, fn ($a, $b) => $sort === 'oldest'
         ? strcmp($a['date_found'], $b['date_found'])
         : strcmp($b['date_found'], $a['date_found']));
-    [$pageRows, $page, $totalPages] = paginate($rows, 8);
+    [$pageRows, $page, $totalPages] = paginate($rows, 10);
 }
 
 include APP_ROOT . '/templates/layout/header.php';
