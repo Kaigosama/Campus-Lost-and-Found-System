@@ -429,7 +429,18 @@
         },
         moderate: function (form, data) {
             return ClafsApi.moderateItem(parseInt(data.id, 10), data.moderation, data.review_note, data.storage_location)
-                .then(function (result) { finish(form, result.message); });
+                .then(function (result) {
+                    // Match what a reload would show: no banner once approved, a "Not approved" one once rejected.
+                    var banner = document.querySelector('[data-moderation-banner]');
+                    if (banner && result.status === 'approved') banner.remove();
+                    if (banner && result.status === 'rejected') {
+                        banner.className = 'alert alert-error mb-0';
+                        banner.innerHTML = '<strong>Not approved.</strong> This post is not public. ' + escapeHtml(data.review_note.trim());
+                    }
+                    var storage = document.querySelector('[data-storage-location]');
+                    if (storage) storage.textContent = result.storage_location || '';
+                    finish(form, result.message);
+                });
         },
         review: function (form, data) {
             return ClafsApi.reviewClaim(parseInt(data.claim_id, 10), data.decision, data.review_note)

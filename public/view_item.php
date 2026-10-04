@@ -251,7 +251,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <p>Item #<?= $item['item_id'] ?> &middot; turned in <?= e(format_date($item['date_found'])) ?></p>
     </div>
     <?php if ($item['moderation_status'] !== 'approved' && ($isPoster || is_staff())): ?>
-        <div class="alert alert-<?= $item['moderation_status'] === 'pending' ? 'warning' : 'error' ?> mb-0" role="status">
+        <div class="alert alert-<?= $item['moderation_status'] === 'pending' ? 'warning' : 'error' ?> mb-0" role="status" data-moderation-banner>
             <?php if ($item['moderation_status'] === 'pending'): ?>
                 <strong>Pending review.</strong> This post is not public yet<?= $isPoster ? '. Bring the item to the Lost &amp; Found office so staff can approve it.' : '.' ?>
             <?php else: ?>
@@ -307,7 +307,7 @@ include APP_ROOT . '/templates/layout/header.php';
                 <span class="badge badge-role-staff">Not visible to users</span>
             </div>
             <dl class="detail-list">
-                <dt>Storage location</dt><dd class="fw-600"><?= e($item['storage_location']) ?></dd>
+                <dt>Storage location</dt><dd class="fw-600" data-storage-location><?= e($item['storage_location']) ?></dd>
                 <dt>Private details</dt><dd><div class="quote staff"><?= e($item['private_details']) ?></div></dd>
                 <dt>Logged by</dt><dd><?= e(full_name($loggedBy)) ?> &middot; <?= e(format_datetime($item['created_at'])) ?></dd>
                 <?php if ($item['returned_at'] && $item['status'] !== 'returned'): // the details card shows the date while it is still returned ?>

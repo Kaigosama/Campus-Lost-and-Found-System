@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../src/bootstrap.php';
  *   { type: 'found', id, moderation: 'approved'|'rejected', review_note?, storage_location? }
  *   → staff review of a student's found-item post. Approving needs a storage location; rejecting needs a reason.
  * Response: { ok, type, id, previous, status, message, rejected_claims: [claim_id…] }
+ *   (moderation responses also carry storage_location)
  */
 require_method('POST');
 if (!is_logged_in()) {
@@ -59,7 +60,7 @@ if ($type === 'found' && isset($in['moderation'])) {
     log_event($status === 'approved' ? 'post_approved' : 'post_rejected', find_user($row['user_id']),
         ['item_id' => $id, 'item_name' => $row['item_name']] + ($note !== '' ? ['reason' => $note] : []));
     json_response([
-        'ok' => true, 'type' => 'found', 'id' => $id, 'previous' => 'pending', 'status' => $status, 'rejected_claims' => [],
+        'ok' => true, 'type' => 'found', 'id' => $id, 'previous' => 'pending', 'status' => $status, 'storage_location' => $storage, 'rejected_claims' => [],
         'message' => $status === 'approved' ? "Post #$id approved. It is now listed publicly." : "Post #$id rejected. The poster can see your reason.",
     ]);
 }
