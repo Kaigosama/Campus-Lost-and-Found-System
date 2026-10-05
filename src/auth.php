@@ -213,6 +213,8 @@ function register_user(array $in, bool $captchaPassed): array
         $errors['email'] = 'Enter a valid email address.';
     } elseif ($message = email_typo_error($email)) {
         $errors['email'] = $message;
+    } elseif (!email_domain_exists($email)) {
+        $errors['email'] = 'That email domain doesn\'t exist. Check the part after the @.';
     }
     $password = (string) ($in['password'] ?? '');
     $confirm  = (string) ($in['password_confirm'] ?? '');

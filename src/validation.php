@@ -87,16 +87,22 @@ function name_error(string $name, string $label, int $min): ?string
  * the confirmation link would go to a stranger. public/js/app.js has the same lists; keep them in step.
  */
 const EMAIL_DOMAIN_TYPOS = [
-    'gmail.com'           => ['gmial.com', 'gmai.com', 'gmal.com', 'gamil.com', 'gmali.com', 'gnail.com', 'gmaill.com', 'gmaul.com', 'gmail.co', 'gmail.cm', 'gmail.om', 'gmail.c'],
-    'yahoo.com'           => ['yaho.com', 'yahooo.com', 'yhoo.com', 'yahoo.co', 'yahoo.cm'],
-    'hotmail.com'         => ['hotmial.com', 'hotmal.com', 'hotmai.com', 'hotmil.com', 'hotnail.com', 'hotmail.co', 'hotmail.cm'],
-    'outlook.com'         => ['outlok.com', 'outllok.com', 'outloo.com', 'oulook.com', 'otlook.com', 'outlook.co', 'outlook.cm'],
-    'icloud.com'          => ['iclod.com', 'icoud.com', 'icloud.co', 'icloud.cm'],
-    'mapua.edu.ph'        => ['mapua.edu', 'mapua.ph', 'mapua.com', 'mapua.edu.com'],
-    'mymail.mapua.edu.ph' => ['mymail.mapua.edu', 'mymail.mapua.ph', 'mymail.mapua.com', 'mymail.mapua.edu.com'],
+    'gmail.com'   => ['gmial.com', 'gmai.com', 'gmal.com', 'gamil.com', 'gmali.com', 'gnail.com', 'gmaill.com', 'gmaul.com'],
+    'yahoo.com'   => ['yaho.com', 'yahooo.com', 'yhoo.com', 'yahoo.co', 'yahoo.cm'],
+    'hotmail.com' => ['hotmial.com', 'hotmal.com', 'hotmai.com', 'hotmil.com', 'hotnail.com', 'hotmail.co', 'hotmail.cm'],
+    'outlook.com' => ['outlok.com', 'outllok.com', 'outloo.com', 'oulook.com', 'otlook.com', 'outlook.co', 'outlook.cm'],
+    'icloud.com'  => ['iclod.com', 'icoud.com'],
 ];
-/** Domains with no real sub-variants, so anything after them is a typo (gmail.com.ph means gmail.com). */
-const EMAIL_EXACT_DOMAINS = ['gmail.com', 'outlook.com', 'icloud.com', 'mapua.edu.ph', 'mymail.mapua.edu.ph'];
+/**
+ * Providers with a single domain, as start => domain: anything else that starts the same is a typo
+ * (gmail.co, gmail.com.ph, gmail.sdhskdjfjk all mean gmail.com). Yahoo and Hotmail have real country domains.
+ */
+const EMAIL_ONLY_DOMAINS = [
+    'gmail.'        => 'gmail.com',
+    'icloud.'       => 'icloud.com',
+    'mapua.'        => 'mapua.edu.ph',
+    'mymail.mapua.' => 'mymail.mapua.edu.ph',
+];
 /** Misspellings of the .com ending; none is a real top-level domain. */
 const EMAIL_TLD_TYPOS = ['con', 'cmo', 'ocm', 'comm', 'coom', 'conm', 'cpm', 'vom', 'xom', 'cim'];
 
@@ -120,12 +126,22 @@ function email_typo_error(string $email): ?string
             $fixed = $meant;
         }
     }
-    foreach (EMAIL_EXACT_DOMAINS as $exact) {
-        if (str_starts_with($fixed, $exact . '.')) {
-            $fixed = $exact;
+    foreach (EMAIL_ONLY_DOMAINS as $start => $only) {
+        if (str_starts_with($fixed, $start)) {
+            $fixed = $only;
         }
     }
     return $fixed === $domain ? null : 'Check the email address. Did you mean ' . substr($email, 0, $at + 1) . $fixed . '?';
+}
+
+/**
+ * Whether $email's domain exists in DNS and can take mail: an MX record, or an address (mail falls back to it).
+ * Catches made-up domains (gmail.sdhskdjfjk) that no typo list can. Server only; the browser can't look up DNS.
+ */
+function email_domain_exists(string $email): bool
+{
+    $domain = substr($email, strrpos($email, '@') + 1) . '.';   // trailing dot: no local search suffix is tried
+    return checkdnsrr($domain, 'MX') || checkdnsrr($domain, 'A') || checkdnsrr($domain, 'AAAA');
 }
 
 /** Password policy; public/js/app.js shows the same rules as a live checklist. */

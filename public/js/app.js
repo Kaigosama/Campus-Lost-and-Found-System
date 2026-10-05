@@ -137,15 +137,13 @@
 
     /* ---- Email typos (same lists as email_typo_error() in src/validation.php) ---- */
     var EMAIL_DOMAIN_TYPOS = {
-        'gmail.com': ['gmial.com', 'gmai.com', 'gmal.com', 'gamil.com', 'gmali.com', 'gnail.com', 'gmaill.com', 'gmaul.com', 'gmail.co', 'gmail.cm', 'gmail.om', 'gmail.c'],
+        'gmail.com': ['gmial.com', 'gmai.com', 'gmal.com', 'gamil.com', 'gmali.com', 'gnail.com', 'gmaill.com', 'gmaul.com'],
         'yahoo.com': ['yaho.com', 'yahooo.com', 'yhoo.com', 'yahoo.co', 'yahoo.cm'],
         'hotmail.com': ['hotmial.com', 'hotmal.com', 'hotmai.com', 'hotmil.com', 'hotnail.com', 'hotmail.co', 'hotmail.cm'],
         'outlook.com': ['outlok.com', 'outllok.com', 'outloo.com', 'oulook.com', 'otlook.com', 'outlook.co', 'outlook.cm'],
-        'icloud.com': ['iclod.com', 'icoud.com', 'icloud.co', 'icloud.cm'],
-        'mapua.edu.ph': ['mapua.edu', 'mapua.ph', 'mapua.com', 'mapua.edu.com'],
-        'mymail.mapua.edu.ph': ['mymail.mapua.edu', 'mymail.mapua.ph', 'mymail.mapua.com', 'mymail.mapua.edu.com']
+        'icloud.com': ['iclod.com', 'icoud.com']
     };
-    var EMAIL_EXACT_DOMAINS = ['gmail.com', 'outlook.com', 'icloud.com', 'mapua.edu.ph', 'mymail.mapua.edu.ph'];
+    var EMAIL_ONLY_DOMAINS = { 'gmail.': 'gmail.com', 'icloud.': 'icloud.com', 'mapua.': 'mapua.edu.ph', 'mymail.mapua.': 'mymail.mapua.edu.ph' };
     var EMAIL_TLD_TYPOS = ['con', 'cmo', 'ocm', 'comm', 'coom', 'conm', 'cpm', 'vom', 'xom', 'cim'];
     function emailTypoError(email) {
         email = email.toLowerCase();
@@ -157,8 +155,8 @@
         Object.keys(EMAIL_DOMAIN_TYPOS).forEach(function (meant) {
             if (EMAIL_DOMAIN_TYPOS[meant].indexOf(fixed) !== -1) fixed = meant;
         });
-        EMAIL_EXACT_DOMAINS.forEach(function (exact) {
-            if (fixed.indexOf(exact + '.') === 0) fixed = exact;
+        Object.keys(EMAIL_ONLY_DOMAINS).forEach(function (start) {
+            if (fixed.indexOf(start) === 0) fixed = EMAIL_ONLY_DOMAINS[start];
         });
         return fixed === domain ? '' : 'Check the email address. Did you mean ' + email.slice(0, at + 1) + fixed + '?';
     }
