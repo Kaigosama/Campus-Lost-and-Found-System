@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Form validation for items and passwords. Each returns field => message errors.
+ * Form validation for items, emails and passwords. Each returns field => message errors.
  */
 
 /**
@@ -80,6 +80,52 @@ function name_error(string $name, string $label, int $min): ?string
         !preg_match(NAME_PATTERN, $name) => "$label: use letters only (spaces, hyphens, apostrophes and periods are allowed).",
         default                          => null,
     };
+}
+
+/**
+ * Mistyped email domains, as meant domain => typos. A typo'd domain often still takes mail (gmail.com.com.com does), so
+ * the confirmation link would go to a stranger. public/js/app.js has the same lists; keep them in step.
+ */
+const EMAIL_DOMAIN_TYPOS = [
+    'gmail.com'           => ['gmial.com', 'gmai.com', 'gmal.com', 'gamil.com', 'gmali.com', 'gnail.com', 'gmaill.com', 'gmaul.com', 'gmail.co', 'gmail.cm', 'gmail.om', 'gmail.c'],
+    'yahoo.com'           => ['yaho.com', 'yahooo.com', 'yhoo.com', 'yahoo.co', 'yahoo.cm'],
+    'hotmail.com'         => ['hotmial.com', 'hotmal.com', 'hotmai.com', 'hotmil.com', 'hotnail.com', 'hotmail.co', 'hotmail.cm'],
+    'outlook.com'         => ['outlok.com', 'outllok.com', 'outloo.com', 'oulook.com', 'otlook.com', 'outlook.co', 'outlook.cm'],
+    'icloud.com'          => ['iclod.com', 'icoud.com', 'icloud.co', 'icloud.cm'],
+    'mapua.edu.ph'        => ['mapua.edu', 'mapua.ph', 'mapua.com', 'mapua.edu.com'],
+    'mymail.mapua.edu.ph' => ['mymail.mapua.edu', 'mymail.mapua.ph', 'mymail.mapua.com', 'mymail.mapua.edu.com'],
+];
+/** Domains with no real sub-variants, so anything after them is a typo (gmail.com.ph means gmail.com). */
+const EMAIL_EXACT_DOMAINS = ['gmail.com', 'outlook.com', 'icloud.com', 'mapua.edu.ph', 'mymail.mapua.edu.ph'];
+/** Misspellings of the .com ending; none is a real top-level domain. */
+const EMAIL_TLD_TYPOS = ['con', 'cmo', 'ocm', 'comm', 'coom', 'conm', 'cpm', 'vom', 'xom', 'cim'];
+
+/** "Did you mean …?" when $email's domain looks mistyped (gmail.com.com, gmial.com, school.con), else null. */
+function email_typo_error(string $email): ?string
+{
+    $at     = strrpos($email, '@');
+    $domain = substr($email, $at + 1);
+    $labels = [];
+    foreach (explode('.', $domain) as $label) {   // a repeated part: gmail.com.com.com → gmail.com
+        if ($label !== end($labels)) {
+            $labels[] = $label;
+        }
+    }
+    if (in_array(end($labels), EMAIL_TLD_TYPOS, true)) {
+        $labels[array_key_last($labels)] = 'com';
+    }
+    $fixed = implode('.', $labels);
+    foreach (EMAIL_DOMAIN_TYPOS as $meant => $typos) {
+        if (in_array($fixed, $typos, true)) {
+            $fixed = $meant;
+        }
+    }
+    foreach (EMAIL_EXACT_DOMAINS as $exact) {
+        if (str_starts_with($fixed, $exact . '.')) {
+            $fixed = $exact;
+        }
+    }
+    return $fixed === $domain ? null : 'Check the email address. Did you mean ' . substr($email, 0, $at + 1) . $fixed . '?';
 }
 
 /** Password policy; public/js/app.js shows the same rules as a live checklist. */

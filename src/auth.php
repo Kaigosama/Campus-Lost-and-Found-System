@@ -211,6 +211,8 @@ function register_user(array $in, bool $captchaPassed): array
         $errors['email'] = 'Email is required.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 190) {
         $errors['email'] = 'Enter a valid email address.';
+    } elseif ($message = email_typo_error($email)) {
+        $errors['email'] = $message;
     }
     $password = (string) ($in['password'] ?? '');
     $confirm  = (string) ($in['password_confirm'] ?? '');

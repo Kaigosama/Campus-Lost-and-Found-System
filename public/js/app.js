@@ -135,6 +135,34 @@
         return value.length > 72 ? 'Password must be 72 characters or fewer.' : '';
     }
 
+    /* ---- Email typos (same lists as email_typo_error() in src/validation.php) ---- */
+    var EMAIL_DOMAIN_TYPOS = {
+        'gmail.com': ['gmial.com', 'gmai.com', 'gmal.com', 'gamil.com', 'gmali.com', 'gnail.com', 'gmaill.com', 'gmaul.com', 'gmail.co', 'gmail.cm', 'gmail.om', 'gmail.c'],
+        'yahoo.com': ['yaho.com', 'yahooo.com', 'yhoo.com', 'yahoo.co', 'yahoo.cm'],
+        'hotmail.com': ['hotmial.com', 'hotmal.com', 'hotmai.com', 'hotmil.com', 'hotnail.com', 'hotmail.co', 'hotmail.cm'],
+        'outlook.com': ['outlok.com', 'outllok.com', 'outloo.com', 'oulook.com', 'otlook.com', 'outlook.co', 'outlook.cm'],
+        'icloud.com': ['iclod.com', 'icoud.com', 'icloud.co', 'icloud.cm'],
+        'mapua.edu.ph': ['mapua.edu', 'mapua.ph', 'mapua.com', 'mapua.edu.com'],
+        'mymail.mapua.edu.ph': ['mymail.mapua.edu', 'mymail.mapua.ph', 'mymail.mapua.com', 'mymail.mapua.edu.com']
+    };
+    var EMAIL_EXACT_DOMAINS = ['gmail.com', 'outlook.com', 'icloud.com', 'mapua.edu.ph', 'mymail.mapua.edu.ph'];
+    var EMAIL_TLD_TYPOS = ['con', 'cmo', 'ocm', 'comm', 'coom', 'conm', 'cpm', 'vom', 'xom', 'cim'];
+    function emailTypoError(email) {
+        email = email.toLowerCase();
+        var at = email.lastIndexOf('@');
+        var domain = email.slice(at + 1);
+        var labels = domain.split('.').filter(function (label, i, all) { return i === 0 || label !== all[i - 1]; });
+        if (EMAIL_TLD_TYPOS.indexOf(labels[labels.length - 1]) !== -1) labels[labels.length - 1] = 'com';
+        var fixed = labels.join('.');
+        Object.keys(EMAIL_DOMAIN_TYPOS).forEach(function (meant) {
+            if (EMAIL_DOMAIN_TYPOS[meant].indexOf(fixed) !== -1) fixed = meant;
+        });
+        EMAIL_EXACT_DOMAINS.forEach(function (exact) {
+            if (fixed.indexOf(exact + '.') === 0) fixed = exact;
+        });
+        return fixed === domain ? '' : 'Check the email address. Did you mean ' + email.slice(0, at + 1) + fixed + '?';
+    }
+
     // Live checklist and Weak / Moderate / Strong label under input[data-password-policy]. A UI aid only:
     // the server rejects any password that misses a rule.
     document.querySelectorAll('input[data-password-policy]').forEach(function (input) {
@@ -235,6 +263,7 @@
             return 'Use letters only (spaces, hyphens, apostrophes and periods are allowed).';
         }
         if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email address.';
+        if (field.hasAttribute('data-email-typos') && emailTypoError(value)) return emailTypoError(value);
         if (field.dataset.match) {
             var other = field.form.querySelector('[name="' + field.dataset.match + '"]');
             if (other && other.value !== field.value) return 'Passwords do not match.';
