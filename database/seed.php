@@ -20,7 +20,9 @@ function connect(bool $withDatabase): PDO
 {
     $dsn = sprintf('mysql:host=%s;port=%d;charset=%s', DB_HOST, DB_PORT, DB_CHARSET)
         . ($withDatabase ? ';dbname=' . DB_NAME : '');
-    return new PDO($dsn, DB_USER, DB_PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $pdo = new PDO($dsn, DB_USER, DB_PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $pdo->exec("SET time_zone = '" . date('P') . "'");   // like db(): rows a migration adds get Manila timestamps, not UTC
+    return $pdo;
 }
 
 for ($attempt = 1; ; $attempt++) {
@@ -72,8 +74,8 @@ foreach (glob(APP_ROOT . '/database/migrations/*.sql') as $file) {
     $pdo->prepare('INSERT INTO schema_migrations (name) VALUES (?)')->execute([$name]);
 }
 
-if ($n = delete_expired_unverified()) {
-    log_line("Deleted $n unverified student/faculty account(s) whose confirmation link expired.");
+foreach (run_retention() as $what => $n) {
+    log_line("Retention: $n $what.");
 }
 
 // The seeded accounts share one sample password; SEED_PASSWORD replaces it on a public deploy,
