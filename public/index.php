@@ -4,10 +4,11 @@ require_once __DIR__ . '/../src/bootstrap.php';
 /**
  * Guests      → landing page. Logging in and registering happen on login.php and register.php;
  *               old /?next= and /?reset=1 links are forwarded to login.php.
- * Logged in   → dashboard tabs: overview | account   students/faculty: + reports (their own) | my_claims | posts
- *               staff: + reports | queue | moderation | disposed | stats
- *               admins: + reports | queue | disposed | stats (the staff monitoring views, read-only)
+ * Logged in   → dashboard sections (dashboard_tabs()): overview | account   students/faculty: + reports (their own) | my_claims | posts
+ *               staff: + reports | items | queue | returned | disposed | moderation | stats
+ *               admins: + reports | items | queue | returned | disposed | stats (the staff views, read-only)
  *                       + users (with account activity) | categories | visitors | logs
+ *               Every management list lives here, once; old browse.php?manage=1 / ?type=lost links redirect here.
  *               POST on ?tab=account changes the password.
  * POST ?action=logout ends the session. It must be a POST so another site can't log visitors out with a link.
  */
@@ -169,22 +170,7 @@ if (is_admin()) {
     run_retention();   // keeps the Users list free of sign-ups that never confirmed; drops old visitor records and ID numbers
 }
 
-$allTabs = [ // key => [label, required role(s) or null]
-    'overview'  => ['Overview', null],
-    // Staff and admins see every lost report and claim here (admins read-only); students and faculty see their own.
-    'reports'   => [can_monitor() ? 'Lost Reports' : 'My Lost Reports', ['user', ...MONITOR_ROLES]],
-    'my_claims' => ['My Claims', 'user'],   // staff never file claims
-    'posts'     => ['My Found Posts', 'user'],
-    'queue'     => ['Claims', MONITOR_ROLES],
-    'moderation' => ['Post Review', REVIEWER_ROLES],
-    'disposed'  => ['Disposed Items', MONITOR_ROLES],
-    'stats'     => ['Statistics', MONITOR_ROLES],
-    'users'     => ['Users & Activity', ADMIN_ROLES],
-    'categories' => ['Categories', ADMIN_ROLES],
-    'visitors'  => ['Visitors', ADMIN_ROLES],
-    'logs'      => ['Security Logs', ADMIN_ROLES],
-    'account'   => ['Account', null],
-];
+$allTabs = dashboard_tabs(true);
 $tab = $_GET['tab'] ?? 'overview';
 if (!isset($allTabs[$tab])) {
     abort(404, 'Page not found', '', url('/'), 'Back to dashboard');
@@ -192,7 +178,14 @@ if (!isset($allTabs[$tab])) {
 if ($allTabs[$tab][1] !== null) {
     require_role($allTabs[$tab][1]);
 }
-$tabs = array_filter($allTabs, fn ($t) => $t[1] === null || has_role($t[1]));
+if ($tab === 'queue' && ($_GET['status'] ?? '') === 'returned') {   // returns used to be a Claims filter
+    header('Location: ' . dashboard_url('returned'));
+    exit;
+}
+// Remember each list's filters, sort and page so a record's Back link returns to the list as it was.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['id'])) {
+    $_SESSION['list_state'][$tab] = array_diff_key($_GET, ['tab' => 1, 'changed' => 1]);
+}
 
 $errors = [];
 if ($tab === 'account' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -209,9 +202,11 @@ $myClaims  = newest_first(where(all_claims(), 'user_id', $user['user_id']));
 $storedCount = count(public_found_items());
 $pendingPosts = newest_first(where(all_found_items(), 'moderation_status', 'pending'));
 
-$pageTitle = $tab === 'overview' ? 'Dashboard' : $allTabs[$tab][0];
+$pageTitle = $allTabs[$tab][0];
 include APP_ROOT . '/templates/layout/header.php';
 ?>
+
+<?= dashboard_nav($tab) ?>
 
 <?php if ($tab === 'overview'): ?>
 <div class="page-header">
@@ -291,18 +286,20 @@ include APP_ROOT . '/templates/layout/header.php';
 <div class="page-header">
     <div><h1>Account</h1><p>Your profile and password.</p></div>
 </div>
+<?php elseif ($tab === 'items'): ?>
+<div class="page-header">
+    <div><h1>Found items</h1><p>Items in storage, student posts included. Returned and disposed items are kept under their own sections.<?= is_staff() ? '' : ' Read-only for administrators.' ?></p></div>
+    <?php if (is_staff()): ?><a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a><?php endif; ?>
+</div>
+<?php elseif ($tab === 'returned'): ?>
+<div class="page-header">
+    <div><h1>Returned items</h1><p>Every hand-over to an owner, newest first, with the claim, the ID check and the staff involved.</p></div>
+</div>
 <?php else: ?>
 <div class="page-header">
     <div><h1>Statistics</h1><p>How the Lost &amp; Found office is doing this semester.</p></div>
-    <a class="btn btn-outline" href="<?= e(url('/browse.php?manage=1')) ?>">Manage found items</a>
 </div>
 <?php endif; ?>
-
-<nav class="tab-bar" aria-label="Dashboard sections">
-    <?php foreach ($tabs as $key => [$label]): ?>
-        <a href="<?= e(url($key === 'overview' ? '/' : '/?tab=' . $key)) ?>" <?= $tab === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a>
-    <?php endforeach; ?>
-</nav>
 
 <?php /* ================================================== OVERVIEW */ ?>
 <?php if ($tab === 'overview'): ?>
@@ -342,7 +339,6 @@ include APP_ROOT . '/templates/layout/header.php';
         <section class="section">
             <div class="section-title">
                 <h2>Item monitoring</h2>
-                <a href="<?= e(url('/browse.php?manage=1')) ?>">All found items &rarr;</a>
             </div>
             <div class="stat-grid">
                 <div class="stat-card warning">
@@ -353,7 +349,7 @@ include APP_ROOT . '/templates/layout/header.php';
                 <div class="stat-card">
                     <span class="stat-label">Items in storage</span>
                     <span class="stat-value"><?= $storedCount ?></span>
-                    <a href="<?= e(url('/browse.php?manage=1&status=stored')) ?>">Monitor items &rarr;</a>
+                    <a href="<?= e(dashboard_url('items')) ?>">Found items &rarr;</a>
                 </div>
                 <div class="stat-card info">
                     <span class="stat-label">Open lost reports</span>
@@ -372,7 +368,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <section class="section" id="returns">
             <div class="section-title">
                 <h2>Successful returns <span class="count-pill"><?= count($returns) ?></span></h2>
-                <a href="<?= e(url('/?tab=queue&status=returned')) ?>">All returns in Claims &rarr;</a>
+                <a href="<?= e(dashboard_url('returned')) ?>">All returned items &rarr;</a>
             </div>
             <?= returns_table(array_slice($returns, 0, 5), 'dashReturns') ?>
         </section>
@@ -437,17 +433,17 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="stat-card">
                 <span class="stat-label">Items in storage</span>
                 <span class="stat-value"><?= $storedCount ?></span>
-                <a href="<?= e(url('/browse.php?manage=1')) ?>">Manage items &rarr;</a>
+                <a href="<?= e(dashboard_url('items')) ?>">Found items &rarr;</a>
             </div>
             <div class="stat-card info">
                 <span class="stat-label">Open lost reports</span>
                 <span class="stat-value"><?= $openReports ?></span>
-                <a href="<?= e(url('/browse.php?type=lost')) ?>">Find matches &rarr;</a>
+                <a href="<?= e(url('/?tab=reports&status=open')) ?>">Find matches &rarr;</a>
             </div>
             <div class="stat-card success">
                 <span class="stat-label">Returned to owners</span>
                 <span class="stat-value"><?= count_where(all_found_items(), 'status', 'returned') ?></span>
-                <a href="#returns">Successful returns &darr;</a>
+                <a href="<?= e(dashboard_url('returned')) ?>">Returned items &rarr;</a>
             </div>
         </div>
 
@@ -466,7 +462,7 @@ include APP_ROOT . '/templates/layout/header.php';
                             <td><span class="table-title"><?= e($item['item_name']) ?></span><span class="table-sub"><?= e($item['category']) ?></span></td>
                             <td><?= e(full_name($claimant)) ?></td>
                             <td class="nowrap"><?= e(format_date($claim['date_claimed'])) ?></td>
-                            <td class="actions"><a class="btn btn-primary btn-sm" href="<?= e(item_url('found', $item['item_id']) . '#claim-' . $claim['claim_id']) ?>">Review</a></td>
+                            <td class="actions"><a class="btn btn-primary btn-sm" href="<?= e(item_url('found', $item['item_id'], 'queue') . '#claim-' . $claim['claim_id']) ?>">Review</a></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
@@ -507,7 +503,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <section class="section" id="returns">
             <div class="section-title">
                 <h2>Successful returns <span class="count-pill"><?= count($returns) ?></span></h2>
-                <a href="<?= e(url('/?tab=queue&status=returned')) ?>">All returns in Claims &rarr;</a>
+                <a href="<?= e(dashboard_url('returned')) ?>">All returned items &rarr;</a>
             </div>
             <?= returns_table(array_slice($returns, 0, 5), 'dashReturns') ?>
         </section>
@@ -607,6 +603,19 @@ include APP_ROOT . '/templates/layout/header.php';
         $counts[$key] = count_where($reportRows, 'status', $key);
     }
     $rows = match ($status) { '' => $working, 'removed' => $removed, default => where($reportRows, 'status', $status) };
+
+    // Staff and admins also search by keyword, category and date lost (reports are dated within the past year).
+    $q        = trim((string) ($_GET['q'] ?? ''));
+    $category = (string) ($_GET['category'] ?? '');
+    $clamp    = fn (string $d) => $d === '' ? '' : min(max($d, earliest_item_date()), date('Y-m-d'));
+    $from     = $clamp((string) ($_GET['from'] ?? ''));
+    $to       = $clamp((string) ($_GET['to'] ?? ''));
+    $filtered = $q !== '' || $category !== '' || $from !== '' || $to !== '';
+    $rows = search_rows($rows, $q, ['category' => $category]);
+    if ($from !== '') $rows = array_values(array_filter($rows, fn ($r) => $r['date_lost'] >= $from));
+    if ($to !== '')   $rows = array_values(array_filter($rows, fn ($r) => $r['date_lost'] <= $to));
+    [$pageRows, $page, $totalPages] = paginate($rows, 10);
+
     $pills = ['' => 'All'] + LOST_STATUSES + REPORT_MODERATION_STATUSES + (can_monitor() ? ['removed' => 'Removed'] : []);
     if (!can_monitor()) {   // an owner sees an outcome tab only when one of their reports has that outcome
         $pills = array_filter($pills, fn ($key) => !isset(REPORT_MODERATION_STATUSES[$key]) || $counts[$key] > 0, ARRAY_FILTER_USE_KEY);
@@ -614,12 +623,39 @@ include APP_ROOT . '/templates/layout/header.php';
     echo pill_tabs($pills, $counts, $status, 'status');
     ?>
 
-    <?php if ($rows): ?>
+    <?php if (can_monitor()): ?>
+    <form method="get" action="<?= e(url('/')) ?>" class="filter-bar" role="search">
+        <input type="hidden" name="tab" value="reports">
+        <?php if ($status !== ''): ?><input type="hidden" name="status" value="<?= e($status) ?>"><?php endif; ?>
+        <div class="form-group grow">
+            <label for="q">Keyword</label>
+            <input type="search" id="q" name="q" value="<?= e($q) ?>" placeholder="Item, description, location…">
+        </div>
+        <div class="form-group filter-extra">
+            <label for="category">Category</label>
+            <select id="category" name="category"><option value="">Any</option><?= options(category_names(), $category, false) ?></select>
+        </div>
+        <div class="form-group filter-extra">
+            <label for="from">Lost from</label>
+            <input type="date" id="from" name="from" value="<?= e($from) ?>" min="<?= earliest_item_date() ?>" max="<?= date('Y-m-d') ?>">
+        </div>
+        <div class="form-group filter-extra">
+            <label for="to">Lost to</label>
+            <input type="date" id="to" name="to" value="<?= e($to) ?>" min="<?= earliest_item_date() ?>" max="<?= date('Y-m-d') ?>">
+        </div>
+        <button type="submit" class="btn btn-primary">Filter</button>
+        <a class="btn btn-secondary" href="<?= e(url_with(['q' => null, 'category' => null, 'from' => null, 'to' => null, 'page' => null])) ?>">Reset</a>
+        <button type="button" class="btn btn-ghost filter-toggle" aria-expanded="true" data-filter-toggle hidden>More filters</button>
+    </form>
+    <p class="result-count"><?= count($rows) ?> report<?= count($rows) === 1 ? '' : 's' ?></p>
+    <?php endif; ?>
+
+    <?php if ($pageRows): ?>
     <div class="table-wrap">
         <table class="table">
             <thead><tr><th></th><th>Item</th><?= can_monitor() ? '<th>Reported by</th>' : '' ?><th>Category</th><th>Lost on</th><th>Where</th><th>Status</th><th class="actions"></th></tr></thead>
             <tbody>
-            <?php foreach ($rows as $report): ?>
+            <?php foreach ($pageRows as $report): ?>
                 <tr>
                     <td><?= photo_tag($report['image_url'], $report['item_name'], 'photo-thumb') ?></td>
                     <td>
@@ -639,10 +675,11 @@ include APP_ROOT . '/templates/layout/header.php';
             </tbody>
         </table>
     </div>
+    <?= pagination($page, $totalPages) ?>
     <?php else: ?>
-        <?php $emptyTitle = $status ? 'No ' . strtolower(status_label($status)) . ' reports' : 'No lost reports yet'; ?>
+        <?php $emptyTitle = $filtered ? 'No reports match those filters' : ($status ? 'No ' . strtolower(status_label($status)) . ' reports' : 'No lost reports yet'); ?>
         <?= can_monitor()
-            ? empty_state($emptyTitle, 'Reports filed by students and faculty show up here.')
+            ? empty_state($emptyTitle, $filtered ? 'Try a broader keyword or clear the filters.' : 'Reports filed by students and faculty show up here.')
             : empty_state($emptyTitle, 'When you report a lost item it will show up here with its current status.', url('/report.php'), 'Report a lost item') ?>
     <?php endif; ?>
 
@@ -717,8 +754,7 @@ include APP_ROOT . '/templates/layout/header.php';
         'rejected' => ['Rejected (still pending)', fn ($c) => is_rejected_claim($c)],
         'approved' => ['Approved for collection', fn ($c) => $c['status'] === 'approved'],
         'verified' => ['Identity verified', fn ($c) => $c['status'] === 'verified'],
-        'returned' => ['Returned', fn ($c) => $c['status'] === 'returned'],
-        'all'      => ['All', fn ($c) => true],
+        'all'      => ['All', fn ($c) => true],   // returned claims too; hand-overs have their own Returned Items section
     ];
     $status     = $_GET['status'] ?? 'review';
     $status     = isset($claimViews[$status]) ? $status : 'review';   // older links used status=pending
@@ -733,7 +769,6 @@ include APP_ROOT . '/templates/layout/header.php';
         : strcmp($b['created_at'], $a['created_at']));
 
     $groups  = rejected_claim_groups();
-    $returns = successful_returns();
     $counts  = array_map(fn ($v) => count(array_filter(all_claims(), $v[1])), $claimViews);
     $counts['rejected'] = count($groups);
     echo pill_tabs(array_map(fn ($v) => $v[0], $claimViews), $counts, $status, 'status');
@@ -746,11 +781,7 @@ include APP_ROOT . '/templates/layout/header.php';
         </div>
     <?php endif; ?>
 
-    <?php if ($status === 'returned'): ?>
-        <p class="text-sm text-muted">Every hand-over, newest first: the same records as the dashboard's Successful returns.</p>
-        <?= returns_table($itemFilter ? array_values(array_filter($returns, fn ($r) => $r['item']['item_id'] === $itemFilter)) : $returns, 'claimReturns') ?>
-
-    <?php elseif ($status === 'rejected'): ?>
+    <?php if ($status === 'rejected'): ?>
         <?php if ($itemFilter) $groups = array_intersect_key($groups, [$itemFilter => 1]); ?>
         <?php if ($groups): ?>
         <p class="text-sm text-muted">One row per item. The claims stay separate records with their own claimants; open the item to see each claim and its full rejection history.</p>
@@ -760,7 +791,7 @@ include APP_ROOT . '/templates/layout/header.php';
                 <tbody>
                 <?php foreach ($groups as $g): $item = $g['item']; ?>
                     <tr>
-                        <td><a class="table-title" href="<?= e(item_url('found', $item['item_id']) . '#claims') ?>"><?= e($item['item_name']) ?></a>
+                        <td><a class="table-title" href="<?= e(item_url('found', $item['item_id'], 'queue') . '#claims') ?>"><?= e($item['item_name']) ?></a>
                             <span class="table-sub">Item #<?= $item['item_id'] ?> &middot; <?= e(status_label($item['status'])) ?></span></td>
                         <td><?= status_badge('pending') ?></td>
                         <td><span class="badge badge-rejected">Rejected</span></td>
@@ -768,7 +799,7 @@ include APP_ROOT . '/templates/layout/header.php';
                             <span class="table-sub"><?= e(implode(', ', array_map(fn ($c) => '#' . $c['claim_id'] . ' ' . full_name(find_user($c['user_id'])), $g['claims']))) ?></span></td>
                         <td><?= $g['rejections'] ?> event<?= $g['rejections'] === 1 ? '' : 's' ?></td>
                         <td class="nowrap"><?= e(format_datetime($g['latest'])) ?></td>
-                        <td class="actions"><a class="btn btn-outline btn-sm" href="<?= e(item_url('found', $item['item_id']) . '#claims') ?>">Open</a></td>
+                        <td class="actions"><a class="btn btn-outline btn-sm" href="<?= e(item_url('found', $item['item_id'], 'queue') . '#claims') ?>">Open</a></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -787,21 +818,21 @@ include APP_ROOT . '/templates/layout/header.php';
                 <tr>
                     <td class="text-muted"><?= $claim['claim_id'] ?></td>
                     <td>
-                        <a class="table-title" href="<?= e(item_url('found', $item['item_id'])) ?>"><?= e($item['item_name']) ?></a>
+                        <a class="table-title" href="<?= e(item_url('found', $item['item_id'], 'queue')) ?>"><?= e($item['item_name']) ?></a>
                         <span class="table-sub"><?= e($item['storage_location']) ?></span>
                     </td>
                     <td><?= e(full_name($claimant)) ?><span class="table-sub"><?= e($claimant['email']) ?></span></td>
                     <td class="cell-wide"><?= e(excerpt($claim['proof_description'], 80)) ?></td>
                     <td>
                         <?php if ($claim['report_id']): ?>
-                            <a href="<?= e(item_url('lost', $claim['report_id'])) ?>">#<?= $claim['report_id'] ?></a>
+                            <a href="<?= e(item_url('lost', $claim['report_id'], 'queue')) ?>">#<?= $claim['report_id'] ?></a>
                         <?php else: ?><span class="text-muted">—</span><?php endif; ?>
                     </td>
                     <td class="nowrap"><?= e(format_date($claim['date_claimed'])) ?></td>
                     <td><?= claim_badges($claim) ?></td>
                     <td class="actions">
                         <?php $next = is_staff() && in_array($claim['status'], ['pending', 'approved', 'verified'], true) && $item['status'] === 'stored'; ?>
-                        <a class="btn <?= $next ? 'btn-primary' : 'btn-outline' ?> btn-sm" href="<?= e(item_url('found', $item['item_id']) . '#claim-' . $claim['claim_id']) ?>">
+                        <a class="btn <?= $next ? 'btn-primary' : 'btn-outline' ?> btn-sm" href="<?= e(item_url('found', $item['item_id'], 'queue') . '#claim-' . $claim['claim_id']) ?>">
                             <?= !$next ? 'Open' : match ($claim['status']) { 'approved' => 'Verify ID', 'verified' => 'Hand over', default => 'Review' } ?>
                         </a>
                     </td>
@@ -816,6 +847,115 @@ include APP_ROOT . '/templates/layout/header.php';
             $status === 'review' ? 'There are no claims waiting for review right now.' : ''
         ) ?>
     <?php endif; ?>
+
+<?php /* ================================================== FOUND ITEMS (staff; admins read-only) */ ?>
+<?php elseif ($tab === 'items'): ?>
+    <?php
+    // Staff pick the order; the choice is remembered for this login so the section link keeps it.
+    $manageSorts = [ // key => [label, column, descending]
+        'newest'     => ['Newest logged first', 'created_at', true],
+        'oldest'     => ['Oldest logged first', 'created_at', false],
+        'id_desc'    => ['Item # (high to low)', 'item_id', true],
+        'id_asc'     => ['Item # (low to high)', 'item_id', false],
+        'found_desc' => ['Date found (newest)', 'date_found', true],
+        'found_asc'  => ['Date found (oldest)', 'date_found', false],
+        'name'       => ['Name (A–Z)', 'item_name', false],
+    ];
+    $sort = $_GET['sort'] ?? $_SESSION['manage_sort'] ?? 'newest';
+    $sort = isset($manageSorts[$sort]) ? $sort : 'newest';
+    $_SESSION['manage_sort'] = $sort;
+    [, $sortColumn, $sortDesc] = $manageSorts[$sort];
+    $category = (string) ($_GET['category'] ?? '');
+    $rows = search_rows(where(all_found_items(), 'status', 'stored'), '', ['category' => $category]);
+    usort($rows, function ($a, $b) use ($sortColumn, $sortDesc) {
+        $c = strnatcasecmp((string) $a[$sortColumn], (string) $b[$sortColumn]) ?: $a['item_id'] <=> $b['item_id'];
+        return $sortDesc ? -$c : $c;
+    });
+    $pendingByItem = [];
+    foreach (array_filter(all_claims(), 'awaiting_review') as $c) {
+        $pendingByItem[$c['item_id']] = ($pendingByItem[$c['item_id']] ?? 0) + 1;
+    }
+    ?>
+    <div class="table-tools">
+        <input type="search" placeholder="Quick filter this list…" aria-label="Filter table" data-table-filter="#itemsTable">
+        <form method="get" action="<?= e(url('/')) ?>" class="flex gap-1 items-center" data-auto-submit>
+            <input type="hidden" name="tab" value="items">
+            <label for="category" class="sr-only">Category</label>
+            <select id="category" name="category" class="inline-select">
+                <option value="">All categories</option>
+                <?= options(category_names(), $category, false) ?>
+            </select>
+            <label for="manage-sort" class="sr-only">Sort by</label>
+            <select id="manage-sort" name="sort" class="inline-select">
+                <?= options(array_map(fn ($s) => $s[0], $manageSorts), $sort) ?>
+            </select>
+            <noscript><button type="submit" class="btn btn-secondary btn-sm">Apply</button></noscript>
+            <?php if ($category !== '' || $sort !== 'newest'): ?>
+                <a class="btn btn-ghost btn-sm" href="<?= e(url('/?tab=items&sort=newest')) ?>">Clear</a>
+            <?php endif; ?>
+        </form>
+        <span class="text-sm text-muted">Showing <span data-filter-count="#itemsTable"><?= count($rows) ?></span></span>
+    </div>
+
+    <?php if ($rows): ?>
+    <div class="table-wrap">
+        <table class="table table-manage" id="itemsTable">
+            <thead><tr><th>#</th><th></th><th>Item</th><th>Found</th><th>Storage</th><th>Claims</th><th>Status</th><th class="actions"></th></tr></thead>
+            <tbody>
+            <?php foreach ($rows as $item): ?>
+                <tr data-remove>
+                    <td class="text-muted"><?= $item['item_id'] ?></td>
+                    <td><?= photo_tag($item['image_url'], $item['item_name'], 'photo-thumb') ?></td>
+                    <td>
+                        <a class="table-title" href="<?= e(item_url('found', $item['item_id'])) ?>"><?= e($item['item_name']) ?></a>
+                        <span class="table-sub"><?= e($item['category']) ?> &middot; <?= e($item['location_found']) ?></span>
+                        <?php if ($item['moderation_status'] !== 'approved'): ?>
+                            <span class="table-sub">Student post: <?= status_badge($item['moderation_status']) ?></span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="nowrap"><?= e(format_date($item['date_found'])) ?></td>
+                    <td><?= e($item['storage_location']) ?></td>
+                    <td>
+                        <?php if (!empty($pendingByItem[$item['item_id']])): ?>
+                            <a href="<?= e(url('/?tab=queue&item=' . $item['item_id'])) ?>" class="badge badge-pending"><?= $pendingByItem[$item['item_id']] ?> to review</a>
+                        <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+                    </td>
+                    <td><?= status_badge($item['status']) ?></td>
+                    <td class="actions">
+                        <a class="btn btn-outline btn-sm" href="<?= e(item_url('found', $item['item_id'])) ?>">View<span class="sr-only"> <?= e($item['item_name']) ?></span></a>
+                        <?php if (is_staff()): ?>
+                            <a class="btn btn-outline btn-sm" href="<?= e(url('/report.php?type=found&id=' . $item['item_id'])) ?>">Edit<span class="sr-only"> <?= e($item['item_name']) ?></span></a>
+                        <?php endif; ?>
+                        <?php if (is_staff() && can_delete_found_item($item)): ?>
+                            <form method="post" action="<?= e(url('/?tab=items')) ?>" class="inline-form" data-api="delete_item" data-done="remove"
+                                  data-confirm="Delete &quot;<?= e($item['item_name']) ?>&quot;? Use this only for an item logged by mistake. Any pending claims on it are deleted too. This can't be undone.">
+                                <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
+                                <button type="submit" class="btn btn-danger btn-sm">Delete<span class="sr-only"> <?= e($item['item_name']) ?></span></button>
+                            </form>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <p class="filter-empty" data-filter-empty hidden>No items match that filter.</p>
+    <?php else: ?>
+        <?= is_staff() ? empty_state('No items in storage', $category !== '' ? 'Nothing in storage in that category.' : 'Items logged at intake show up here.', url('/report.php?type=found'), 'Log a found item')
+                       : empty_state('No items in storage', $category !== '' ? 'Nothing in storage in that category.' : 'Items logged at intake show up here.') ?>
+    <?php endif; ?>
+
+<?php /* ================================================== RETURNED ITEMS (staff; admins read-only) */ ?>
+<?php elseif ($tab === 'returned'): ?>
+    <?php $returns = successful_returns(); ?>
+    <?php if ($returns): ?>
+    <div class="table-tools">
+        <input type="search" placeholder="Filter by item, claimant, staff…" aria-label="Filter returned items" data-table-filter="#returnsTable">
+        <span class="text-sm text-muted">Showing <span data-filter-count="#returnsTable"><?= count($returns) ?></span></span>
+    </div>
+    <?php endif; ?>
+    <?= returns_table($returns) ?>
+    <p class="filter-empty" data-filter-empty hidden>No returned items match that filter.</p>
 
 <?php /* ================================================== DISPOSED ITEMS (staff; admins read-only) */ ?>
 <?php elseif ($tab === 'disposed'): ?>

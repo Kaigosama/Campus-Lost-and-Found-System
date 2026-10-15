@@ -24,7 +24,7 @@ if ($type === 'found') {
     if ($id) {
         $row = find_found_item($id);
         if (!$row) {
-            abort(404, 'Item not found', '', url('/browse.php?manage=1'), 'Back to manage items');
+            abort(404, 'Item not found', '', dashboard_url('items'), 'Back to found items');
         }
         // Returned and disposed records are final (api/update_item.php refuses them too).
         if (is_final_item($row)) {
@@ -57,15 +57,14 @@ include APP_ROOT . '/templates/layout/header.php';
 
 <?php if ($type === 'found'): ?>
 <!-- ====================================================== FOUND ITEM (staff) -->
+<?php if ($isPost): ?>
 <div class="breadcrumb">
-    <?php if ($isPost): ?>
-        <a href="<?= e(url('/')) ?>">Dashboard</a><span>Post a found item</span>
-    <?php else: ?>
-        <a href="<?= e(url('/browse.php?manage=1')) ?>">Manage found items</a>
-        <?php if ($editing): ?><span><a href="<?= e(item_url('found', $id)) ?>"><?= e($row['item_name']) ?></a></span><span>Edit</span>
-        <?php else: ?><span>Log found item</span><?php endif; ?>
-    <?php endif; ?>
+    <a href="<?= e(url('/')) ?>">Dashboard</a><span>Post a found item</span>
 </div>
+<?php else: /* staff intake and edits sit inside the dashboard's Found Items section */ ?>
+<?= dashboard_nav('items', array_merge([['Found Items', dashboard_url('items', true)]],
+    $editing ? [['Item #' . $id, item_url('found', $id)], ['Edit', null]] : [['Log found item', null]])) ?>
+<?php endif; ?>
 
 <div class="page-header">
     <div>
@@ -163,7 +162,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary btn-lg"><?= $editing ? 'Save changes' : ($isPost ? 'Submit for review' : 'Save to storage') ?></button>
                 <?= reset_button() ?>
-                <?= cancel_button($editing ? item_url('found', $id) : url($isPost ? '/' : '/browse.php?manage=1')) ?>
+                <?= cancel_button($editing ? item_url('found', $id) : ($isPost ? url('/') : dashboard_url('items', true))) ?>
                 <span class="form-hint" data-guard-hint hidden>Please complete all required fields before submitting.</span>
             </div>
         </form>
@@ -190,7 +189,7 @@ include APP_ROOT . '/templates/layout/header.php';
                 <li>Photograph it without exposing private details.</li>
                 <li>Note distinguishing marks in the staff-only box.</li>
                 <li>Place it in storage and record the exact location.</li>
-                <li>Check <a href="<?= e(url('/browse.php?type=lost')) ?>">open lost reports</a> for a match.</li>
+                <li>Check <a href="<?= e(url('/?tab=reports&status=open')) ?>">open lost reports</a> for a match.</li>
             </ol>
         </div>
     </aside>

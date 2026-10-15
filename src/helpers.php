@@ -24,9 +24,18 @@ function asset(string $path): string
     return url('/' . $path) . $version;
 }
 
-function item_url(string $type, int $id): string
+/** $from names the dashboard section the link is in when it isn't the record's usual one (e.g. 'queue' from Claims), for the Back link. */
+function item_url(string $type, int $id, string $from = ''): string
 {
-    return url('/view_item.php?type=' . $type . '&id=' . $id);
+    return url('/view_item.php?type=' . $type . '&id=' . $id . ($from !== '' ? '&from=' . $from : ''));
+}
+
+/** A dashboard section; with $restore, the filters, sort and page it last had this session, so Back returns to the same list. */
+function dashboard_url(string $key, bool $restore = false): string
+{
+    $query = ['tab' => $key === 'overview' ? null : $key] + ($restore ? $_SESSION['list_state'][$key] ?? [] : []);
+    $query = array_filter($query, fn ($v) => $v !== null && $v !== '');
+    return url('/') . ($query ? '?' . http_build_query($query) : '');
 }
 
 /** ' aria-current="page"' when the current script is $path and $when holds (styled in CSS by that attribute). */

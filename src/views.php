@@ -26,6 +26,55 @@ function reset_button(): string
     return '<button type="reset" class="btn btn-ghost btn-lg" data-confirm="Are you sure you would like to reset?">Reset</button>';
 }
 
+/**
+ * Dashboard sections (index.php?tab=<key>) as key => [label, role(s) or null], those the signed-in user may open
+ * unless $all. Each management feature has exactly one section; the site header doesn't repeat them.
+ */
+function dashboard_tabs(bool $all = false): array
+{
+    $tabs = [
+        'overview'   => ['Dashboard', null],
+        // Staff and admins see every lost report and claim (admins read-only); students and faculty see their own.
+        'reports'    => [can_monitor() ? 'Lost Reports' : 'My Lost Reports', ['user', ...MONITOR_ROLES]],
+        'items'      => ['Found Items', MONITOR_ROLES],
+        'my_claims'  => ['My Claims', 'user'],   // staff never file claims
+        'posts'      => ['My Found Posts', 'user'],
+        'queue'      => ['Claims', MONITOR_ROLES],
+        'returned'   => ['Returned Items', MONITOR_ROLES],
+        'disposed'   => ['Disposed Items', MONITOR_ROLES],
+        'moderation' => ['Post Review', REVIEWER_ROLES],
+        'stats'      => ['Statistics', MONITOR_ROLES],
+        'users'      => ['Users & Activity', ADMIN_ROLES],
+        'categories' => ['Categories', ADMIN_ROLES],
+        'visitors'   => ['Visitors', ADMIN_ROLES],
+        'logs'       => ['Security Logs', ADMIN_ROLES],
+        'account'    => ['Account', null],
+    ];
+    return $all ? $tabs : array_filter($tabs, fn ($t) => $t[1] === null || has_role($t[1]));
+}
+
+/**
+ * The dashboard's section bar with $current marked. A detail page passes its parent section and a breadcrumb
+ * trail of [label, href or null] that follows "Dashboard".
+ */
+function dashboard_nav(string $current, array $crumbs = []): string
+{
+    $html = '<nav class="tab-bar" aria-label="Dashboard sections">';
+    foreach (dashboard_tabs() as $key => [$label]) {
+        $mark  = $key !== $current ? '' : ($crumbs ? ' aria-current="true"' : ' aria-current="page"');
+        $html .= '<a href="' . e(dashboard_url($key)) . '"' . $mark . '>' . e($label) . '</a>';
+    }
+    $html .= '</nav>';
+    if ($crumbs) {
+        $html .= '<nav class="breadcrumb" aria-label="Breadcrumb"><a href="' . e(url('/')) . '">Dashboard</a>';
+        foreach ($crumbs as [$label, $href]) {
+            $html .= '<span>' . ($href ? '<a href="' . e($href) . '">' . e($label) . '</a>' : e($label)) . '</span>';
+        }
+        $html .= '</nav>';
+    }
+    return $html;
+}
+
 /** "← Back to …" link to an explicit parent page (browser history isn't relied on). */
 function back_button(string $href, string $label): string
 {

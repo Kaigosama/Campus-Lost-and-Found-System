@@ -5,6 +5,9 @@ require_once __DIR__ . '/../src/bootstrap.php';
  * ?type=found&id=N   item details + claim form (users) / intake record, claims with their review history, ID checks,
  *                    hand-over, disposal and the item's activity (staff act; admins see the same, read-only)
  * ?type=lost&id=N    a lost report, for its owner, staff or admins. #claim-<id> anchors a claim in the staff panel.
+ * &from=queue        opened from the Claims section: Back returns there instead of the record's own list.
+ * Inside the dashboard (staff and admins; lost reports for everyone) the page shows the section bar with its parent
+ * section marked, a breadcrumb, and a Back link to that list with the filters it last had.
  */
 $type = ($_GET['type'] ?? 'found') === 'lost' ? 'lost' : 'found';
 $id   = (int) ($_GET['id'] ?? 0);
@@ -32,7 +35,7 @@ if ($type === 'lost') {
     // and a claimant keeps seeing the item after it leaves storage (e.g. returned to them).
     $isPoster = $item && $user && $item['user_id'] === $user['user_id'] && !can_monitor();
     if (!$item || (!can_monitor() && !$isPoster && !$myClaim && !is_public_item($item))) {
-        abort(404, 'Item not found', 'This item is no longer listed. It may have been returned to its owner.', url('/browse.php'), 'Back to found items');
+        abort(404, 'Item not found', 'This item is no longer listed. It may have been returned to its owner.', can_monitor() ? dashboard_url('items') : url('/browse.php'), 'Back to found items');
     }
     $pendingCount = count(array_filter($itemClaims, 'awaiting_review'));
     $loggedBy     = find_user($item['user_id']);
@@ -44,13 +47,29 @@ if ($type === 'lost') {
     }
 }
 
+// Dashboard parent section, for the section bar, breadcrumb and Back link: the list the record belongs to, or the
+// section the link came from (?from=queue from Claims). Students and faculty see found items on the public pages.
+$sections = $user ? dashboard_tabs() : [];
+$from     = (string) ($_GET['from'] ?? '');
+$parent   = match (true) {
+    $type === 'found' && !can_monitor()               => null,
+    isset($sections[$from]) && $from !== 'overview'    => $from,
+    $type === 'lost'                                   => 'reports',
+    in_array($item['status'], ['returned', 'disposed'], true) => $item['status'],
+    is_staff() && $item['moderation_status'] === 'pending'    => 'moderation',
+    default                                            => 'items',
+};
+
 include APP_ROOT . '/templates/layout/header.php';
 ?>
 
+<?php if ($parent): $parentUrl = dashboard_url($parent, true); ?>
+<?= dashboard_nav($parent, [[$sections[$parent][0], $parentUrl], [($type === 'lost' ? 'Report #' : 'Item #') . $id, null]]) ?>
+<?= back_button($parentUrl, $sections[$parent][0]) ?>
+<?php endif; ?>
+
 <?php if ($type === 'lost'): ?>
 <!-- ====================================================== LOST REPORT -->
-<?= $isOwner ? back_button(url('/?tab=reports'), 'My lost reports') : back_button(url('/browse.php?type=lost'), 'All lost reports') ?>
-
 <div class="page-header">
     <div>
         <h1><?= e($report['item_name']) ?> <?= status_badge($report['status'], 'lost-' . $report['report_id']) ?></h1>
@@ -113,12 +132,14 @@ include APP_ROOT . '/templates/layout/header.php';
 
     <aside>
         <?php if ($report['status'] === 'open'): ?>
+            <?php if ($isOwner): /* staff match it from the Staff actions card below */ ?>
             <div class="card card-muted">
                 <h3>Think you've spotted it?</h3>
                 <p class="text-sm">Browse the found items list and submit a claim if you see your item.</p>
                 <?php $browseCategory = $report['category_name']; ?>
                 <a class="btn btn-primary btn-sm" href="<?= e(url('/browse.php?category=' . rawurlencode($browseCategory))) ?>">Browse <?= e($browseCategory) ?></a>
             </div>
+            <?php endif; ?>
         <?php elseif ($report['status'] === 'matched'): ?>
             <div class="alert alert-warning mb-0">
                 <strong>Possible match.</strong>
@@ -242,7 +263,7 @@ include APP_ROOT . '/templates/layout/header.php';
 <?php else: ?>
 <!-- ====================================================== FOUND ITEM -->
 <?= match (true) {
-    can_monitor() => back_button(url('/browse.php?manage=1'), 'All found items'),
+    can_monitor() => '',   // the dashboard Back link above
     $isPoster     => back_button(url('/?tab=posts'), 'My found posts'),
     $myClaim !== null && !is_public_item($item) => back_button(url('/?tab=my_claims'), 'My claims'),
     default       => back_button(url('/browse.php'), 'Found items'),
@@ -269,7 +290,7 @@ include APP_ROOT . '/templates/layout/header.php';
                 <a class="btn btn-outline" href="<?= e(url('/report.php?type=found&id=' . $item['item_id'])) ?>">Edit</a>
             <?php endif; ?>
             <?php if (can_delete_found_item($item)): ?>
-                <form method="post" action="<?= e(item_url('found', $item['item_id'])) ?>" class="inline-form" data-api="delete_item" data-redirect="<?= e(url('/browse.php?manage=1')) ?>"
+                <form method="post" action="<?= e(item_url('found', $item['item_id'])) ?>" class="inline-form" data-api="delete_item" data-redirect="<?= e(dashboard_url('items', true)) ?>"
                       data-confirm="Delete this item? Use this only for an item logged by mistake. Any claims on it are deleted too. This can't be undone.">
                     <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
                     <button type="submit" class="btn btn-danger">Delete item</button>
@@ -321,13 +342,24 @@ include APP_ROOT . '/templates/layout/header.php';
                     <dt>Handed over</dt>
                     <dd><?= $returnedBy ? 'by ' . e(full_name($returnedBy)) : '<span class="text-muted">Staff member not recorded</span>' ?>
                         <?= $item['return_claim_id'] ? ' &middot; <a href="#claim-' . (int) $item['return_claim_id'] . '">claim #' . (int) $item['return_claim_id'] . '</a>' : '' ?></dd>
-                <?php elseif ($item['status'] === 'disposed'): $disposedBy = find_user($item['disposed_by']); ?>
-                    <dt>Disposed by</dt><dd><?= $disposedBy ? e(full_name($disposedBy)) : '<span class="text-muted">Not recorded (disposed before disposal records)</span>' ?></dd>
-                    <dt>Reason</dt><dd class="pre-line"><?= $item['disposal_reason'] ? e($item['disposal_reason']) : '<span class="text-muted">Not recorded</span>' ?></dd>
-                    <?php if ($item['disposal_notes']): ?><dt>Notes</dt><dd class="pre-line"><?= e($item['disposal_notes']) ?></dd><?php endif; ?>
                 <?php endif; ?>
             </dl>
         </div>
+
+        <?php if ($item['status'] === 'disposed'): $disposedBy = find_user($item['disposed_by']); ?>
+        <div class="card card-staff mt-2">
+            <div class="card-header">
+                <h2>Disposal details</h2>
+                <?= status_badge('disposed') ?>
+            </div>
+            <dl class="detail-list">
+                <dt>Disposed on</dt><dd><?= $item['disposed_at'] ? e(format_datetime($item['disposed_at'])) : '<span class="text-muted">Not recorded</span>' ?></dd>
+                <dt>Disposed by</dt><dd><?= $disposedBy ? e(full_name($disposedBy)) : '<span class="text-muted">Not recorded (disposed before disposal records)</span>' ?></dd>
+                <dt>Reason</dt><dd class="pre-line"><?= $item['disposal_reason'] ? e($item['disposal_reason']) : '<span class="text-muted">Not recorded</span>' ?></dd>
+                <dt>Notes</dt><dd class="pre-line"><?= $item['disposal_notes'] ? e($item['disposal_notes']) : '<span class="text-muted">None</span>' ?></dd>
+            </dl>
+        </div>
+        <?php endif; ?>
 
         <?php if (is_staff() && $item['moderation_status'] === 'pending'): ?>
         <div class="card card-staff mt-2" data-replace>
@@ -355,9 +387,14 @@ include APP_ROOT . '/templates/layout/header.php';
         <?php endif; ?>
 
         <?php if ($itemClaims): ?>
+        <?php if (is_final_item($item)): ?>
+        <h2 class="mt-3" id="claims">Claim history (<?= count($itemClaims) ?>)</h2>
+        <p class="text-sm text-muted">Kept for the record. This item was <?= e(strtolower(status_label($item['status']))) ?>, so these claims are closed and it can't be claimed again.</p>
+        <?php else: ?>
         <h2 class="mt-3" id="claims">Claims on this item (<?= count($itemClaims) ?>)</h2>
         <p class="text-sm text-muted">Each claim is its own record. Compare each claimant's proof with the private details above. Claims awaiting review are listed first.
             A rejected claim stays <strong>Pending</strong>; every decision is kept in its review history.</p>
+        <?php endif; ?>
         <?php
         $order = fn (array $c) => match (true) { awaiting_review($c) => 0, in_array($c['status'], ['approved', 'verified'], true) => 1, $c['status'] === 'pending' => 2, default => 3 };
         usort($itemClaims, fn ($a, $b) => [$order($a), $a['created_at']] <=> [$order($b), $b['created_at']]);
@@ -456,7 +493,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     </div>
                 </form>
 
-            <?php elseif (is_staff() && $claim['status'] === 'approved'): ?>
+            <?php elseif (is_staff() && $claim['status'] === 'approved' && $item['status'] === 'stored'): ?>
                 <hr>
                 <h4>Verify the claimant's ID at pickup</h4>
                 <p class="text-sm text-muted">Check the ID in person against <?= e(full_name($claimant)) ?>. Only the ID type and the last four characters of its number are stored.
@@ -488,7 +525,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     </div>
                 </form>
 
-            <?php elseif (is_staff() && $claim['status'] === 'verified'): ?>
+            <?php elseif (is_staff() && $claim['status'] === 'verified' && $item['status'] === 'stored'): ?>
                 <hr>
                 <h4>Hand-over</h4>
                 <p class="text-sm text-muted">Mark the item returned once it is in the claimant's hands. This records the time and your name, sets the item to
@@ -544,11 +581,16 @@ include APP_ROOT . '/templates/layout/header.php';
         <?php if (!$canClaim && !$myClaim): ?>
             <?php if (can_monitor()): ?>
                 <div class="card card-muted">
-                    <h3><?= is_staff() ? 'Staff view' : 'Monitoring view' ?></h3>
+                    <h3>Record status</h3>
                     <p class="text-sm mb-0">
-                        <?php if (is_staff()): ?>Review claims on this item in the panel<?= $itemClaims ? ' on the left' : ' (none yet)' ?> or on the <a href="<?= e(url('/?tab=queue')) ?>">Claims</a> tab.
-                        <?php else: ?>Claims, ID checks and this item's history are shown on the left and on the <a href="<?= e(url('/?tab=queue')) ?>">Claims</a> tab.
-                            Administrators can view these records but not change them.<?php endif; ?>
+                        <?php if (is_final_item($item)): ?>
+                            <?= $item['status'] === 'disposed' ? 'Disposed of' : 'Returned to its owner' ?>. This is a closed record, kept for audits: it can't be claimed or edited.
+                        <?php elseif ($pendingCount): ?>
+                            <a href="#claims"><?= $pendingCount ?> claim<?= $pendingCount === 1 ? '' : 's' ?> awaiting review</a>.
+                        <?php else: ?>
+                            In storage. No claims awaiting review.
+                        <?php endif; ?>
+                        <?= is_staff() ? '' : '<br>Administrators can view these records but not change them.' ?>
                     </p>
                 </div>
             <?php elseif ($isPoster): ?>

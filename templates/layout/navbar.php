@@ -18,43 +18,13 @@ $navType = $type ?? '';
         <nav class="nav" id="main-nav" aria-label="Main navigation">
             <?php if (!$navUser): ?>
                 <a href="<?= e(url('/')) ?>"<?= is_active('/index.php') ?>>Home</a>
-                <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php', $navType !== 'lost') ?>>Found Items</a>
+                <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php') ?>>Found Items</a>
                 <a href="<?= e(url('/login.php')) ?>"<?= is_active('/login.php') ?>>Log in</a>
                 <a href="<?= e(url('/register.php')) ?>"<?= is_active('/register.php') ?>>Register</a>
             <?php else: ?>
                 <a href="<?= e(url('/')) ?>"<?= is_active('/index.php') ?>>Dashboard</a>
-                <?php if (is_admin()): /* admins monitor items read-only; they don't log, report, claim or review */ ?>
-                    <details class="nav-group">
-                        <summary>Monitoring</summary>
-                        <div class="dropdown">
-                            <a href="<?= e(url('/browse.php?manage=1')) ?>">Found Items</a>
-                            <a href="<?= e(url('/?tab=reports')) ?>">Lost Reports</a>
-                            <a href="<?= e(url('/?tab=queue')) ?>">Claims &amp; Returns</a>
-                            <a href="<?= e(url('/?tab=disposed')) ?>">Disposed Items</a>
-                            <a href="<?= e(url('/?tab=stats')) ?>">Statistics</a>
-                        </div>
-                    </details>
-                    <a href="<?= e(url('/?tab=account')) ?>">Account</a>
-                <?php else: ?>
-                <?php if (is_staff()): /* staff work from the full list, not the public card grid */ ?>
-                    <a href="<?= e(url('/browse.php?manage=1')) ?>"<?= is_active('/browse.php', $navType !== 'lost') ?>>Found Items</a>
-                <?php else: ?>
-                    <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php', $navType !== 'lost') ?>>Found Items</a>
-                <?php endif; ?>
-                <?php if (is_staff()): /* staff log found items; only students and faculty report lost ones */ ?>
-                    <a href="<?= e(url('/report.php?type=found')) ?>"<?= is_active('/report.php', $navType === 'found') ?>>Log Found Item</a>
-                    <details class="nav-group">
-                        <summary>Staff</summary>
-                        <div class="dropdown">
-                            <a href="<?= e(url('/?tab=reports')) ?>">Lost Reports</a>
-                            <a href="<?= e(url('/?tab=queue')) ?>">Claims &amp; Returns</a>
-                            <a href="<?= e(url('/?tab=moderation')) ?>">Post Review</a>
-                            <a href="<?= e(url('/?tab=disposed')) ?>">Disposed Items</a>
-                            <a href="<?= e(url('/?tab=stats')) ?>">Statistics</a>
-                            <a href="<?= e(url('/?tab=account')) ?>">Account &amp; Password</a>
-                        </div>
-                    </details>
-                <?php else: ?>
+                <?php if (!can_monitor()): /* staff and admins reach every management section from the dashboard's section bar */ ?>
+                    <a href="<?= e(url('/browse.php')) ?>"<?= is_active('/browse.php') ?>>Found Items</a>
                     <a href="<?= e(url('/report.php')) ?>"<?= is_active('/report.php', $navType !== 'found') ?>>Report Lost</a>
                     <details class="nav-group">
                         <summary>My Activity</summary>
@@ -64,19 +34,6 @@ $navType = $type ?? '';
                             <a href="<?= e(url('/report.php?type=found')) ?>">Post a Found Item</a>
                             <a href="<?= e(url('/?tab=posts')) ?>">My Found Posts</a>
                             <a href="<?= e(url('/?tab=account')) ?>">Account &amp; Password</a>
-                        </div>
-                    </details>
-                <?php endif; ?>
-                <?php endif; ?>
-
-                <?php if (is_admin()): ?>
-                    <details class="nav-group">
-                        <summary>Admin</summary>
-                        <div class="dropdown">
-                            <a href="<?= e(url('/?tab=users')) ?>">Users &amp; Activity</a>
-                            <a href="<?= e(url('/?tab=categories')) ?>">Categories</a>
-                            <a href="<?= e(url('/?tab=visitors')) ?>">Visitors</a>
-                            <a href="<?= e(url('/?tab=logs')) ?>">Security Logs</a>
                         </div>
                     </details>
                 <?php endif; ?>
