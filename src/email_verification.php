@@ -3,32 +3,45 @@ declare(strict_types=1);
 
 /**
  * Email verification for new accounts. The emailed link carries a random token; the database keeps only its
- * SHA-256 hash and an expiry. Using the link clears the hash, so it works once.
+ * SHA-256 hash and its expiry (EMAIL_VERIFICATION_EXPIRY_MINUTES, 30 by default). Using the link clears the hash,
+ * so it works once; sending a new link replaces the hash, so earlier links stop working.
  */
+
+/** "30 minutes", "1 hour", "2 hours" for the link lifetime. */
+function verification_lifetime(): string
+{
+    $m = EMAIL_VERIFICATION_EXPIRY_MINUTES;
+    return $m % 60 ? $m . ' minute' . ($m === 1 ? '' : 's') : ($m / 60) . ' hour' . ($m === 60 ? '' : 's');
+}
 
 /** Emails $user a fresh verification link. Any earlier link stops working. */
 function send_verification_email(array $user): void
 {
     $token = bin2hex(random_bytes(32));
-    db()->prepare('UPDATE users SET email_verification_token_hash = ?, email_verification_expires_at = NOW() + INTERVAL ? HOUR WHERE user_id = ?')
-        ->execute([hash('sha256', $token), VERIFY_LINK_HOURS, $user['user_id']]);
+    db()->prepare('UPDATE users SET email_verification_token_hash = ?, email_verification_expires_at = NOW() + INTERVAL ? MINUTE WHERE user_id = ?')
+        ->execute([hash('sha256', $token), EMAIL_VERIFICATION_EXPIRY_MINUTES, $user['user_id']]);
     $text = "Hi {$user['first_name']},\n\n"
         . 'Confirm your email address to finish creating your ' . APP_NAME . " account:\n\n"
         . app_base_url() . url('/verify_email.php?token=' . $token) . "\n\n"
-        . 'The link works once and expires in ' . VERIFY_LINK_HOURS . " hours. If you didn't sign up, ignore this email.\n\n"
+        . 'The link works once and expires in ' . verification_lifetime() . ". If it expires, request a new one from the log-in page.\n"
+        . "If you didn't sign up, ignore this email.\n\n"
         . '— ' . APP_NAME;
     send_mail($user['email'], full_name($user), 'Confirm your ' . APP_NAME . ' email address', $text);
 }
 
-/** The unverified account a link's token belongs to, or null when it is invalid, expired or already used. */
-function user_from_verification_token(string $token): ?array
+/**
+ * What a link's token is: ['valid', user], ['expired', user] (the newest link of an unverified account, out of
+ * time) or ['invalid', null] (malformed, replaced by a newer link, already used, or the account is confirmed).
+ */
+function verification_token_state(string $token): array
 {
     if (!preg_match('/^[0-9a-f]{64}$/', $token)) {
-        return null;
+        return ['invalid', null];
     }
-    $stmt = db()->prepare('SELECT * FROM users WHERE email_verification_token_hash = ? AND email_verified = 0 AND email_verification_expires_at > NOW()');
+    $stmt = db()->prepare('SELECT *, email_verification_expires_at > NOW() AS link_valid FROM users WHERE email_verification_token_hash = ? AND email_verified = 0');
     $stmt->execute([hash('sha256', $token)]);
-    return $stmt->fetch() ?: null;
+    $user = $stmt->fetch();
+    return !$user ? ['invalid', null] : [$user['link_valid'] ? 'valid' : 'expired', $user];
 }
 
 function mark_email_verified(array $user): void
@@ -50,15 +63,15 @@ function resend_verification(string $email): void
 }
 
 /**
- * Deletes student / faculty accounts whose verification link expired unconfirmed, so the address can register again.
+ * Deletes student / faculty accounts left unconfirmed UNVERIFIED_GRACE_HOURS after their link expired, so the
+ * address and school number can register again. Until then a new link can still be requested.
  * Accounts that somehow own reports, posts or claims are kept (those foreign keys would block the delete anyway).
- * ponytail: no cron here, so this runs on each deploy (seed.php) and when an admin opens the dashboard.
  */
 function delete_expired_unverified(): int
 {
     $deleted = db()->exec("DELETE u FROM users u
         WHERE u.role = 'user' AND u.email_verified = 0
-          AND (u.email_verification_expires_at IS NULL OR u.email_verification_expires_at < NOW())
+          AND (u.email_verification_expires_at IS NULL OR u.email_verification_expires_at < NOW() - INTERVAL " . UNVERIFIED_GRACE_HOURS . " HOUR)
           AND NOT EXISTS (SELECT 1 FROM lost_reports r WHERE r.user_id = u.user_id)
           AND NOT EXISTS (SELECT 1 FROM found_items f WHERE f.user_id = u.user_id)
           AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.user_id = u.user_id)");
@@ -66,6 +79,21 @@ function delete_expired_unverified(): int
         log_event('unverified_accounts_deleted', null, ['count' => $deleted]);
     }
     return (int) $deleted;
+}
+
+/**
+ * Data retention, run on each deploy (seed.php) and when an admin opens the dashboard (there is no cron):
+ * expired unconfirmed sign-ups, visitor records unseen for VISITOR_RETENTION_DAYS, and the masked ID numbers of
+ * identity checks older than ID_RECORD_RETENTION_DAYS (the check, its result and who did it stay on record).
+ * Returns [what => rows affected].
+ */
+function run_retention(): array
+{
+    $done = ['unverified accounts deleted' => delete_expired_unverified()];
+    $done['visitor records deleted'] = (int) db()->exec('DELETE FROM visitors WHERE last_seen_at < NOW() - INTERVAL ' . VISITOR_RETENTION_DAYS . ' DAY');
+    $done['ID references cleared'] = (int) db()->exec('UPDATE claim_verifications SET id_reference = NULL
+        WHERE id_reference IS NOT NULL AND verified_at < NOW() - INTERVAL ' . ID_RECORD_RETENTION_DAYS . ' DAY');
+    return array_filter($done);
 }
 
 /** Someone registered with an email that already has an account: tell its owner instead of the visitor. */

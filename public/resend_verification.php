@@ -38,7 +38,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <?php if (isset($_GET['sent'])): ?>
             <div class="alert alert-success" role="status">
                 If that email belongs to an account that still needs confirming, we've sent it a new link.
-                It expires in <?= VERIFY_LINK_HOURS ?> hours, and earlier links no longer work.
+                It expires in <?= e(verification_lifetime()) ?>, and earlier links no longer work.
             </div>
         <?php else: ?>
             <p class="text-muted">Enter the email you signed up with and we'll send a new confirmation link.</p>
@@ -48,7 +48,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="form-group">
                 <label for="email">Email <span class="req" aria-hidden="true">*</span></label>
                 <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com" data-label="Email"
-                       value="<?= e($_POST['email'] ?? $_GET['email'] ?? '') ?>"<?= isset($errors['email']) ? ' class="is-invalid" aria-invalid="true"' : '' ?>>
+                       value="<?= e($_POST['email'] ?? '') ?>"<?= isset($errors['email']) ? ' class="is-invalid" aria-invalid="true"' : '' ?>>
                 <?php if (isset($errors['email'])): ?><span class="form-error" id="email-error"><?= e($errors['email']) ?></span><?php endif; ?>
             </div>
             <button type="submit" class="btn btn-primary btn-block">Send new link</button>

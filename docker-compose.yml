@@ -23,6 +23,7 @@ services:
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Cardinal Finds}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      EMAIL_VERIFICATION_EXPIRY_MINUTES: ${EMAIL_VERIFICATION_EXPIRY_MINUTES:-30}
     volumes:
       - uploads:/var/www/html/public/uploads
     depends_on:
