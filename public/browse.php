@@ -3,14 +3,14 @@ require_once __DIR__ . '/../src/bootstrap.php';
 
 /**
  * ?type=found (default)   items in storage; public card grid
- * ?type=lost              every lost report; staff only
- * ?manage=1               every found item with inline status change; staff only
+ * ?type=lost              every lost report; staff and admins (admins read-only)
+ * ?manage=1               every found item with its status and claims; staff edit, delete and log items, admins only look
  */
 $manage = !empty($_GET['manage']);
 $type   = $manage ? 'found' : ((($_GET['type'] ?? 'found') === 'lost') ? 'lost' : 'found');
 
 if ($manage || $type === 'lost') {
-    require_role(REVIEWER_ROLES);
+    require_role(MONITOR_ROLES);
 }
 
 $q        = trim($_GET['q'] ?? '');
@@ -57,7 +57,7 @@ if ($type === 'lost') {
         $counts[$key] = count_where(all_found_items(), 'status', $key);
     }
     $pendingByItem = [];
-    foreach (where(all_claims(), 'status', 'pending') as $c) {
+    foreach (array_filter(all_claims(), 'awaiting_review') as $c) {
         $pendingByItem[$c['item_id']] = ($pendingByItem[$c['item_id']] ?? 0) + 1;
     }
 } else {
@@ -96,7 +96,7 @@ include APP_ROOT . '/templates/layout/header.php';
     </div>
     <div class="form-group filter-extra">
         <label for="category">Category</label>
-        <select id="category" name="category"><option value="">Any</option><?= options(CATEGORIES, $category, false) ?></select>
+        <select id="category" name="category"><option value="">Any</option><?= options(category_names(), $category, false) ?></select>
     </div>
     <div class="form-group filter-extra">
         <label for="from">Lost from</label>
@@ -146,9 +146,9 @@ include APP_ROOT . '/templates/layout/header.php';
 <div class="page-header">
     <div>
         <h1>Manage found items</h1>
-        <p>Everything logged at intake, including returned and disposed items.</p>
+        <p>Everything logged at intake, including returned and disposed items.<?= is_staff() ? '' : ' Read-only for administrators.' ?></p>
     </div>
-    <a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a>
+    <?php if (is_staff()): ?><a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a><?php endif; ?>
 </div>
 
 <?= pill_tabs(['' => 'All'] + FOUND_STATUSES, $counts, $status, 'status') ?>
@@ -161,7 +161,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <label for="category" class="sr-only">Category</label>
         <select id="category" name="category" class="inline-select">
             <option value="">All categories</option>
-            <?= options(CATEGORIES, $category, false) ?>
+            <?= options(category_names(), $category, false) ?>
         </select>
         <label for="manage-sort" class="sr-only">Sort by</label>
         <select id="manage-sort" name="sort" class="inline-select">
@@ -195,22 +195,16 @@ include APP_ROOT . '/templates/layout/header.php';
                 <td><?= e($item['storage_location']) ?></td>
                 <td>
                     <?php if (!empty($pendingByItem[$item['item_id']])): ?>
-                        <a href="<?= e(url('/?tab=queue&item=' . $item['item_id'])) ?>" class="badge badge-pending"><?= $pendingByItem[$item['item_id']] ?> pending</a>
+                        <a href="<?= e(url('/?tab=queue&item=' . $item['item_id'])) ?>" class="badge badge-pending"><?= $pendingByItem[$item['item_id']] ?> to review</a>
                     <?php else: ?><span class="text-muted">—</span><?php endif; ?>
                 </td>
-                <td>
-                    <form method="post" action="<?= e(url('/browse.php?manage=1')) ?>" class="inline-form" data-api="update_status" data-type="found" data-confirm="Change this item's status?">
-                        <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
-                        <label for="status-<?= $item['item_id'] ?>" class="sr-only">Status of <?= e($item['item_name']) ?></label>
-                        <select id="status-<?= $item['item_id'] ?>" name="status" class="inline-select" required>
-                            <?= options(FOUND_STATUSES, $item['status']) ?>
-                        </select>
-                        <button type="submit" class="btn btn-secondary btn-sm">Save<span class="sr-only"> status of <?= e($item['item_name']) ?></span></button>
-                    </form>
-                </td>
+                <td><?= status_badge($item['status']) ?></td>
                 <td class="actions">
-                    <a class="btn btn-outline btn-sm" href="<?= e(url('/report.php?type=found&id=' . $item['item_id'])) ?>">Edit</a>
-                    <?php if (can_delete_found_item($item)): ?>
+                    <a class="btn btn-outline btn-sm" href="<?= e(item_url('found', $item['item_id'])) ?>">View<span class="sr-only"> <?= e($item['item_name']) ?></span></a>
+                    <?php if (is_staff() && !is_final_item($item)): /* returned and disposed records are final */ ?>
+                        <a class="btn btn-outline btn-sm" href="<?= e(url('/report.php?type=found&id=' . $item['item_id'])) ?>">Edit<span class="sr-only"> <?= e($item['item_name']) ?></span></a>
+                    <?php endif; ?>
+                    <?php if (is_staff() && can_delete_found_item($item)): ?>
                         <form method="post" action="<?= e(url('/browse.php?manage=1')) ?>" class="inline-form" data-api="delete_item" data-done="remove"
                               data-confirm="Delete &quot;<?= e($item['item_name']) ?>&quot;? Use this only for an item logged by mistake. Any pending claims on it are deleted too. This can't be undone.">
                             <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
@@ -225,7 +219,8 @@ include APP_ROOT . '/templates/layout/header.php';
 </div>
 <p class="filter-empty" data-filter-empty hidden>No items match that filter.</p>
 <?php else: ?>
-    <?= empty_state('No items here', 'Nothing has been logged with this status yet.', url('/report.php?type=found'), 'Log a found item') ?>
+    <?= is_staff() ? empty_state('No items here', 'Nothing has been logged with this status yet.', url('/report.php?type=found'), 'Log a found item')
+                   : empty_state('No items here', 'Nothing has been logged with this status yet.') ?>
 <?php endif; ?>
 
 <?php else: ?>
@@ -236,8 +231,10 @@ include APP_ROOT . '/templates/layout/header.php';
         <p>Items currently held at the Lost &amp; Found office. See something that's yours? Open it and submit a claim.</p>
     </div>
     <div class="btn-row">
-        <?php if (is_staff()): ?>
+        <?php if (can_monitor()): ?>
             <a class="btn btn-outline" href="<?= e(url('/browse.php?manage=1')) ?>">Manage items</a>
+        <?php endif; ?>
+        <?php if (is_staff()): ?>
             <a class="btn btn-primary" href="<?= e(url('/report.php?type=found')) ?>">+ Log found item</a>
         <?php elseif (has_role('user')): ?>
             <a class="btn btn-outline" href="<?= e(url('/report.php?type=found')) ?>">+ I found something</a>
@@ -253,7 +250,7 @@ include APP_ROOT . '/templates/layout/header.php';
     </div>
     <div class="form-group filter-extra">
         <label for="category">Category</label>
-        <select id="category" name="category"><option value="">All categories</option><?= options(CATEGORIES, $category, false) ?></select>
+        <select id="category" name="category"><option value="">All categories</option><?= options(category_names(), $category, false) ?></select>
     </div>
     <div class="form-group filter-extra">
         <label for="from">Found since</label>

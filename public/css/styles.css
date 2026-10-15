@@ -429,7 +429,7 @@ img[data-lightbox]:not(a img) { cursor: zoom-in; }
 }
 .badge-open, .badge-stored { background: var(--blue-light); color: var(--blue); }
 .badge-pending, .badge-matched { background: var(--warning-bg); color: var(--warning); }
-.badge-approved, .badge-returned, .badge-active { background: var(--success-bg); color: var(--success); }
+.badge-approved, .badge-returned, .badge-active, .badge-verified { background: var(--success-bg); color: var(--success); }
 .badge-rejected, .badge-disposed, .badge-inactive, .badge-false_report, .badge-spam { background: var(--red-light); color: var(--red); }
 .badge-closed { background: var(--neutral-bg); color: var(--neutral); }
 .badge-role-staff { background: var(--blue-light); color: var(--blue); }
@@ -594,7 +594,28 @@ img[data-lightbox]:not(a img) { cursor: zoom-in; }
 .password-rules li { color: var(--red-dark); }
 .password-rules li.met { color: var(--success); }
 .password-rules li.met::before { content: "\2713"; }
+.rule-state { font-weight: 600; }
 .req-inline { color: var(--red); font-weight: 700; }
+
+/* ---------- CAPTCHA status line (app.js): its own states, never "logged in" ---------- */
+.captcha-widget:empty { display: none; }
+.captcha-status { font-size: .85rem; color: var(--muted); margin: .35rem 0 0; }
+.captcha-status.is-busy { color: var(--blue); }
+.captcha-status.is-ok { color: var(--success); }
+.captcha-status.is-error { color: var(--red); font-weight: 600; }
+
+/* ---------- Back buttons, claim history, school record ---------- */
+.btn-back { margin-bottom: .75rem; }
+.btn-back:focus-visible, .btn:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.history summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+.history summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.count-pill { font-size: .8rem; font-weight: 600; background: var(--neutral-bg); color: var(--neutral); border-radius: 999px; padding: .1rem .55rem; vertical-align: middle; }
+.record-card { margin-bottom: 1rem; }
+.form-actions .btn { min-height: 2.75rem; }
+@media (max-width: 480px) {
+    .form-actions { flex-direction: column; align-items: stretch; }
+    .form-actions .btn { width: 100%; }
+}
 
 /* ---------- 17. Utilities ---------- */
 .text-muted { color: var(--muted); }

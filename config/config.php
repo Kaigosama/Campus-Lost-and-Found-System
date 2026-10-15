@@ -17,7 +17,8 @@ const BASE_URL = '';
 const APP_NAME      = 'Cardinal Finds';
 const APP_FULL_NAME = 'Campus Lost & Found';   // tagline under the name and in the home page title
 
-const CATEGORIES = ['Electronics', 'IDs & Cards', 'Bags', 'Clothing', 'Books & Notes', 'Keys', 'Accessories', 'Other'];
+/** Form categories live in the `categories` table (admin: index.php?tab=categories). This name asks the user to describe it. */
+const OTHER_CATEGORY = 'Other';
 
 const ROLES = [
     'user'         => 'Student / Faculty',
@@ -26,13 +27,49 @@ const ROLES = [
     'master_admin' => 'Master Administrator',
 ];
 const ADMIN_ROLES = ['admin', 'master_admin'];
-/** Who handles found items, lost reports, claims and student posts. Admins manage accounts only and see none of these records. */
+/** Who handles found items, lost reports, claims and student posts: review, log, edit, verify, hand over, dispose. */
 const REVIEWER_ROLES = ['staff'];
+/** Who may look at items, reports, claims, returns, disposals and their history (read-only for admins). */
+const MONITOR_ROLES = ['staff', 'admin', 'master_admin'];
 const LOST_STATUSES  = ['open' => 'Open', 'matched' => 'Matched', 'closed' => 'Closed'];
 /** Staff outcomes for a lost report (api/moderate_report.php). Final: the report leaves the normal lists and can't be edited. */
 const REPORT_MODERATION_STATUSES = ['rejected' => 'Rejected', 'false_report' => 'False report', 'spam' => 'Spam'];
+/** "returned" and "disposed" are final: the item can no longer be edited, claimed or changed back. */
 const FOUND_STATUSES = ['stored' => 'In Storage', 'returned' => 'Returned', 'disposed' => 'Disposed'];
-const CLAIM_STATUSES = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected'];
+/**
+ * Main claim status: pending → approved (for collection) → verified (identity checked at the desk) → returned.
+ * A rejection keeps the claim "pending"; it is the claim's review outcome, kept in claim_reviews.
+ */
+const CLAIM_STATUSES = ['pending' => 'Pending', 'approved' => 'Approved for collection', 'verified' => 'Identity verified', 'returned' => 'Returned'];
+/**
+ * IDs staff may accept at pickup. Placeholder list until the school confirms its policy: edit it here.
+ * Only the type and the last four characters of the number are stored (claim_verifications).
+ */
+const ID_TYPES = [
+    'school_id'     => 'Mapúa school ID (student or employee)',
+    'government_id' => 'Government-issued photo ID',
+    'other'         => 'Other ID allowed by the office (describe in notes)',
+];
+/** Days a found item is held before staff may dispose of it. Placeholder until the school confirms its policy. */
+const DISPOSAL_HOLD_DAYS = 30;
+/** Masked ID references are cleared from claim_verifications after this many days (the check itself stays). */
+const ID_RECORD_RETENTION_DAYS = 365;
+
+/* ---------------------------------------------------------------- School registration */
+
+/** Format of a school identifier, checked before the reference tables are searched. */
+const STUDENT_NUMBER_PATTERN  = '/^\d{10}$/';        // e.g. 2023100001
+const EMPLOYEE_NUMBER_PATTERN = '/^EMP-\d{5}$/';     // e.g. EMP-10001
+/** Reference records that may register. Others (graduated, withdrawn, separated, retired) are refused. */
+const ELIGIBLE_STUDENT_STATUSES  = ['enrolled', 'on_leave'];
+const ELIGIBLE_EMPLOYEE_STATUSES = ['active', 'on_leave'];
+/** Record look-ups per IP per LIMIT_WINDOW_MINUTES, so the reference data can't be harvested. */
+const LOOKUP_MAX_PER_IP = 10;
+/** Where people whose record can't be verified are sent. */
+const RECORDS_OFFICE = "the Registrar's Office (students) or Human Resources (employees)";
+
+/** Anonymous visitor records (visitors table) unseen for this long are deleted. */
+const VISITOR_RETENTION_DAYS = 90;
 
 /** The only choices for where an item was found or lost (Mapúa Makati campus); database/migrations/009 moved older values onto them. */
 const CAMPUS_LOCATIONS = [
@@ -50,9 +87,9 @@ const MAX_UPLOAD_MB   = 5;
 const UPLOAD_DIR      = APP_ROOT . '/public/uploads';
 const IMAGE_TYPES     = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
 const PASSWORD_MIN    = 8;
-const NAME_MIN        = 2;   // first name
 const RESET_LINK_MINUTES = 60;
-const VERIFY_LINK_HOURS  = 24;
+/** Unverified Student / Faculty accounts are deleted this long after their verification link expired. */
+const UNVERIFIED_GRACE_HOURS = 24;
 /** A session ends after this long without an authenticated request. */
 const SESSION_IDLE_MINUTES = 30;
 /** Consecutive wrong passwords that lock an account (not the master admin) until an admin unlocks it. */
@@ -70,8 +107,6 @@ const DUPLICATE_LOOKBACK_DAYS = 30;
 const FALSE_REPORTS_TO_DEACTIVATE = 2;
 const OFFICE_INFO = 'the Lost & Found desk at the Admin Office, Mapúa Makati (Mon–Fri 8:00 AM–5:00 PM)';
 const LOCKED_MESSAGE = 'This account is locked after too many failed log-in attempts. Visit ' . OFFICE_INFO . ' with your ID to have it unlocked.';
-/** Person names: letters (any script), spaces, hyphens, apostrophes and periods — and must start with a letter. */
-const NAME_PATTERN    = "/^\\p{L}[\\p{L}\\p{M} .'\\-]*$/u";
 
 /* ---------------------------------------------------------------- Database */
 
@@ -79,6 +114,9 @@ const NAME_PATTERN    = "/^\\p{L}[\\p{L}\\p{M} .'\\-]*$/u";
 if (is_file(__DIR__ . '/db_connect.local.php')) {
     require __DIR__ . '/db_connect.local.php';
 }
+/** Minutes an email verification link stays valid: EMAIL_VERIFICATION_EXPIRY_MINUTES in the environment, else 30. */
+defined('EMAIL_VERIFICATION_EXPIRY_MINUTES')
+    || define('EMAIL_VERIFICATION_EXPIRY_MINUTES', max(1, (int) (getenv('EMAIL_VERIFICATION_EXPIRY_MINUTES') ?: 30)));
 // Containers (Docker, Railway) set the environment instead: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS,
 // or a single MYSQL_URL / DATABASE_URL (mysql://user:pass@host:port/name). Individual DB_* win over the URL.
 $dbUrlString = (string) (getenv('MYSQL_URL') ?: getenv('DATABASE_URL'));

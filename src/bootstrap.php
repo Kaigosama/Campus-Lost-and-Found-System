@@ -18,6 +18,10 @@ require_once __DIR__ . '/password_reset.php';
 require_once __DIR__ . '/email_verification.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/repository.php';
+require_once __DIR__ . '/categories.php';
+require_once __DIR__ . '/school_records.php';
+require_once __DIR__ . '/visitors.php';
+require_once __DIR__ . '/claims.php';
 require_once __DIR__ . '/reports.php';
 require_once __DIR__ . '/auth.php';
 

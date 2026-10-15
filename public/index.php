@@ -4,8 +4,10 @@ require_once __DIR__ . '/../src/bootstrap.php';
 /**
  * Guests      → landing page. Logging in and registering happen on login.php and register.php;
  *               old /?next= and /?reset=1 links are forwarded to login.php.
- * Logged in   → dashboard tabs: overview | account   students/faculty & staff: + reports | my_claims
- *               students/faculty: + posts   staff: + queue | moderation | stats   admins: + users (with account activity) | logs
+ * Logged in   → dashboard tabs: overview | account   students/faculty: + reports (their own) | my_claims | posts
+ *               staff: + reports | queue | moderation | disposed | stats
+ *               admins: + reports | queue | disposed | stats (the staff monitoring views, read-only)
+ *                       + users (with account activity) | categories | visitors | logs
  *               POST on ?tab=account changes the password.
  * POST ?action=logout ends the session. It must be a POST so another site can't log visitors out with a link.
  */
@@ -164,19 +166,22 @@ if (!$user) {
 /* ------------------------------------------------------------ Dashboard */
 
 if (is_admin()) {
-    delete_expired_unverified();   // keeps the Users list and counts free of sign-ups that never confirmed
+    run_retention();   // keeps the Users list free of sign-ups that never confirmed; drops old visitor records and ID numbers
 }
 
 $allTabs = [ // key => [label, required role(s) or null]
     'overview'  => ['Overview', null],
-    // Staff see every lost report and claim here; students and faculty see their own.
-    'reports'   => [is_staff() ? 'Lost Reports' : 'My Lost Reports', ['user', 'staff']],
+    // Staff and admins see every lost report and claim here (admins read-only); students and faculty see their own.
+    'reports'   => [can_monitor() ? 'Lost Reports' : 'My Lost Reports', ['user', ...MONITOR_ROLES]],
     'my_claims' => ['My Claims', 'user'],   // staff never file claims
     'posts'     => ['My Found Posts', 'user'],
-    'queue'     => ['Claims', REVIEWER_ROLES],
+    'queue'     => ['Claims', MONITOR_ROLES],
     'moderation' => ['Post Review', REVIEWER_ROLES],
+    'disposed'  => ['Disposed Items', MONITOR_ROLES],
+    'stats'     => ['Statistics', MONITOR_ROLES],
     'users'     => ['Users & Activity', ADMIN_ROLES],
-    'stats'     => ['Statistics', REVIEWER_ROLES],
+    'categories' => ['Categories', ADMIN_ROLES],
+    'visitors'  => ['Visitors', ADMIN_ROLES],
     'logs'      => ['Security Logs', ADMIN_ROLES],
     'account'   => ['Account', null],
 ];
@@ -199,7 +204,7 @@ if ($tab === 'account' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $myReports = newest_first(where(all_lost_reports(), 'user_id', $user['user_id']));
-$reportRows = is_staff() ? newest_first(array_values(all_lost_reports())) : $myReports;   // the Lost Reports tab
+$reportRows = can_monitor() ? newest_first(array_values(all_lost_reports())) : $myReports;   // the Lost Reports tab
 $myClaims  = newest_first(where(all_claims(), 'user_id', $user['user_id']));
 $storedCount = count(public_found_items());
 $pendingPosts = newest_first(where(all_found_items(), 'moderation_status', 'pending'));
@@ -247,8 +252,8 @@ include APP_ROOT . '/templates/layout/header.php';
 </div>
 <?php elseif ($tab === 'reports'): ?>
 <div class="page-header">
-    <?php if (is_staff()): ?>
-        <div><h1>Lost reports</h1><p>Every report filed by students and faculty, newest first. Open one to match it to a found item.</p></div>
+    <?php if (can_monitor()): ?>
+        <div><h1>Lost reports</h1><p>Every report filed by students and faculty, newest first. <?= is_staff() ? 'Open one to match it to a found item.' : 'Read-only for administrators.' ?></p></div>
     <?php else: ?>
         <div><h1>My lost reports</h1><p>Everything you've reported, newest first.</p></div>
         <a class="btn btn-primary" href="<?= e(url('/report.php')) ?>">+ New report</a>
@@ -261,7 +266,21 @@ include APP_ROOT . '/templates/layout/header.php';
 </div>
 <?php elseif ($tab === 'queue'): ?>
 <div class="page-header">
-    <div><h1>Claims</h1><p>Compare each claimant's proof with the private details logged at intake.</p></div>
+    <div><h1>Claims</h1><p>Pending &rarr; approved for collection &rarr; identity verified &rarr; returned. A rejected claim stays pending, with each rejection kept in its history.
+        <?= is_staff() ? '' : 'Read-only for administrators.' ?></p></div>
+</div>
+<?php elseif ($tab === 'disposed'): ?>
+<div class="page-header">
+    <div><h1>Disposed items</h1><p>Items formally removed from inventory under the disposal policy, with who disposed of them, when and why. Not the same as returned items.</p></div>
+</div>
+<?php elseif ($tab === 'categories'): ?>
+<div class="page-header">
+    <div><h1>Categories</h1><p>The categories offered on lost-report and found-item forms. Deactivating hides one from new forms; records that already use it keep it.</p></div>
+</div>
+<?php elseif ($tab === 'visitors'): ?>
+<div class="page-header">
+    <div><h1>Visitors</h1><p>Anonymous visitors who accepted cookies, identified only by a random browser token. No names, emails or IP addresses are kept;
+        records unseen for <?= VISITOR_RETENTION_DAYS ?> days are deleted.</p></div>
 </div>
 <?php elseif ($tab === 'users'): ?>
 <div class="page-header">
@@ -322,6 +341,44 @@ include APP_ROOT . '/templates/layout/header.php';
 
         <section class="section">
             <div class="section-title">
+                <h2>Item monitoring</h2>
+                <a href="<?= e(url('/browse.php?manage=1')) ?>">All found items &rarr;</a>
+            </div>
+            <div class="stat-grid">
+                <div class="stat-card warning">
+                    <span class="stat-label">Claims awaiting review</span>
+                    <span class="stat-value"><?= count(array_filter(all_claims(), 'awaiting_review')) ?></span>
+                    <a href="<?= e(url('/?tab=queue')) ?>">Claims &rarr;</a>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Items in storage</span>
+                    <span class="stat-value"><?= $storedCount ?></span>
+                    <a href="<?= e(url('/browse.php?manage=1&status=stored')) ?>">Monitor items &rarr;</a>
+                </div>
+                <div class="stat-card info">
+                    <span class="stat-label">Open lost reports</span>
+                    <span class="stat-value"><?= count_where(all_lost_reports(), 'status', 'open') ?></span>
+                    <a href="<?= e(url('/?tab=reports')) ?>">Lost reports &rarr;</a>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Disposed items</span>
+                    <span class="stat-value"><?= count_where(all_found_items(), 'status', 'disposed') ?></span>
+                    <a href="<?= e(url('/?tab=disposed')) ?>">Disposed items &rarr;</a>
+                </div>
+            </div>
+        </section>
+
+        <?php $returns = successful_returns(); ?>
+        <section class="section" id="returns">
+            <div class="section-title">
+                <h2>Successful returns <span class="count-pill"><?= count($returns) ?></span></h2>
+                <a href="<?= e(url('/?tab=queue&status=returned')) ?>">All returns in Claims &rarr;</a>
+            </div>
+            <?= returns_table(array_slice($returns, 0, 5), 'dashReturns') ?>
+        </section>
+
+        <section class="section">
+            <div class="section-title">
                 <h2>Recent activity</h2>
                 <a href="<?= e(url('/?tab=logs')) ?>">Full security logs &rarr;</a>
             </div>
@@ -368,12 +425,12 @@ include APP_ROOT . '/templates/layout/header.php';
 
     <?php elseif (is_staff()): ?>
         <?php
-        $pendingClaims = newest_first(where(all_claims(), 'status', 'pending'));
+        $pendingClaims = newest_first(array_values(array_filter(all_claims(), 'awaiting_review')));
         $openReports   = count_where(all_lost_reports(), 'status', 'open');
         ?>
         <div class="stat-grid">
             <div class="stat-card warning">
-                <span class="stat-label">Pending claims</span>
+                <span class="stat-label">Claims awaiting review</span>
                 <span class="stat-value"><?= count($pendingClaims) ?></span>
                 <a href="<?= e(url('/?tab=queue')) ?>">Review claims &rarr;</a>
             </div>
@@ -390,7 +447,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="stat-card success">
                 <span class="stat-label">Returned to owners</span>
                 <span class="stat-value"><?= count_where(all_found_items(), 'status', 'returned') ?></span>
-                <span class="stat-note">all time</span>
+                <a href="#returns">Successful returns &darr;</a>
             </div>
         </div>
 
@@ -446,9 +503,17 @@ include APP_ROOT . '/templates/layout/header.php';
             <?php endif; ?>
         </div>
 
+        <?php $returns = successful_returns(); ?>
+        <section class="section" id="returns">
+            <div class="section-title">
+                <h2>Successful returns <span class="count-pill"><?= count($returns) ?></span></h2>
+                <a href="<?= e(url('/?tab=queue&status=returned')) ?>">All returns in Claims &rarr;</a>
+            </div>
+            <?= returns_table(array_slice($returns, 0, 5), 'dashReturns') ?>
+        </section>
+
     <?php else: ?>
-        <?php   // approved claims stay "approved" after pickup; only those whose item is still in storage await collection
-        $myApprovedClaims = count(array_filter($myClaims, fn ($c) => $c['status'] === 'approved' && find_found_item($c['item_id'])['status'] === 'stored')); ?>
+        <?php $myApprovedClaims = count(array_filter($myClaims, fn ($c) => in_array($c['status'], ['approved', 'verified'], true))); ?>
         <?= false_report_notice($user) ?>
         <div class="stat-grid">
             <div class="stat-card">
@@ -459,6 +524,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="stat-card warning">
                 <span class="stat-label">Pending claims</span>
                 <span class="stat-value"><?= count_where($myClaims, 'status', 'pending') ?></span>
+                <span class="stat-note"><?= count(array_filter($myClaims, 'is_rejected_claim')) ?> with a rejection</span>
                 <a href="<?= e(url('/?tab=my_claims')) ?>">View claims &rarr;</a>
             </div>
             <div class="stat-card success">
@@ -515,7 +581,7 @@ include APP_ROOT . '/templates/layout/header.php';
                                 <time><?= e(format_date($claim['date_claimed'])) ?></time>
                                 <div>
                                     <a href="<?= e(item_url('found', $item['item_id'])) ?>" class="fw-600"><?= e($item['item_name']) ?></a>
-                                    <div><?= status_badge($claim['status'] === 'approved' && $item['status'] === 'returned' ? 'returned' : $claim['status']) ?></div>
+                                    <div><?= claim_badges($claim) ?></div>
                                 </div>
                             </li>
                         <?php endforeach; ?>
@@ -534,15 +600,15 @@ include APP_ROOT . '/templates/layout/header.php';
     $status = $_GET['status'] ?? '';
     // Staff's "All" is the working list: rejected, false and spam reports only appear under their own tab, and
     // removed ones under "Removed" (kept for audits). Students and faculty see every report of their own that wasn't removed.
-    $working = is_staff() ? array_values(array_filter($reportRows, fn ($r) => !is_moderated_report($r))) : $reportRows;
-    $removed = is_staff() ? newest_first(array_values(array_filter(table('lost_reports'), fn ($r) => $r['deleted_at'] !== null))) : [];
+    $working = can_monitor() ? array_values(array_filter($reportRows, fn ($r) => !is_moderated_report($r))) : $reportRows;
+    $removed = can_monitor() ? newest_first(array_values(array_filter(table('lost_reports'), fn ($r) => $r['deleted_at'] !== null))) : [];
     $counts  = ['' => count($working), 'removed' => count($removed)];
     foreach (LOST_STATUSES + REPORT_MODERATION_STATUSES as $key => $label) {
         $counts[$key] = count_where($reportRows, 'status', $key);
     }
     $rows = match ($status) { '' => $working, 'removed' => $removed, default => where($reportRows, 'status', $status) };
-    $pills = ['' => 'All'] + LOST_STATUSES + REPORT_MODERATION_STATUSES + (is_staff() ? ['removed' => 'Removed'] : []);
-    if (!is_staff()) {   // an owner sees an outcome tab only when one of their reports has that outcome
+    $pills = ['' => 'All'] + LOST_STATUSES + REPORT_MODERATION_STATUSES + (can_monitor() ? ['removed' => 'Removed'] : []);
+    if (!can_monitor()) {   // an owner sees an outcome tab only when one of their reports has that outcome
         $pills = array_filter($pills, fn ($key) => !isset(REPORT_MODERATION_STATUSES[$key]) || $counts[$key] > 0, ARRAY_FILTER_USE_KEY);
     }
     echo pill_tabs($pills, $counts, $status, 'status');
@@ -551,7 +617,7 @@ include APP_ROOT . '/templates/layout/header.php';
     <?php if ($rows): ?>
     <div class="table-wrap">
         <table class="table">
-            <thead><tr><th></th><th>Item</th><?= is_staff() ? '<th>Reported by</th>' : '' ?><th>Category</th><th>Lost on</th><th>Where</th><th>Status</th><th class="actions"></th></tr></thead>
+            <thead><tr><th></th><th>Item</th><?= can_monitor() ? '<th>Reported by</th>' : '' ?><th>Category</th><th>Lost on</th><th>Where</th><th>Status</th><th class="actions"></th></tr></thead>
             <tbody>
             <?php foreach ($rows as $report): ?>
                 <tr>
@@ -560,7 +626,7 @@ include APP_ROOT . '/templates/layout/header.php';
                         <a class="table-title" href="<?= e(item_url('lost', $report['report_id'])) ?>"><?= e($report['item_name']) ?></a>
                         <span class="table-sub"><?= e(excerpt($report['description'], 70)) ?></span>
                     </td>
-                    <?php if (is_staff()): $owner = find_user($report['user_id']); ?>
+                    <?php if (can_monitor()): $owner = find_user($report['user_id']); ?>
                         <td><?= e(full_name($owner)) ?><span class="table-sub"><?= e($owner['email']) ?></span></td>
                     <?php endif; ?>
                     <td><?= e($report['category']) ?></td>
@@ -575,7 +641,7 @@ include APP_ROOT . '/templates/layout/header.php';
     </div>
     <?php else: ?>
         <?php $emptyTitle = $status ? 'No ' . strtolower(status_label($status)) . ' reports' : 'No lost reports yet'; ?>
-        <?= is_staff()
+        <?= can_monitor()
             ? empty_state($emptyTitle, 'Reports filed by students and faculty show up here.')
             : empty_state($emptyTitle, 'When you report a lost item it will show up here with its current status.', url('/report.php'), 'Report a lost item') ?>
     <?php endif; ?>
@@ -594,7 +660,7 @@ include APP_ROOT . '/templates/layout/header.php';
                             <small>Claim #<?= $claim['claim_id'] ?> &middot; submitted <?= e(format_datetime($claim['created_at'])) ?></small>
                         </div>
                     </div>
-                    <?= status_badge($claim['status'] === 'approved' && $item['status'] === 'returned' ? 'returned' : $claim['status']) ?>
+                    <span><?= claim_badges($claim) ?></span>
                 </div>
 
                 <div class="grid grid-2">
@@ -607,21 +673,27 @@ include APP_ROOT . '/templates/layout/header.php';
                     </div>
                     <div>
                         <h3 class="text-sm text-muted">Staff response</h3>
-                        <?php if ($claim['status'] === 'pending'): ?>
+                        <?php if (awaiting_review($claim)): ?>
                             <p class="text-sm text-muted">Awaiting review. Most claims are reviewed within one working day.</p>
                         <?php else: ?>
-                            <div class="alert alert-<?= $claim['status'] === 'approved' ? 'success' : 'error' ?> text-sm">
-                                <strong><?= $claim['status'] === 'approved' ? 'Approved.' : 'Not approved.' ?></strong> <?= e($claim['review_note']) ?>
+                            <div class="alert alert-<?= is_rejected_claim($claim) ? 'error' : 'success' ?> text-sm">
+                                <strong><?= match ($claim['status']) {
+                                    'approved' => 'Approved for collection.', 'verified' => 'ID verified.', 'returned' => 'Returned to you.', default => 'Not approved.',
+                                } ?></strong> <?= e($claim['review_note']) ?>
                             </div>
-                            <p class="text-sm mb-0">Reviewed by <?= e(full_name($reviewer)) ?> on <?= e(format_datetime($claim['reviewed_at'])) ?></p>
-                            <?php if ($claim['status'] === 'approved' && $item['status'] === 'returned'): ?>
+                            <p class="text-sm mb-0">Reviewed by <?= e($reviewer ? full_name($reviewer) : 'Lost & Found staff') ?> on <?= e(format_datetime($claim['reviewed_at'])) ?></p>
+                            <?php if (is_rejected_claim($claim)): ?>
+                                <p class="text-sm mb-0">Your claim stays on record as pending. Staff may review it again; visit <?= e(OFFICE_INFO) ?> if you have more proof.</p>
+                            <?php elseif ($claim['status'] === 'approved'): ?>
+                                <p class="text-sm mb-0">Bring a valid ID to <?= e(OFFICE_INFO) ?>. Staff check it before handing the item over.</p>
+                            <?php elseif ($claim['status'] === 'returned'): ?>
                                 <p class="text-sm mb-0">Collected on <?= e(format_datetime($item['returned_at'])) ?>.</p>
                             <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </div>
 
-                <?php if ($claim['status'] === 'pending'): ?>
+                <?php if (awaiting_review($claim)): ?>
                     <div class="form-actions compact">
                         <form method="post" action="<?= e(url('/?tab=my_claims')) ?>" data-api="withdraw" data-done="remove" data-confirm="Withdraw this claim?">
                             <input type="hidden" name="claim_id" value="<?= $claim['claim_id'] ?>">
@@ -636,28 +708,35 @@ include APP_ROOT . '/templates/layout/header.php';
         <?= empty_state('No claims yet', 'When you spot your item in the found list, open it and click "Claim this item".', url('/browse.php'), 'Browse found items') ?>
     <?php endif; ?>
 
-<?php /* ================================================== CLAIMS QUEUE (staff) */ ?>
+<?php /* ================================================== CLAIMS (staff; admins read-only) */ ?>
 <?php elseif ($tab === 'queue'): ?>
     <?php
-    $status     = $_GET['status'] ?? 'pending';
+    // Views over the same claim records. "Rejected" lists each item once, however many of its claims were rejected.
+    $claimViews = [
+        'review'   => ['Awaiting review', fn ($c) => awaiting_review($c)],
+        'rejected' => ['Rejected (still pending)', fn ($c) => is_rejected_claim($c)],
+        'approved' => ['Approved for collection', fn ($c) => $c['status'] === 'approved'],
+        'verified' => ['Identity verified', fn ($c) => $c['status'] === 'verified'],
+        'returned' => ['Returned', fn ($c) => $c['status'] === 'returned'],
+        'all'      => ['All', fn ($c) => true],
+    ];
+    $status     = $_GET['status'] ?? 'review';
+    $status     = isset($claimViews[$status]) ? $status : 'review';   // older links used status=pending
     $itemFilter = (int) ($_GET['item'] ?? 0);
 
-    $rows = array_values(all_claims());
-    if ($status !== 'all') {
-        $rows = where($rows, 'status', $status);
-    }
+    $rows = array_values(array_filter(all_claims(), $claimViews[$status][1]));
     if ($itemFilter) {
         $rows = where($rows, 'item_id', $itemFilter);
     }
-    usort($rows, fn ($a, $b) => $status === 'pending'
+    usort($rows, fn ($a, $b) => $status === 'review'
         ? strcmp($a['created_at'], $b['created_at'])
         : strcmp($b['created_at'], $a['created_at']));
 
-    $counts = ['all' => count(all_claims())];
-    foreach (CLAIM_STATUSES as $key => $label) {
-        $counts[$key] = count_where(all_claims(), 'status', $key);
-    }
-    echo pill_tabs(CLAIM_STATUSES + ['all' => 'All'], $counts, $status, 'status');
+    $groups  = rejected_claim_groups();
+    $returns = successful_returns();
+    $counts  = array_map(fn ($v) => count(array_filter(all_claims(), $v[1])), $claimViews);
+    $counts['rejected'] = count($groups);
+    echo pill_tabs(array_map(fn ($v) => $v[0], $claimViews), $counts, $status, 'status');
     ?>
 
     <?php if ($itemFilter && ($fi = find_found_item($itemFilter))): ?>
@@ -667,7 +746,39 @@ include APP_ROOT . '/templates/layout/header.php';
         </div>
     <?php endif; ?>
 
-    <?php if ($rows): ?>
+    <?php if ($status === 'returned'): ?>
+        <p class="text-sm text-muted">Every hand-over, newest first: the same records as the dashboard's Successful returns.</p>
+        <?= returns_table($itemFilter ? array_values(array_filter($returns, fn ($r) => $r['item']['item_id'] === $itemFilter)) : $returns, 'claimReturns') ?>
+
+    <?php elseif ($status === 'rejected'): ?>
+        <?php if ($itemFilter) $groups = array_intersect_key($groups, [$itemFilter => 1]); ?>
+        <?php if ($groups): ?>
+        <p class="text-sm text-muted">One row per item. The claims stay separate records with their own claimants; open the item to see each claim and its full rejection history.</p>
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Item</th><th>Main status</th><th>Current review outcome</th><th>Rejected claims</th><th>Rejection history</th><th>Latest rejection</th><th class="actions"></th></tr></thead>
+                <tbody>
+                <?php foreach ($groups as $g): $item = $g['item']; ?>
+                    <tr>
+                        <td><a class="table-title" href="<?= e(item_url('found', $item['item_id']) . '#claims') ?>"><?= e($item['item_name']) ?></a>
+                            <span class="table-sub">Item #<?= $item['item_id'] ?> &middot; <?= e(status_label($item['status'])) ?></span></td>
+                        <td><?= status_badge('pending') ?></td>
+                        <td><span class="badge badge-rejected">Rejected</span></td>
+                        <td><?= count($g['claims']) ?> claim<?= count($g['claims']) === 1 ? '' : 's' ?>
+                            <span class="table-sub"><?= e(implode(', ', array_map(fn ($c) => '#' . $c['claim_id'] . ' ' . full_name(find_user($c['user_id'])), $g['claims']))) ?></span></td>
+                        <td><?= $g['rejections'] ?> event<?= $g['rejections'] === 1 ? '' : 's' ?></td>
+                        <td class="nowrap"><?= e(format_datetime($g['latest'])) ?></td>
+                        <td class="actions"><a class="btn btn-outline btn-sm" href="<?= e(item_url('found', $item['item_id']) . '#claims') ?>">Open</a></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php else: ?>
+            <?= empty_state('No rejected claims', 'Items whose claims were rejected show up here, once per item.') ?>
+        <?php endif; ?>
+
+    <?php elseif ($rows): ?>
     <div class="table-wrap">
         <table class="table">
             <thead><tr><th>#</th><th>Item</th><th>Claimant</th><th>Proof (excerpt)</th><th>Linked report</th><th>Submitted</th><th>Status</th><th class="actions"></th></tr></thead>
@@ -687,10 +798,11 @@ include APP_ROOT . '/templates/layout/header.php';
                         <?php else: ?><span class="text-muted">—</span><?php endif; ?>
                     </td>
                     <td class="nowrap"><?= e(format_date($claim['date_claimed'])) ?></td>
-                    <td><?= status_badge($claim['status']) ?></td>
+                    <td><?= claim_badges($claim) ?></td>
                     <td class="actions">
-                        <a class="btn <?= $claim['status'] === 'pending' ? 'btn-primary' : 'btn-outline' ?> btn-sm" href="<?= e(item_url('found', $item['item_id']) . '#claim-' . $claim['claim_id']) ?>">
-                            <?= $claim['status'] === 'pending' ? 'Review' : 'Open' ?>
+                        <?php $next = is_staff() && in_array($claim['status'], ['pending', 'approved', 'verified'], true) && $item['status'] === 'stored'; ?>
+                        <a class="btn <?= $next ? 'btn-primary' : 'btn-outline' ?> btn-sm" href="<?= e(item_url('found', $item['item_id']) . '#claim-' . $claim['claim_id']) ?>">
+                            <?= !$next ? 'Open' : match ($claim['status']) { 'approved' => 'Verify ID', 'verified' => 'Hand over', default => 'Review' } ?>
                         </a>
                     </td>
                 </tr>
@@ -700,9 +812,180 @@ include APP_ROOT . '/templates/layout/header.php';
     </div>
     <?php else: ?>
         <?= empty_state(
-            $status === 'pending' ? 'Queue is clear' : 'No ' . ($status === 'all' ? '' : $status . ' ') . 'claims',
-            $status === 'pending' ? 'There are no claims waiting for review right now.' : ''
+            $status === 'review' ? 'Queue is clear' : 'No claims here',
+            $status === 'review' ? 'There are no claims waiting for review right now.' : ''
         ) ?>
+    <?php endif; ?>
+
+<?php /* ================================================== DISPOSED ITEMS (staff; admins read-only) */ ?>
+<?php elseif ($tab === 'disposed'): ?>
+    <?php
+    $q        = trim((string) ($_GET['q'] ?? ''));
+    $category = (string) ($_GET['category'] ?? '');
+    $from     = (string) ($_GET['from'] ?? '');
+    $to       = (string) ($_GET['to'] ?? '');
+    $rows = search_rows(where(all_found_items(), 'status', 'disposed'), $q, ['category' => $category]);
+    // Filtered by disposal date; items disposed before disposal records existed have none and show only without a date filter.
+    if ($from !== '') $rows = array_values(array_filter($rows, fn ($i) => $i['disposed_at'] && substr($i['disposed_at'], 0, 10) >= $from));
+    if ($to !== '')   $rows = array_values(array_filter($rows, fn ($i) => $i['disposed_at'] && substr($i['disposed_at'], 0, 10) <= $to));
+    usort($rows, fn ($a, $b) => strcmp((string) $b['disposed_at'], (string) $a['disposed_at']) ?: $b['item_id'] <=> $a['item_id']);
+    [$pageRows, $page, $totalPages] = paginate($rows, 10);
+    ?>
+    <form method="get" action="<?= e(url('/')) ?>" class="filter-bar" role="search">
+        <input type="hidden" name="tab" value="disposed">
+        <div class="form-group grow">
+            <label for="q">Keyword</label>
+            <input type="search" id="q" name="q" value="<?= e($q) ?>" placeholder="Item, description, location…">
+        </div>
+        <div class="form-group">
+            <label for="category">Category</label>
+            <select id="category" name="category"><option value="">Any</option><?= options(category_names(), $category, false) ?></select>
+        </div>
+        <div class="form-group">
+            <label for="from">Disposed from</label>
+            <input type="date" id="from" name="from" value="<?= e($from) ?>" max="<?= date('Y-m-d') ?>">
+        </div>
+        <div class="form-group">
+            <label for="to">Disposed to</label>
+            <input type="date" id="to" name="to" value="<?= e($to) ?>" max="<?= date('Y-m-d') ?>">
+        </div>
+        <button type="submit" class="btn btn-primary">Filter</button>
+        <a class="btn btn-secondary" href="<?= e(url('/?tab=disposed')) ?>">Reset</a>
+    </form>
+    <p class="result-count"><?= count($rows) ?> disposed item<?= count($rows) === 1 ? '' : 's' ?></p>
+    <?php if ($pageRows): ?>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>#</th><th></th><th>Item</th><th>Found</th><th>Disposed</th><th>Reason</th><th>Disposed by</th><th>Claims</th><th class="actions"></th></tr></thead>
+            <tbody>
+            <?php foreach ($pageRows as $item): $by = find_user($item['disposed_by']); $onRecord = count(where(all_claims(), 'item_id', $item['item_id'])); ?>
+                <tr>
+                    <td class="text-muted"><?= $item['item_id'] ?></td>
+                    <td><?= photo_tag($item['image_url'], $item['item_name'], 'photo-thumb') ?></td>
+                    <td><a class="table-title" href="<?= e(item_url('found', $item['item_id'])) ?>"><?= e($item['item_name']) ?></a>
+                        <span class="table-sub"><?= e($item['category']) ?> &middot; <?= e($item['location_found']) ?></span></td>
+                    <td class="nowrap"><?= e(format_date($item['date_found'])) ?></td>
+                    <td class="nowrap"><?= $item['disposed_at'] ? e(format_datetime($item['disposed_at'])) : '<span class="text-muted">Not recorded</span>' ?></td>
+                    <td class="cell-wide"><?= $item['disposal_reason'] ? e(excerpt($item['disposal_reason'], 90)) : '<span class="text-muted">Not recorded</span>' ?></td>
+                    <td><?= $by ? e(full_name($by)) : '<span class="text-muted">Not recorded</span>' ?></td>
+                    <td><?= $onRecord ? $onRecord . ' on record' : '<span class="text-muted">None</span>' ?></td>
+                    <td class="actions"><a class="btn btn-outline btn-sm" href="<?= e(item_url('found', $item['item_id'])) ?>">View</a></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?= pagination($page, $totalPages) ?>
+    <?php else: ?>
+        <?= empty_state('No disposed items', $q !== '' || $category !== '' || $from !== '' || $to !== '' ? 'Nothing matches those filters.' : 'Items staff dispose of show up here with the reason and who disposed of them.') ?>
+    <?php endif; ?>
+
+<?php /* ================================================== CATEGORIES (admin) */ ?>
+<?php elseif ($tab === 'categories'): ?>
+    <?php
+    $usage = category_usage();
+    $cats  = array_values(all_categories());
+    usort($cats, fn ($a, $b) => [!$a['is_active'], $a['name']] <=> [!$b['is_active'], $b['name']]);   // active first, then by name
+    ?>
+    <div class="grid grid-sidebar">
+        <div>
+            <div class="table-wrap">
+                <table class="table" id="categoriesTable">
+                    <thead><tr><th>Category</th><th>Status</th><th>Used by</th><th>Added</th><th>Updated</th><th class="actions"></th></tr></thead>
+                    <tbody>
+                    <?php foreach ($cats as $c):
+                        $lost  = $usage[$c['category_id']]['lost'] ?? 0;
+                        $found = $usage[$c['category_id']]['found'] ?? 0;
+                        $creator = find_user($c['created_by']); ?>
+                        <tr>
+                            <td><span class="table-title"><?= e($c['name']) ?></span><?php if ($c['description']): ?><span class="table-sub"><?= e($c['description']) ?></span><?php endif; ?></td>
+                            <td><span class="badge badge-<?= $c['is_active'] ? 'active' : 'inactive' ?>"><?= $c['is_active'] ? 'Active' : 'Inactive' ?></span></td>
+                            <td class="nowrap"><?= $lost + $found ? "$lost report" . ($lost === 1 ? '' : 's') . ", $found item" . ($found === 1 ? '' : 's') : '<span class="text-muted">Not used</span>' ?></td>
+                            <td class="nowrap"><?= e(format_date($c['created_at'])) ?><span class="table-sub"><?= $creator ? e(full_name($creator)) : 'Original list' ?></span></td>
+                            <td class="nowrap"><?= e(format_datetime($c['updated_at'])) ?></td>
+                            <td class="actions">
+                                <form method="post" action="<?= e(url('/?tab=categories')) ?>" class="inline-form" data-api="category" data-done="reload"
+                                      data-confirm="<?= e($c['is_active'] ? 'Deactivate "' . $c['name'] . '"? It won\'t be offered on new forms; records that use it keep it.' : 'Activate "' . $c['name'] . '" again?') ?>">
+                                    <input type="hidden" name="action" value="set_active">
+                                    <input type="hidden" name="category_id" value="<?= $c['category_id'] ?>">
+                                    <input type="hidden" name="is_active" value="<?= $c['is_active'] ? 0 : 1 ?>">
+                                    <button type="submit" class="btn btn-sm <?= $c['is_active'] ? 'btn-secondary' : 'btn-success' ?>"><?= $c['is_active'] ? 'Deactivate' : 'Activate' ?><span class="sr-only"> <?= e($c['name']) ?></span></button>
+                                </form>
+                                <?php if ($lost + $found): ?>
+                                    <button type="button" class="btn btn-sm btn-ghost" disabled title="Used by existing records: deactivate it instead">Delete<span class="sr-only"> <?= e($c['name']) ?> (in use)</span></button>
+                                <?php else: ?>
+                                    <form method="post" action="<?= e(url('/?tab=categories')) ?>" class="inline-form" data-api="category" data-done="reload"
+                                          data-confirm="<?= e('Delete "' . $c['name'] . '" permanently? No record uses it.') ?>">
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="category_id" value="<?= $c['category_id'] ?>">
+                                        <button type="submit" class="btn btn-sm btn-danger">Delete<span class="sr-only"> <?= e($c['name']) ?></span></button>
+                                    </form>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-sm text-muted mt-1">A category used by any lost report or found item can't be deleted, so old records keep their category; deactivate it instead.
+                "<?= e(OTHER_CATEGORY) ?>" asks the user to describe the item type.</p>
+        </div>
+        <aside>
+            <div class="card">
+                <h2>Add a category</h2>
+                <form method="post" action="<?= e(url('/?tab=categories')) ?>" class="form" data-validate data-api="category" data-done="reload">
+                    <input type="hidden" name="action" value="create">
+                    <div class="form-group">
+                        <label for="cat_name">Name <span class="req" aria-hidden="true">*</span></label>
+                        <input type="text" id="cat_name" name="name" required minlength="2" maxlength="50" data-label="Name" placeholder="e.g. Sports Equipment">
+                        <span class="form-hint">Must differ from every existing name (upper and lower case count as the same).</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="cat_description">Description <span class="text-muted text-sm">(optional)</span></label>
+                        <input type="text" id="cat_description" name="description" maxlength="255" placeholder="e.g. Balls, rackets, gym gear">
+                    </div>
+                    <div class="form-actions compact">
+                        <button type="submit" class="btn btn-primary">Add category</button>
+                        <button type="reset" class="btn btn-ghost">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </aside>
+    </div>
+
+<?php /* ================================================== VISITORS (admin) */ ?>
+<?php elseif ($tab === 'visitors'): ?>
+    <?php
+    $visitorStats = db()->query('SELECT COUNT(*) AS total, COALESCE(SUM(last_seen_at > NOW() - INTERVAL 7 DAY), 0) AS week, COALESCE(SUM(page_views), 0) AS views FROM visitors')->fetch();
+    $visitorRows  = db()->query('SELECT v.*, (SELECT COUNT(*) FROM security_events e WHERE e.visitor_id = v.visitor_id) AS events
+                                 FROM visitors v ORDER BY v.last_seen_at DESC LIMIT 200')->fetchAll();
+    ?>
+    <div class="stat-grid">
+        <div class="stat-card"><span class="stat-label">Visitor records</span><span class="stat-value"><?= (int) $visitorStats['total'] ?></span><span class="stat-note">accepted cookies</span></div>
+        <div class="stat-card info"><span class="stat-label">Seen in 7 days</span><span class="stat-value"><?= (int) $visitorStats['week'] ?></span></div>
+        <div class="stat-card success"><span class="stat-label">Page views</span><span class="stat-value"><?= (int) $visitorStats['views'] ?></span><span class="stat-note">while not logged in</span></div>
+        <div class="stat-card warning"><span class="stat-label">Kept for</span><span class="stat-value stat-value-sm"><?= VISITOR_RETENTION_DAYS ?> days</span><span class="stat-note">after the last visit</span></div>
+    </div>
+    <?php if ($visitorRows): ?>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>Visitor</th><th>Consented</th><th>First seen</th><th>Last seen</th><th>Page views</th><th>Security events</th></tr></thead>
+            <tbody>
+            <?php foreach ($visitorRows as $v): ?>
+                <tr>
+                    <td><span class="table-title">Visitor #<?= (int) $v['visitor_id'] ?></span><span class="table-sub">Token hash <?= e(substr($v['token_hash'], 0, 10)) ?>…</span></td>
+                    <td class="nowrap"><?= e(format_datetime($v['consented_at'])) ?></td>
+                    <td class="nowrap"><?= e(format_datetime($v['first_seen_at'])) ?></td>
+                    <td class="nowrap"><?= e(time_ago($v['last_seen_at'])) ?></td>
+                    <td><?= (int) $v['page_views'] ?></td>
+                    <td><?= (int) $v['events'] ? (int) $v['events'] . ' (failed log-ins, sign-ups…)' : '<span class="text-muted">None</span>' ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php else: ?>
+        <?= empty_state('No visitor records', 'A record is created when someone who is not logged in accepts cookies on the banner.') ?>
     <?php endif; ?>
 
 <?php /* ================================================== ACCOUNT REVIEW (admin) */ ?>
@@ -712,7 +995,7 @@ include APP_ROOT . '/templates/layout/header.php';
     $deactivator      = find_user($member['deactivated_by']);
     $falseReports     = $member['deactivation_reason'] === 'false_reports';
     ?>
-    <p><a href="<?= e(url('/?tab=users')) ?>">&larr; All users</a></p>
+    <?= back_button(url('/?tab=users'), 'All users') ?>
     <div class="grid grid-2 mb-3">
         <div class="card">
             <div class="card-header">
@@ -722,6 +1005,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <dl class="detail-list">
                 <dt>Email</dt><dd><?= e($member['email']) ?><?= $member['email_verified'] ? '' : ' <span class="badge badge-pending">Unverified</span>' ?></dd>
                 <dt>Role</dt><dd><?= e(ROLES[$member['role']] ?? $member['role']) ?></dd>
+                <dt>School record</dt><dd><?= $member['student_number'] || $member['employee_number'] ? e(account_type_label($member)) : '<span class="text-muted">None (provisioned or registered before school records)</span>' ?></dd>
                 <dt>Registered</dt><dd><?= e(format_datetime($member['created_at'])) ?></dd>
                 <dt>Last login</dt><dd><?= e(format_datetime($member['last_login_at'])) ?></dd>
                 <?php if (account_locked($member)): ?><dt>Locked</dt><dd><?= e(format_datetime($member['locked_at'])) ?> (unlock from the users list)</dd><?php endif; ?>
@@ -840,7 +1124,8 @@ include APP_ROOT . '/templates/layout/header.php';
                         <div class="flex items-center gap-1">
                             <span class="avatar" aria-hidden="true"><?= e(initials($u)) ?></span>
                             <span class="table-title"><a href="<?= e(url('/?tab=users&id=' . $u['user_id'])) ?>"><?= e(full_name($u)) ?></a><?= $isMe ? ' <small class="text-muted">(you)</small>' : '' ?>
-                                <span class="table-sub"><?= e($u['email']) ?></span></span>
+                                <span class="table-sub"><?= e($u['email']) ?></span>
+                                <?php if ($u['student_number'] || $u['employee_number']): ?><span class="table-sub"><?= e(account_type_label($u)) ?></span><?php endif; ?></span>
                         </div>
                     </td>
                     <td>
@@ -1108,9 +1393,10 @@ include APP_ROOT . '/templates/layout/header.php';
             </div>
             <dl class="item-card-meta">
                 <div><dt>Role</dt><dd><?= e(ROLES[$user['role']] ?? $user['role']) ?></dd></div>
+                <?php if ($user['student_number'] || $user['employee_number']): ?><div><dt>School record</dt><dd><?= e(account_type_label($user)) ?></dd></div><?php endif; ?>
                 <div><dt>Member since</dt><dd><?= e(format_date($user['created_at'])) ?></dd></div>
             </dl>
-            <p class="text-sm text-muted mb-0">To change your name or role, contact the Lost &amp; Found office.</p>
+            <p class="text-sm text-muted mb-0">Your name comes from the school's records. To change it or your role, contact the Lost &amp; Found office.</p>
         </div>
 
         <div class="card">
@@ -1124,7 +1410,8 @@ include APP_ROOT . '/templates/layout/header.php';
                 </div>
                 <div class="form-group">
                     <label for="new_password">New password <span class="req" aria-hidden="true">*</span></label>
-                    <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-label="New password" data-password-policy data-differs="current_password"<?= $inv('new_password') ?>>
+                    <input type="password" id="new_password" name="new_password" required minlength="<?= PASSWORD_MIN ?>" autocomplete="new-password" data-label="New password" data-password-policy data-differs="current_password"
+                           data-person-names="<?= e($user['first_name'] . '|' . $user['last_name']) ?>" data-birthday-checked<?= $inv('new_password') ?>>
                     <?= $err('new_password') ?>
                 </div>
                 <div class="form-group">
@@ -1146,14 +1433,14 @@ include APP_ROOT . '/templates/layout/header.php';
 
     $totalItems     = count($items);
     $returnedCount  = count_where($items, 'status', 'returned');
-    $approvedClaims = count_where($claims, 'status', 'approved');
-    $rejectedClaims = count_where($claims, 'status', 'rejected');
-    $pendingCount   = count_where($claims, 'status', 'pending');
+    $approvedClaims = count(array_filter($claims, fn ($c) => $c['status'] !== 'pending'));   // approved, verified or returned
+    $rejectedClaims = count(array_filter($claims, 'is_rejected_claim'));
+    $pendingCount   = count(array_filter($claims, 'awaiting_review'));
     $returnRate     = $totalItems ? round(($returnedCount / $totalItems) * 100) : 0;
 
-    $byCategory = array_fill_keys(CATEGORIES, 0);
+    $byCategory = array_fill_keys(category_names(), 0);
     foreach ($items as $i) {
-        $byCategory[listed($i['category'], CATEGORIES)]++;   // typed "Other" values count as Other
+        $byCategory[$i['category_name']]++;   // typed "Other" details count as Other
     }
     arsort($byCategory);
     $maxCategory = max(1, max($byCategory));
@@ -1195,7 +1482,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <div class="stat-card warning">
             <span class="stat-label">Claims</span>
             <span class="stat-value"><?= count($claims) ?></span>
-            <span class="stat-note"><?= $approvedClaims ?> approved &middot; <?= $rejectedClaims ?> rejected &middot; <?= $pendingCount ?> pending</span>
+            <span class="stat-note"><?= $approvedClaims ?> approved &middot; <?= $rejectedClaims ?> rejected (still pending) &middot; <?= $pendingCount ?> awaiting review</span>
         </div>
     </div>
 
@@ -1223,8 +1510,8 @@ include APP_ROOT . '/templates/layout/header.php';
             <h2>Claim outcomes</h2>
             <div class="bars">
                 <div class="bar-row"><span>Approved</span><?= $bar($approvedClaims, count($claims), 'success') ?><span class="bar-value"><?= $approvedClaims ?></span></div>
-                <div class="bar-row"><span>Rejected</span><?= $bar($rejectedClaims, count($claims)) ?><span class="bar-value"><?= $rejectedClaims ?></span></div>
-                <div class="bar-row"><span>Pending</span><?= $bar($pendingCount, count($claims), 'accent') ?><span class="bar-value"><?= $pendingCount ?></span></div>
+                <div class="bar-row"><span>Rejected (pending)</span><?= $bar($rejectedClaims, count($claims)) ?><span class="bar-value"><?= $rejectedClaims ?></span></div>
+                <div class="bar-row"><span>Awaiting review</span><?= $bar($pendingCount, count($claims), 'accent') ?><span class="bar-value"><?= $pendingCount ?></span></div>
             </div>
         </div>
         <div class="card">

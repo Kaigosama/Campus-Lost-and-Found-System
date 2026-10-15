@@ -121,18 +121,67 @@
 
     /* ---- Password policy (same rules as password_error() in src/validation.php) ---- */
     var PASSWORD_MIN = 8;
+    var PERSONAL_INFO_MESSAGE = 'Your password must not contain your name or birthday.';
     var PASSWORD_RULES = [
-        { test: function (v) { return v.length >= PASSWORD_MIN; }, label: 'At least ' + PASSWORD_MIN + ' characters', error: 'Password must be at least ' + PASSWORD_MIN + ' characters.' },
-        { test: function (v) { return /[a-z]/.test(v); }, label: 'Contains a lowercase letter', error: 'Password must contain at least one lowercase letter.' },
-        { test: function (v) { return /[A-Z]/.test(v); }, label: 'Contains an uppercase letter', error: 'Password must contain at least one uppercase letter.' },
-        { test: function (v) { return /[0-9]/.test(v); }, label: 'Contains a number', error: 'Password must contain at least one number.' },
-        { test: function (v) { return /[^A-Za-z0-9]/.test(v); }, label: 'Contains a special character', error: 'Password must contain at least one special character.' }
+        { test: function (v) { return v.length >= PASSWORD_MIN; }, label: 'Minimum length (' + PASSWORD_MIN + ' characters)', error: 'Password must be at least ' + PASSWORD_MIN + ' characters.' },
+        { test: function (v) { return /[a-z]/.test(v); }, label: 'Lowercase letter', error: 'Password must contain at least one lowercase letter.' },
+        { test: function (v) { return /[A-Z]/.test(v); }, label: 'Uppercase letter', error: 'Password must contain at least one uppercase letter.' },
+        { test: function (v) { return /[0-9]/.test(v); }, label: 'Number', error: 'Password must contain at least one number.' },
+        { test: function (v) { return /[^A-Za-z0-9]/.test(v); }, label: 'Special character', error: 'Password must contain at least one special character.' }
     ];
-    function passwordError(value) {
-        for (var i = 0; i < PASSWORD_RULES.length; i++) {
-            if (!PASSWORD_RULES[i].test(value)) return PASSWORD_RULES[i].error;
+
+    // Personal information, mirroring password_has_name() / password_has_full_date() in src/validation.php. The
+    // actual birthday is checked only on the server (it is never sent to the browser); any full calendar date is
+    // refused here and there, which covers a birthday in YYYYMMDD, DDMMYYYY and MMDDYYYY form.
+    var LOOK_ALIKES = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a', '$': 's' };
+    function fold(text) { return String(text).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+    function nameTokens(names) {
+        var words = function (s) { return fold(s).split(/[^a-z]+/).filter(Boolean); };
+        var first = words(names[0] || ''), last = words(names[1] || '');
+        var tokens = first.concat(last, [first.join(''), last.join(''), first.concat(last).join('')]);
+        return tokens.filter(function (t, i) { return t.length >= 3 && tokens.indexOf(t) === i; });
+    }
+    function hasName(value, names) {
+        var mapped = value.replace(/[013457@$]/g, function (c) { return LOOK_ALIKES[c]; });
+        var words = [];
+        (mapped.match(/\p{L}+/gu) || []).forEach(function (run) {
+            run.split(/(?<=\p{Ll})(?=\p{Lu})/u).forEach(function (w) { words.push(fold(w)); });
+        });
+        var letters = words.join('');
+        return nameTokens(names).some(function (t) { return t.length >= 4 ? letters.indexOf(t) !== -1 : words.indexOf(t) !== -1; });
+    }
+    function hasFullDate(value) {
+        var thisYear = new Date().getFullYear();
+        var runs = value.replace(/(\d)[\s\-\/._]+(?=\d)/g, '$1').match(/\d+/g) || [];
+        return runs.some(function (run) {
+            for (var i = 0; i + 8 <= run.length; i++) {
+                var s = run.substr(i, 8);
+                var forms = [[0, 4, 6], [4, 2, 0], [4, 0, 2]];   // YYYYMMDD, DDMMYYYY, MMDDYYYY
+                for (var f = 0; f < forms.length; f++) {
+                    var y = +s.substr(forms[f][0], 4), m = +s.substr(forms[f][1], 2), d = +s.substr(forms[f][2], 2);
+                    var date = new Date(y, m - 1, d);
+                    if (y >= 1900 && y <= thisYear && date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d) return true;
+                }
+            }
+            return false;
+        });
+    }
+    // The rules for one password field: the basic ones plus "no name or birthday" with that person's names.
+    function rulesFor(input) {
+        var names = (input.dataset.personNames || '').split('|');
+        return PASSWORD_RULES.concat([{
+            test: function (v) { return !(hasFullDate(v) || (input.dataset.personNames && hasName(v, names))); },
+            label: 'No personal information (your name or birthday)',
+            error: PERSONAL_INFO_MESSAGE
+        }]);
+    }
+    function passwordError(input) {
+        var rules = rulesFor(input), value = input.value;
+        if (value.length > 72) return 'Password must be 72 characters or fewer.';
+        for (var i = 0; i < rules.length; i++) {
+            if (!rules[i].test(value)) return rules[i].error;
         }
-        return value.length > 72 ? 'Password must be 72 characters or fewer.' : '';
+        return '';
     }
 
     /* ---- Email typos (same lists as email_typo_error() in src/validation.php) ---- */
@@ -161,30 +210,34 @@
         return fixed === domain ? '' : 'Check the email address. Did you mean ' + email.slice(0, at + 1) + fixed + '?';
     }
 
-    // Live checklist and Weak / Moderate / Strong label under input[data-password-policy]. A UI aid only:
-    // the server rejects any password that misses a rule.
+    // Live checklist and Weak / Moderate / Strong label under input[data-password-policy]: each rule shows Passed or
+    // Not satisfied as you type. A UI aid only: the server rejects any password that misses a rule.
     document.querySelectorAll('input[data-password-policy]').forEach(function (input) {
+        var rules = rulesFor(input);
         var meter = document.createElement('div');
         meter.className = 'password-meter';
         meter.id = input.id + '-meter';
         meter.innerHTML = '<div class="password-strength"><span>Password strength: <span class="strength-label" aria-live="polite">—</span></span>'
             + '<span class="strength-bar" aria-hidden="true"><span></span></span></div>'
-            + '<ul class="password-rules">' + PASSWORD_RULES.map(function (rule) {
-                return '<li><span class="sr-only">Not met: </span>' + escapeHtml(rule.label) + '</li>';
-            }).join('') + '</ul>';
+            + '<ul class="password-rules">' + rules.map(function (rule) {
+                return '<li>' + escapeHtml(rule.label) + ': <span class="rule-state">Not satisfied</span></li>';
+            }).join('') + '</ul>'
+            + (input.hasAttribute('data-birthday-checked')
+                ? '<p class="form-hint">Your birthday on the school\'s records is also checked when you submit. ' + escapeHtml(PERSONAL_INFO_MESSAGE) + '</p>' : '');
         groupOf(input).insertBefore(meter, input.nextSibling);
         describeBy(input, meter, 'meter');
         var items = meter.querySelectorAll('li');
 
         function update() {
             var met = 0;
-            PASSWORD_RULES.forEach(function (rule, i) {
+            rules.forEach(function (rule, i) {
                 var ok = rule.test(input.value);
                 if (ok) met++;
                 items[i].classList.toggle('met', ok);
-                items[i].firstChild.textContent = ok ? 'Met: ' : 'Not met: ';
+                items[i].querySelector('.rule-state').textContent = !input.value ? 'Not satisfied' : ok ? 'Passed' : (i === rules.length - 1 ? 'Failed' : 'Not satisfied');
             });
-            var level = !input.value ? '' : met <= 2 ? 'weak' : met < PASSWORD_RULES.length ? 'moderate' : 'strong';
+            var personalOk = rules[rules.length - 1].test(input.value);
+            var level = !input.value ? '' : (met <= 3 || !personalOk) ? 'weak' : met < rules.length ? 'moderate' : 'strong';
             meter.className = 'password-meter' + (level ? ' strength-' + level : '');
             meter.querySelector('.strength-label').textContent = level ? level.charAt(0).toUpperCase() + level.slice(1) : '—';
         }
@@ -246,7 +299,7 @@
         if (!value) return '';
 
         if (field.hasAttribute('data-password-policy')) {
-            var policy = passwordError(field.value);
+            var policy = passwordError(field);
             if (policy) return policy;
             var old = field.dataset.differs && field.form.querySelector('[name="' + field.dataset.differs + '"]');
             return old && old.value === field.value ? 'Choose a password different from your current one.' : '';
@@ -257,9 +310,6 @@
         }
         var maxLength = parseInt(field.getAttribute('maxlength'), 10);
         if (maxLength && value.length > maxLength) return 'Must be ' + maxLength + ' characters or fewer.';
-        if (field.hasAttribute('data-name') && !/^\p{L}[\p{L}\p{M} .'\-]*$/u.test(value)) {
-            return 'Use letters only (spaces, hyphens, apostrophes and periods are allowed).';
-        }
         if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email address.';
         if (field.hasAttribute('data-email-typos') && emailTypoError(value)) return emailTypoError(value);
         if (field.dataset.match) {
@@ -360,12 +410,13 @@
         syncReset(form);
     });
 
-    // input[data-other-for="<select name>"]: typed into only while that select is on "Other". Disabled, it is skipped
+    // input[data-other-for="<select name>"]: typed into only while that select is on its "Other" choice
+    // (data-other-value: "Other" for locations, the Other category's id for categories). Disabled, it is skipped
     // by validation and left out of the request.
     document.querySelectorAll('[data-other-for]').forEach(function (input) {
         var select = input.form.querySelector('[name="' + input.dataset.otherFor + '"]');
         select.addEventListener('change', function () {
-            input.disabled = select.value !== 'Other';
+            input.disabled = select.value !== input.dataset.otherValue;
             if (input.disabled) clearError(input); else input.focus();
         });
     });
@@ -405,7 +456,7 @@
             ? Array.prototype.every.call(form.querySelectorAll('input, select, textarea'), function (field) { return !validateField(field); })
             : requiredFilled(form);
         var ready = valid && isDirty(form);
-        form.querySelectorAll('button[type="submit"]').forEach(function (button) {
+        form.querySelectorAll('button[type="submit"]:not([formnovalidate])').forEach(function (button) {   // "Back" always works
             var needed = button.dataset.requires && form.querySelector('[name="' + button.dataset.requires + '"]');
             button.disabled = needed ? needed.value.trim().length < (parseInt(button.dataset.min, 10) || 1) : !ready;
         });
@@ -449,10 +500,16 @@
     }
 
     // After success: data-done="replace" swaps the form (or its closest [data-replace]) for a success alert,
-    // "remove" deletes it (or its closest [data-remove]), anything else shows a page banner.
+    // "remove" deletes it (or its closest [data-remove]), "reload" reloads the page (when the change touches many
+    // parts of it: badges, history, the next workflow step) and shows the message there; anything else shows a page banner.
+    var FLASH_KEY = 'clafs-flash';
     function finish(form, message) {
         var mode = form.dataset.done || 'notify';
-        if (mode === 'replace') {
+        if (mode === 'reload') {
+            try { sessionStorage.setItem(FLASH_KEY, message); } catch (e) { /* storage blocked: reload without the message */ }
+            form.dataset.saved = '1';
+            window.location.reload();
+        } else if (mode === 'replace') {
             (form.closest('[data-replace]') || form).replaceWith(alertNode('success', message));
         } else if (mode === 'remove') {
             (form.closest('[data-remove]') || form).remove();
@@ -521,9 +578,20 @@
             return ClafsApi.updateStatus(type, parseInt(data.id, 10), data.status, data.item_id)
                 .then(function (result) {
                     setBadge(type + '-' + result.id, result.status);
-                    (result.rejected_claims || []).forEach(function (claimId) { setBadge('claim-' + claimId, 'rejected'); });
                     finish(form, result.message);
                 });
+        },
+        dispose: function (form, data) {
+            return ClafsApi.disposeItem(parseInt(data.id, 10), data).then(function (result) { finish(form, result.message); });
+        },
+        verify: function (form, data) {
+            return ClafsApi.verifyClaim(parseInt(data.claim_id, 10), data).then(function (result) { finish(form, result.message); });
+        },
+        return_item: function (form, data) {
+            return ClafsApi.returnItem(parseInt(data.claim_id, 10), data.confirm_handover).then(function (result) { finish(form, result.message); });
+        },
+        category: function (form, data) {
+            return ClafsApi.manageCategory(data).then(function (result) { finish(form, result.message); });
         },
         delete_item: function (form, data) {
             return ClafsApi.deleteItem(parseInt(data.id, 10)).then(function (result) {
@@ -551,12 +619,7 @@
         },
         review: function (form, data) {
             return ClafsApi.reviewClaim(parseInt(data.claim_id, 10), data.decision, data.review_note)
-                .then(function (result) {
-                    setBadge('claim-' + result.claim_id, result.status);
-                    var handover = document.querySelector('[data-handover="' + result.claim_id + '"]');
-                    if (handover && result.status === 'approved') handover.hidden = false;
-                    finish(form, result.message);
-                });
+                .then(function (result) { finish(form, result.message); });
         },
         withdraw: function (form, data) {
             return ClafsApi.withdrawClaim(parseInt(data.claim_id, 10))
@@ -584,10 +647,12 @@
 
     document.addEventListener('submit', function (event) {
         var form = event.target;
-        if (form.hasAttribute('data-validate') && !validateForm(form)) {
+        var back = event.submitter && event.submitter.hasAttribute('formnovalidate');   // "Back" skips validation
+        if (!back && form.hasAttribute('data-validate') && !validateForm(form)) {
             event.preventDefault();
             return;
         }
+        if (!event.defaultPrevented) form.dataset.saved = '1';   // leaving through this submit isn't losing changes
         var handler = handlers[form.dataset.api];
         if (!handler || !window.ClafsApi) return;
         event.preventDefault();
@@ -608,9 +673,96 @@
                 setBusy(form, false);
             })
             .catch(function (error) {
+                delete form.dataset.saved;
                 showApiError(form, error);
                 setBusy(form, false);
             });
+    });
+
+    // A message from finish(form, …, 'reload'), shown once the page has reloaded.
+    try {
+        var flash = sessionStorage.getItem(FLASH_KEY);
+        if (flash) { sessionStorage.removeItem(FLASH_KEY); notify('success', flash); }
+    } catch (e) { /* storage blocked */ }
+
+    /* ---- Back / Cancel: leaving a form with unsaved changes asks first ---- */
+    // a[data-cancel] (cancel_button()) abandons the form without saving; it asks only when something was changed.
+    // form[data-unsaved] also warns when the tab is closed or the browser's Back is used with unsaved changes.
+    var leaving = false;
+    document.addEventListener('click', function (event) {
+        var link = event.target.closest('a[data-cancel]');
+        if (!link) return;
+        var form = link.closest('form');
+        if (form && isDirty(form) && !window.confirm('Discard your changes? Nothing you entered will be saved.')) {
+            event.preventDefault();
+            return;
+        }
+        leaving = true;
+    });
+    window.addEventListener('beforeunload', function (event) {
+        if (leaving) return;
+        var unsaved = Array.prototype.some.call(document.querySelectorAll('form[data-unsaved]'), function (form) {
+            return form.dataset.saved !== '1' && isDirty(form);
+        });
+        if (unsaved) { event.preventDefault(); event.returnValue = ''; }
+    });
+
+    /* ---- CAPTCHA (Cloudflare Turnstile, see turnstile_widget()) ---- */
+    // The check runs only when the form is submitted with its required fields filled in, and the status line reports on
+    // the CAPTCHA alone: incomplete form, verifying, failed, expired, passed. "Passed" never means logged in: the form
+    // is then sent, and only the server's answer (a redirect, or an error such as a wrong password) says how it went.
+    // The server verifies the token again with Cloudflare; this script is not trusted for that.
+    document.querySelectorAll('[data-turnstile]').forEach(function (box) {
+        var form = box.closest('form');
+        var slot = box.querySelector('[data-turnstile-slot]');
+        var status = box.querySelector('[data-captcha-status]');
+        var widget = null;
+        var token = '';
+        function say(text, kind) {
+            status.textContent = 'Security check: ' + text;
+            status.className = 'captcha-status' + (kind ? ' is-' + kind : '');
+        }
+        function idle() {
+            if (!token && form.getAttribute('aria-busy') !== 'true') {
+                requiredFilled(form) ? say('ready. It runs when you submit the form.', '') : say('waiting until the form is filled in.', '');
+            }
+        }
+        function retry(text) {
+            token = '';
+            say(text, 'error');
+            setBusy(form, false);
+        }
+        ['input', 'change'].forEach(function (type) { form.addEventListener(type, idle); });
+        idle();
+
+        form.addEventListener('submit', function (event) {
+            if ((event.submitter && event.submitter.hasAttribute('formnovalidate')) || token) return;   // Back, or token in hand: send it
+            event.preventDefault();
+            if (!requiredFilled(form) || (form.hasAttribute('data-validate') && !validateForm(form))) {
+                say('waiting until the form is filled in.', 'error');
+                return;
+            }
+            if (!window.turnstile) {
+                say('could not load. Check your internet connection, then try again.', 'error');
+                return;
+            }
+            setBusy(form, true);
+            say('verifying…', 'busy');
+            var options = {
+                sitekey: box.dataset.turnstile,
+                appearance: 'interaction-only',   // the widget appears only when Cloudflare needs a click
+                callback: function (value) {
+                    token = value;
+                    say('passed. Sending your details to the server…', 'ok');
+                    form.requestSubmit();
+                },
+                'error-callback': function () { retry('failed. Submit again to retry.'); return true; },
+                'expired-callback': function () { retry('expired. Submit again to run it again.'); },
+                'timeout-callback': function () { retry('timed out. Submit again to retry.'); }
+            };
+            if (widget === null) widget = window.turnstile.render(slot, options);
+            else window.turnstile.reset(widget);   // a fresh check: an old token is never reused
+        });
     });
 
     /* ---- Live search (found items) ---- */
@@ -858,6 +1010,8 @@
             var choice = event.target.closest('[data-cookie-choice]');
             if (choice) {
                 try { localStorage.setItem(CONSENT_KEY, choice.dataset.cookieChoice); } catch (e) { /* private mode: ask again next visit */ }
+                // Accept creates the anonymous visitor record; Reject deletes it (src/visitors.php).
+                if (window.ClafsApi) ClafsApi.visitorConsent(choice.dataset.cookieChoice).catch(function () { /* try again on the next choice */ });
                 banner.hidden = true;
                 applyConsent(choice.dataset.cookieChoice);
             } else if (event.target.closest('[data-cookie-settings]')) {
