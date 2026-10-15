@@ -3,8 +3,9 @@ require_once __DIR__ . '/../../src/bootstrap.php';
 
 /**
  * POST /api/add_item.php   (multipart/form-data with optional "photo" file, form fields, or JSON)
- *   type=lost   { item_name, category, date_lost,  location_lost,  description, confirm_duplicate? }           — students / faculty
- *   type=found  { item_name, category, date_found, location_found, description, storage_location, private_details }
+ *   type=lost   { item_name, category_id, category_detail?, date_lost,  location_lost,  description, confirm_duplicate? } — students / faculty
+ *   type=found  { item_name, category_id, category_detail?, date_found, location_found, description, storage_location, private_details }
+ *               category_id must be an active category; category_detail describes the "Other" category.
  *               staff: logged at intake and public at once.
  *               students / faculty: a post without storage_location that stays "pending" until staff approve it.
  *               Administrators don't log found items.
@@ -80,14 +81,14 @@ if ($photoError) {
 }
 
 if ($type === 'found') {
-    $sql  = 'INSERT INTO found_items (user_id, item_name, category, description, private_details, location_found, storage_location, date_found, image_url, moderation_status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
-    $args = [$user['user_id'], $v['item_name'], $v['category'], $v['description'], $v['private_details'],
+    $sql  = 'INSERT INTO found_items (user_id, item_name, category_id, category_detail, description, private_details, location_found, storage_location, date_found, image_url, moderation_status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+    $args = [$user['user_id'], $v['item_name'], $v['category_id'], $v['category_detail'], $v['description'], $v['private_details'],
              $v['location_found'], $isIntake ? $v['storage_location'] : '', $v['date_found'], $imageUrl, $isIntake ? 'approved' : 'pending'];
 } else {
-    $sql  = 'INSERT INTO lost_reports (user_id, item_name, category, description, location_lost, date_lost, image_url)
-             VALUES (?, ?, ?, ?, ?, ?, ?)';
-    $args = [$user['user_id'], $v['item_name'], $v['category'], $v['description'], $v['location_lost'], $v['date_lost'], $imageUrl];
+    $sql  = 'INSERT INTO lost_reports (user_id, item_name, category_id, category_detail, description, location_lost, date_lost, image_url)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+    $args = [$user['user_id'], $v['item_name'], $v['category_id'], $v['category_detail'], $v['description'], $v['location_lost'], $v['date_lost'], $imageUrl];
 }
 $pdo->prepare($sql)->execute($args);
 $id = (int) $pdo->lastInsertId();

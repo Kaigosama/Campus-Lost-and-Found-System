@@ -57,10 +57,11 @@ function similar_reports(int $userId, array $v): array
     $same = fn (string $a, string $b) => words_of($a) === words_of($b);
     $result = ['exact' => null, 'similar' => []];
     foreach ($stmt as $r) {
-        if ($r['category'] !== $v['category']) {
+        if ((int) $r['category_id'] !== $v['category_id']) {
             continue;
         }
         if ($same($r['item_name'], $v['item_name']) && $same($r['description'], $v['description'])
+            && $same((string) $r['category_detail'], (string) $v['category_detail'])
             && $same($r['location_lost'], $v['location_lost']) && $r['date_lost'] === $v['date_lost']) {
             $result['exact'] = $r;
             return $result;

@@ -26,6 +26,11 @@ if ($type === 'found') {
         if (!$row) {
             abort(404, 'Item not found', '', url('/browse.php?manage=1'), 'Back to manage items');
         }
+        // Returned and disposed records are final (api/update_item.php refuses them too).
+        if (is_final_item($row)) {
+            abort(409, 'This item can no longer be edited', 'It was ' . strtolower(status_label($row['status']))
+                . ', so its record is kept as it is. You can still view it and its history.', item_url('found', $id), 'View the item', '&#128274;');
+        }
     }
 } elseif ($id) {
     $row = find_lost_report($id);
@@ -80,7 +85,7 @@ include APP_ROOT . '/templates/layout/header.php';
 
 <div class="grid <?= $editing ? '' : 'grid-sidebar' ?>">
     <div class="card">
-        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate data-submit-guard <?= $formMode ?>>
+        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate data-submit-guard data-unsaved <?= $formMode ?>>
             <?php if ($editing): ?><input type="hidden" name="id" value="<?= $id ?>"><?php endif; ?>
 
             <fieldset>
@@ -95,12 +100,8 @@ include APP_ROOT . '/templates/layout/header.php';
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="category">Category <span class="req" aria-hidden="true">*</span></label>
-                        <select id="category" name="category" required>
-                            <option value="">Select a category…</option>
-                            <?= options(CATEGORIES, listed($row['category'] ?? null, CATEGORIES), false) ?>
-                        </select>
-                        <?= other_input('category', $row['category'] ?? null, CATEGORIES, 50) ?>
+                        <label for="category_id">Category <span class="req" aria-hidden="true">*</span></label>
+                        <?= category_select($row) ?>
                     </div>
                     <div class="form-group">
                         <label for="date_found">Date found <span class="req" aria-hidden="true">*</span></label>
@@ -157,19 +158,12 @@ include APP_ROOT . '/templates/layout/header.php';
                               placeholder="Contents, serial numbers, engravings, scratches, names inside — things a real owner would know."><?= e($row['private_details'] ?? '') ?></textarea>
                 </div>
 
-                <?php if ($editing): ?>
-                <div class="form-group">
-                    <label for="status">Status</label>
-                    <select id="status" name="status"><?= options(FOUND_STATUSES, $row['status']) ?></select>
-                    <span class="form-hint">Use "Returned" from the claim hand-over on the item page so the linked report and other claims are updated automatically.</span>
-                </div>
-                <?php endif; ?>
             </fieldset>
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary btn-lg"><?= $editing ? 'Save changes' : ($isPost ? 'Submit for review' : 'Save to storage') ?></button>
                 <?= reset_button() ?>
-                <a class="btn btn-secondary btn-lg" href="<?= e($editing ? item_url('found', $id) : url($isPost ? '/' : '/browse.php?manage=1')) ?>">Cancel</a>
+                <?= cancel_button($editing ? item_url('found', $id) : url($isPost ? '/' : '/browse.php?manage=1')) ?>
                 <span class="form-hint" data-guard-hint hidden>Please complete all required fields before submitting.</span>
             </div>
         </form>
@@ -230,7 +224,7 @@ include APP_ROOT . '/templates/layout/header.php';
 
 <div class="grid grid-sidebar">
     <div class="card">
-        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate data-submit-guard <?= $formMode ?>>
+        <form method="post" action="<?= e($formAction) ?>" enctype="multipart/form-data" class="form" data-validate data-submit-guard data-unsaved <?= $formMode ?>>
             <?php if ($editing): ?><input type="hidden" name="id" value="<?= $id ?>"><?php else: ?><input type="hidden" name="confirm_duplicate" value="0"><?php endif; ?>
 
             <div class="form-group">
@@ -241,12 +235,8 @@ include APP_ROOT . '/templates/layout/header.php';
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="category">Category <span class="req" aria-hidden="true">*</span></label>
-                    <select id="category" name="category" required>
-                        <option value="">Select a category…</option>
-                        <?= options(CATEGORIES, listed($row['category'] ?? null, CATEGORIES), false) ?>
-                    </select>
-                    <?= other_input('category', $row['category'] ?? null, CATEGORIES, 50) ?>
+                    <label for="category_id">Category <span class="req" aria-hidden="true">*</span></label>
+                    <?= category_select($row) ?>
                 </div>
                 <div class="form-group">
                     <label for="date_lost">Date lost <span class="req" aria-hidden="true">*</span></label>
@@ -288,7 +278,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary btn-lg"><?= $editing ? 'Save changes' : 'Submit report' ?></button>
                 <?= reset_button() ?>
-                <a class="btn btn-secondary btn-lg" href="<?= e($editing ? item_url('lost', $id) : url('/')) ?>">Cancel</a>
+                <?= cancel_button($editing ? item_url('lost', $id) : url('/')) ?>
                 <span class="form-hint" data-guard-hint hidden>Please complete all required fields before submitting.</span>
             </div>
         </form>
