@@ -26,13 +26,17 @@ display case. Cardinal Finds moves that process online.
 
 | Role | Who | Can do |
 |---|---|---|
-| Student / Faculty | anyone who registers and confirms their email | Browse found items, report lost items, claim items, post items they found (staff approve them before they are public) |
-| Security & Maintenance | assigned by an admin | Log found items at intake, review claims and student posts, manage found items, match lost reports, view statistics. Does not file lost reports or claims |
-| Office Administrator | assigned by the master admin | Manage student and staff accounts, view account activity and security logs. Has no access to found-item records, lost reports or claims: does not report, claim, log items, or review claims and posts |
+| Student / Faculty | registers with a student or employee number found in the school's records, then confirms their email | Browse found items, report lost items, claim items, post items they found (staff approve them before they are public) |
+| Security & Maintenance | assigned by an admin | Log found items at intake, review claims (approve / reject), verify the claimant's ID at pickup, hand items over, dispose of eligible items, review student posts, match lost reports, view statistics. Does not file lost reports or claims |
+| Office Administrator | assigned by the master admin | Manage student and staff accounts, form categories and visitor records, view account activity and security logs. Monitors items, lost reports, claims, returns and disposals read-only (Monitoring menu): does not report, claim, log, review, verify, hand over or dispose |
 | Master Administrator | one seeded account | Everything an administrator does, plus manage administrator accounts. Never locked out by failed log-ins (failures are logged and emailed instead); recovers access through password reset |
 
-Account security: email verification on sign-up, Cloudflare Turnstile on log-in and registration, a password
-policy (8+ characters with upper and lower case, a number and a symbol), a lock after 3 wrong passwords in a row
+Registration never grants staff or administrator roles: those are assigned by an administrator.
+
+Account security: registration checked against the school's student and employee records, email verification on
+sign-up (links expire after 30 minutes), Cloudflare Turnstile on log-in and registration (run only when the form is
+submitted, verified on the server), a password policy (8+ characters with upper and lower case, a number and a symbol,
+and no name, birthday or other full date), a lock after 3 wrong passwords in a row
 that only an admin can lift (the user visits the Lost & Found office; Admin → Users & Activity → Unlock), sessions that end after 30 minutes without activity, one device per account at a time (a new login ends the older session), and a log of every log-in, failure, lockout and
 logout that admins can read under **Admin → Security Logs**.
 
@@ -45,7 +49,13 @@ in-person review at the Lost & Found office (Admin → Users & Activity → the 
 The admin dashboard shows recent activity across the system, filterable by reports, claims, posts, accounts,
 authentication and administrative actions, plus a list of accounts needing attention.
 
-The database design is in [docs/erd.html](docs/erd.html) and [database/schema.sql](database/schema.sql).
+Claims move from **Pending** to **Approved for collection**, **Identity verified** (staff record the ID type and its last
+four characters at the desk) and **Returned**. A rejected claim stays Pending, with every rejection kept in its review
+history. Returned and disposed items are final and can't be edited. Admins manage the form categories
+(Admin → Categories).
+
+The database design is in [docs/erd.html](docs/erd.html) and [database/schema.sql](database/schema.sql). The professor's
+revisions are documented in [docs/REVISIONS.md](docs/REVISIONS.md).
 
 ## Install
 
@@ -97,8 +107,9 @@ Log in at `/login.php` with a sample account.
 | `adminanalog1@gmail.com`, `adminlizancing2@gmail.com` | Office Administrator |
 | `staffmarcos1@gmail.com` | Security & Maintenance |
 
-There are no sample Student / Faculty accounts. Students and faculty register at `/register.php` with any
-email address, then confirm it through the emailed link before logging in.
+There are no sample Student / Faculty accounts. Students and faculty register at `/register.php` with a school
+number from the fictional sample records (students `2023100001`–`2024100012`, employees `EMP-10001`–`EMP-10006`; see
+`database/migrations/012_school_reference.sql`) and any email address, then confirm it through the emailed link.
 
 - **Change password:** My Activity → Account & Password.
 - **Emails on your own computer:** verification, password-reset and security emails aren't sent without
@@ -118,7 +129,8 @@ public/              Web root: pages, JSON API and static files
 src/                 PHP logic shared by every page: bootstrap.php loads it all
 templates/layout/    Page header, navigation bar and footer
 config/              Settings: constants and database credentials
-database/            schema.sql (tables and sample data) and seed.php (loads it in Docker)
+database/            schema.sql (tables and sample data), migrations/ and seed.php (applies them)
+tests/               Password-policy self-check and end-to-end acceptance script
 docker/              Apache, PHP and container start-up configuration
 docs/                ERD and API documentation
 ```
@@ -139,6 +151,7 @@ The site deploys to [Railway](https://railway.com) from this repository.
    | `BREVO_API_KEY` | API key from [Brevo](https://www.brevo.com), for verification, reset and security emails |
    | `MAIL_FROM` | a dedicated sender address for system mail, verified in Brevo |
    | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | from Cloudflare dashboard → Turnstile → Add widget, with your domain. **Required**: without them every log-in and registration is refused |
+   | `EMAIL_VERIFICATION_EXPIRY_MINUTES` | optional; minutes a verification link stays valid (default `30`) |
 
 4. Right-click the app service → **Attach volume**, mount path `/var/www/html/public/uploads`, so uploaded
    photos survive redeploys.
@@ -158,9 +171,11 @@ The pages call JSON endpoints in [`public/api/`](public/api/) through [`public/j
 | `POST api/update_item.php` | Edit a found item or lost report |
 | `GET api/staff_updates.php` | Newest pending claim and post (staff pages poll this to offer a refresh; doesn't count as session activity) |
 | `POST api/delete_item.php` | Delete a found item logged by mistake (staff; not once returned or a claim is approved) |
-| `POST api/update_status.php` | Change a status, match a report to an item, or approve/reject a student's post |
-| `POST api/claims.php` | Submit, approve, reject or withdraw a claim |
+| `POST api/update_status.php` | Change a lost report's status, match it to an item, dispose of a found item, or approve/reject a student's post |
+| `POST api/claims.php` | Submit, approve, reject or withdraw a claim; record the ID check at pickup; hand the item over |
 | `POST api/update_user.php` | Admin: change a user's role, deactivate or unlock an account |
+| `POST api/categories.php` | Admin: add, deactivate, reactivate or delete a form category |
+| `POST api/visitor.php` | Cookie banner: create or delete the anonymous visitor record |
 
 Full details: [docs/Group4_API_Documentation.pdf](docs/Group4_API_Documentation.pdf).
 

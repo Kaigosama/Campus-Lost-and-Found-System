@@ -7,247 +7,361 @@
     <style>
         :root { color-scheme: light; }
         body { margin: 0; padding: 2rem 1.5rem 4rem; font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2937; background: #f8fafc; }
-        main { max-width: 1100px; margin: 0 auto; }
+        main { max-width: 1200px; margin: 0 auto; }
         h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
         h2 { font-size: 1.15rem; margin: 2.5rem 0 .75rem; }
         .sub { color: #6b7280; margin: 0 0 1.5rem; }
         .diagram { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; overflow-x: auto; }
-        .erd { display: block; width: 100%; min-width: 900px; height: auto; }
-        .erd .rel:hover { stroke: #9a0c23; stroke-width: 2; }
-        table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; font-size: .92rem; }
-        th, td { text-align: left; padding: .6rem .9rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+        .diagram pre.mermaid { margin: 0; min-width: 1100px; }
+        table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; font-size: .88rem; }
+        th, td { text-align: left; padding: .55rem .8rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
         th { background: #f1f5f9; font-weight: 600; }
+        td.cols { color: #4b5563; font-size: .82rem; max-width: 300px; }
         code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .9em; background: #f1f5f9; padding: .05em .35em; border-radius: 4px; }
         .legend { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; color: #6b7280; font-size: .88rem; margin-top: .75rem; }
+        .new { font-size: .72rem; font-weight: 700; color: #166534; background: #dcfce7; border-radius: 999px; padding: .05rem .45rem; margin-left: .3rem; }
+        .notes li { margin-bottom: .5rem; }
+        .offline { color: #9a0c23; font-size: .88rem; }
     </style>
 </head>
 <body>
 <main>
     <h1>Cardinal Finds — Entity-Relationship Diagram</h1>
-    <p class="sub">Campus lost-and-found system · ITS122P Group 4 · created by <code>database/schema.sql</code>
-        plus the files in <code>database/migrations/</code> (applied in order by <code>database/seed.php</code>)</p>
+    <p class="sub">Campus lost-and-found system · ITS122P Group 4 · generated from the implemented database: <code>database/schema.sql</code>
+        plus every file in <code>database/migrations/</code> (001–014, applied in order by <code>database/seed.php</code>).
+        Every table, column, primary key, foreign key and unique key below is read from that database, so the diagram and the schema match.</p>
 
     <div class="diagram">
-        <svg class="erd" viewBox="0 0 1160 1162" role="img" aria-labelledby="erd-title" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" xmlns="http://www.w3.org/2000/svg">
-<title id="erd-title">Cardinal Finds entity-relationship diagram</title>
-<g class="rel" fill="none" stroke="#111" stroke-width="1.2"><title>users 1 — 0..n user_sessions (signs in with)</title><path d="M300.0 194.0 L220.0 194.0"/><line x1="291.0" y1="201.0" x2="291.0" y2="187.0"/><line x1="285.0" y1="201.0" x2="285.0" y2="187.0"/><line x1="234.0" y1="194.0" x2="220.0" y2="186.0"/><line x1="234.0" y1="194.0" x2="220.0" y2="194.0"/><line x1="234.0" y1="194.0" x2="220.0" y2="202.0"/><circle cx="240.0" cy="194.0" r="5" fill="#fff"/></g>
-<g class="rel" fill="none" stroke="#111" stroke-width="1.2"><title>users 0..1 — 0..n security_events (is subject of / performs)</title><path d="M300.0 336.0 L248.0 336.0 L248.0 564.0 L220.0 564.0"/><line x1="291.0" y1="343.0" x2="291.0" y2="329.0"/><circle cx="280.0" cy="336.0" r="5" fill="#fff"/><line x1="234.0" y1="564.0" x2="220.0" y2="556.0"/><line x1="234.0" y1="564.0" x2="220.0" y2="564.0"/><line x1="234.0" y1="564.0" x2="220.0" y2="572.0"/><circle cx="240.0" cy="564.0" r="5" fill="#fff"/></g>
-<g class="rel" fill="none" stroke="#111" stroke-width="1.2"><title>users 1 — 0..n account_violations (receives)</title><path d="M300.0 552.0 L272.0 552.0 L272.0 944.0 L220.0 944.0"/><line x1="291.0" y1="559.0" x2="291.0" y2="545.0"/><line x1="285.0" y1="559.0" x2="285.0" y2="545.0"/><line x1="234.0" y1="944.0" x2="220.0" y2="936.0"/><line x1="234.0" y1="944.0" x2="220.0" y2="944.0"/><line x1="234.0" y1="944.0" x2="220.0" y2="952.0"/><circle cx="240.0" cy="944.0" r="5" fill="#fff"/></g>
-<g class="rel" fill="none" stroke="#111" stroke-width="1.2"><title>lost_reports 1 — 0..1 account_violations (is confirmed false in)</title><path d="M340.0 822.0 L300.0 822.0 L300.0 994.0 L220.0 994.0"/><line x1="331.0" y1="829.0" x2="331.0" y2="815.0"/><line x1="325.0" y1="829.0" x2="325.0" y2="815.0"/><line x1="229.0" y1="987.0" x2="229.0" y2="1001.0"/><circle cx="240.0" cy="994.0" r="5" fill="#fff"/></g>
-<g class="rel" fill="none" stroke="#111" stroke-width="1.2"><title>users 1 — 0..n lost_reports (files)</title><path d="M455.0 570.0 L455.0 680.0"/><line x1="462.0" y1="579.0" x2="448.0" y2="579.0"/><line x1="462.0" y1="585.0" x2="448.0" y2="585.0"/><line x1="455.0" y1="666.0" x2="447.0" y2="680.0"/><line x1="455.0" y1="666.0" x2="455.0" y2="680.0"/><line x1="455.0" y1="666.0" x2="463.0" y2="680.0"/><circle cx="455.0" cy="660.0" r="5" fill="#fff"/></g>
-<g class="rel" fill="none" stroke="#111" stroke-width="1.2"><title>users 1 — 0..n found_items (logs / posts)</title><path d="M580.0 192.0 L615.0 192.0 L615.0 154.0 L650.0 154.0"/><line x1="589.0" y1="185.0" x2="589.0" y2="199.0"/><line x1="595.0" y1="185.0" x2="595.0" y2="199.0"/><line x1="636.0" y1="154.0" x2="650.0" y2="162.0"/><line x1="636.0" y1="154.0" x2="650.0" y2="154.0"/><line x1="636.0" y1="154.0" x2="650.0" y2="146.0"/><circle cx="630.0" cy="154.0" r="5" fill="#fff"/></g>
-<g class="rel" fill="none" stroke="#111" stroke-width="1.2"><title>users 1 — 0..n claims (makes)</title><path d="M540.0 50.0 L540.0 25.0 L1040.0 25.0 L1040.0 170.0"/><line x1="533.0" y1="41.0" x2="547.0" y2="41.0"/><line x1="533.0" y1="35.0" x2="547.0" y2="35.0"/><line x1="1040.0" y1="156.0" x2="1032.0" y2="170.0"/><line x1="1040.0" y1="156.0" x2="1040.0" y2="170.0"/><line x1="1040.0" y1="156.0" x2="1048.0" y2="170.0"/><circle cx="1040.0" cy="150.0" r="5" fill="#fff"/></g>
-<g class="rel" fill="none" stroke="#111" stroke-width="1.2"><title>found_items 1 — 0..n claims (receives)</title><path d="M870.0 180.0 L895.0 180.0 L895.0 240.0 L930.0 240.0"/><line x1="879.0" y1="173.0" x2="879.0" y2="187.0"/><line x1="885.0" y1="173.0" x2="885.0" y2="187.0"/><line x1="916.0" y1="240.0" x2="930.0" y2="248.0"/><line x1="916.0" y1="240.0" x2="930.0" y2="240.0"/><line x1="916.0" y1="240.0" x2="930.0" y2="232.0"/><circle cx="910.0" cy="240.0" r="5" fill="#fff"/></g>
-<g class="rel" fill="none" stroke="#111" stroke-width="1.2"><title>lost_reports 0..1 — 0..n claims (is linked to)</title><path d="M570.0 724.0 L910.0 724.0 L910.0 288.0 L930.0 288.0"/><line x1="579.0" y1="717.0" x2="579.0" y2="731.0"/><circle cx="590.0" cy="724.0" r="5" fill="#fff"/><line x1="916.0" y1="288.0" x2="930.0" y2="296.0"/><line x1="916.0" y1="288.0" x2="930.0" y2="288.0"/><line x1="916.0" y1="288.0" x2="930.0" y2="280.0"/><circle cx="910.0" cy="288.0" r="5" fill="#fff"/></g>
-<g class="rel" fill="none" stroke="#111" stroke-width="1.2"><title>found_items 0..1 — 0..n lost_reports (is matched to)</title><path d="M700.0 582.0 L700.0 625.0 L540.0 625.0 L540.0 680.0"/><line x1="707.0" y1="591.0" x2="693.0" y2="591.0"/><circle cx="700.0" cy="602.0" r="5" fill="#fff"/><line x1="540.0" y1="666.0" x2="532.0" y2="680.0"/><line x1="540.0" y1="666.0" x2="540.0" y2="680.0"/><line x1="540.0" y1="666.0" x2="548.0" y2="680.0"/><circle cx="540.0" cy="660.0" r="5" fill="#fff"/></g>
-<g class="entity" aria-label="user_sessions">
-<rect x="10" y="150" width="210" height="280" fill="#fff" stroke="#111" stroke-width="1.4"/>
-<text x="115.0" y="170" font-weight="700" text-anchor="middle">user_sessions</text>
-<line x1="10" y1="180" x2="220" y2="180" stroke="#111" stroke-width="1"/>
-<line x1="10" y1="208" x2="220" y2="208" stroke="#111" stroke-width="1"/>
-<line x1="48" y1="180" x2="48" y2="430" stroke="#111" stroke-width="1"/>
-<text x="29.0" y="198.5" font-weight="700" text-anchor="middle">PK</text>
-<text x="58" y="198.5" font-weight="700" text-decoration="underline">session_id</text>
-<text x="29.0" y="224.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="58" y="224.5" >user_id</text>
-<text x="58" y="248.5" >token_hash</text>
-<text x="58" y="272.5" >status</text>
-<text x="58" y="296.5" >ip_address</text>
-<text x="58" y="320.5" >user_agent</text>
-<text x="58" y="344.5" >created_at</text>
-<text x="58" y="368.5" >last_activity_at</text>
-<text x="58" y="392.5" >expires_at</text>
-<text x="58" y="416.5" >ended_at</text>
-</g>
-<g class="entity" aria-label="security_events">
-<rect x="10" y="520" width="210" height="280" fill="#fff" stroke="#111" stroke-width="1.4"/>
-<text x="115.0" y="540" font-weight="700" text-anchor="middle">security_events</text>
-<line x1="10" y1="550" x2="220" y2="550" stroke="#111" stroke-width="1"/>
-<line x1="10" y1="578" x2="220" y2="578" stroke="#111" stroke-width="1"/>
-<line x1="48" y1="550" x2="48" y2="800" stroke="#111" stroke-width="1"/>
-<text x="29.0" y="568.5" font-weight="700" text-anchor="middle">PK</text>
-<text x="58" y="568.5" font-weight="700" text-decoration="underline">event_id</text>
-<text x="29.0" y="594.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="58" y="594.5" >user_id</text>
-<text x="29.0" y="618.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="58" y="618.5" >actor_id</text>
-<text x="58" y="642.5" >email</text>
-<text x="58" y="666.5" >event_type</text>
-<text x="58" y="690.5" >session_id</text>
-<text x="58" y="714.5" >ip_address</text>
-<text x="58" y="738.5" >user_agent</text>
-<text x="58" y="762.5" >metadata</text>
-<text x="58" y="786.5" >created_at</text>
-</g>
-<g class="entity" aria-label="account_violations">
-<rect x="10" y="900" width="210" height="232" fill="#fff" stroke="#111" stroke-width="1.4"/>
-<text x="115.0" y="920" font-weight="700" text-anchor="middle">account_violations</text>
-<line x1="10" y1="930" x2="220" y2="930" stroke="#111" stroke-width="1"/>
-<line x1="10" y1="958" x2="220" y2="958" stroke="#111" stroke-width="1"/>
-<line x1="48" y1="930" x2="48" y2="1132" stroke="#111" stroke-width="1"/>
-<text x="29.0" y="948.5" font-weight="700" text-anchor="middle">PK</text>
-<text x="58" y="948.5" font-weight="700" text-decoration="underline">violation_id</text>
-<text x="29.0" y="974.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="58" y="974.5" >user_id</text>
-<text x="29.0" y="998.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="58" y="998.5" >report_id</text>
-<text x="58" y="1022.5" >violation_type</text>
-<text x="58" y="1046.5" >reason</text>
-<text x="58" y="1070.5" >action_taken</text>
-<text x="29.0" y="1094.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="58" y="1094.5" >issued_by</text>
-<text x="58" y="1118.5" >created_at</text>
-</g>
-<g class="entity" aria-label="users">
-<rect x="300" y="50" width="280" height="520" fill="#fff" stroke="#111" stroke-width="1.4"/>
-<text x="440.0" y="70" font-weight="700" text-anchor="middle">users</text>
-<line x1="300" y1="80" x2="580" y2="80" stroke="#111" stroke-width="1"/>
-<line x1="300" y1="108" x2="580" y2="108" stroke="#111" stroke-width="1"/>
-<line x1="338" y1="80" x2="338" y2="570" stroke="#111" stroke-width="1"/>
-<text x="319.0" y="98.5" font-weight="700" text-anchor="middle">PK</text>
-<text x="348" y="98.5" font-weight="700" text-decoration="underline">user_id</text>
-<text x="348" y="124.5" >first_name</text>
-<text x="348" y="148.5" >last_name</text>
-<text x="348" y="172.5" >email</text>
-<text x="348" y="196.5" >password_hash</text>
-<text x="348" y="220.5" >role</text>
-<text x="348" y="244.5" >is_active</text>
-<text x="348" y="268.5" >deactivation_reason</text>
-<text x="348" y="292.5" >deactivated_at</text>
-<text x="319.0" y="316.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="348" y="316.5" >deactivated_by</text>
-<text x="348" y="340.5" >email_verified</text>
-<text x="348" y="364.5" >email_verified_at</text>
-<text x="348" y="388.5" >email_verification_token_hash</text>
-<text x="348" y="412.5" >email_verification_expires_at</text>
-<text x="348" y="436.5" >failed_login_attempts</text>
-<text x="348" y="460.5" >locked_at</text>
-<text x="348" y="484.5" >last_login_at</text>
-<text x="348" y="508.5" >last_activity_at</text>
-<text x="348" y="532.5" >created_at</text>
-<text x="348" y="556.5" >updated_at</text>
-</g>
-<g class="entity" aria-label="found_items">
-<rect x="650" y="110" width="220" height="472" fill="#fff" stroke="#111" stroke-width="1.4"/>
-<text x="760.0" y="130" font-weight="700" text-anchor="middle">found_items</text>
-<line x1="650" y1="140" x2="870" y2="140" stroke="#111" stroke-width="1"/>
-<line x1="650" y1="168" x2="870" y2="168" stroke="#111" stroke-width="1"/>
-<line x1="688" y1="140" x2="688" y2="582" stroke="#111" stroke-width="1"/>
-<text x="669.0" y="158.5" font-weight="700" text-anchor="middle">PK</text>
-<text x="698" y="158.5" font-weight="700" text-decoration="underline">item_id</text>
-<text x="669.0" y="184.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="698" y="184.5" >user_id</text>
-<text x="698" y="208.5" >item_name</text>
-<text x="698" y="232.5" >category</text>
-<text x="698" y="256.5" >description</text>
-<text x="698" y="280.5" >private_details</text>
-<text x="698" y="304.5" >location_found</text>
-<text x="698" y="328.5" >storage_location</text>
-<text x="698" y="352.5" >date_found</text>
-<text x="698" y="376.5" >image_url</text>
-<text x="698" y="400.5" >status</text>
-<text x="698" y="424.5" >returned_at</text>
-<text x="698" y="448.5" >moderation_status</text>
-<text x="669.0" y="472.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="698" y="472.5" >moderated_by</text>
-<text x="698" y="496.5" >moderation_note</text>
-<text x="698" y="520.5" >moderated_at</text>
-<text x="698" y="544.5" >created_at</text>
-<text x="698" y="568.5" >updated_at</text>
-</g>
-<g class="entity" aria-label="claims">
-<rect x="930" y="170" width="220" height="328" fill="#fff" stroke="#111" stroke-width="1.4"/>
-<text x="1040.0" y="190" font-weight="700" text-anchor="middle">claims</text>
-<line x1="930" y1="200" x2="1150" y2="200" stroke="#111" stroke-width="1"/>
-<line x1="930" y1="228" x2="1150" y2="228" stroke="#111" stroke-width="1"/>
-<line x1="968" y1="200" x2="968" y2="498" stroke="#111" stroke-width="1"/>
-<text x="949.0" y="218.5" font-weight="700" text-anchor="middle">PK</text>
-<text x="978" y="218.5" font-weight="700" text-decoration="underline">claim_id</text>
-<text x="949.0" y="244.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="978" y="244.5" >item_id</text>
-<text x="949.0" y="268.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="978" y="268.5" >user_id</text>
-<text x="949.0" y="292.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="978" y="292.5" >report_id</text>
-<text x="978" y="316.5" >proof_description</text>
-<text x="978" y="340.5" >status</text>
-<text x="978" y="364.5" >date_claimed</text>
-<text x="949.0" y="388.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="978" y="388.5" >reviewed_by</text>
-<text x="978" y="412.5" >review_note</text>
-<text x="978" y="436.5" >reviewed_at</text>
-<text x="978" y="460.5" >created_at</text>
-<text x="978" y="484.5" >updated_at</text>
-</g>
-<g class="entity" aria-label="lost_reports">
-<rect x="340" y="680" width="230" height="472" fill="#fff" stroke="#111" stroke-width="1.4"/>
-<text x="455.0" y="700" font-weight="700" text-anchor="middle">lost_reports</text>
-<line x1="340" y1="710" x2="570" y2="710" stroke="#111" stroke-width="1"/>
-<line x1="340" y1="738" x2="570" y2="738" stroke="#111" stroke-width="1"/>
-<line x1="378" y1="710" x2="378" y2="1152" stroke="#111" stroke-width="1"/>
-<text x="359.0" y="728.5" font-weight="700" text-anchor="middle">PK</text>
-<text x="388" y="728.5" font-weight="700" text-decoration="underline">report_id</text>
-<text x="359.0" y="754.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="388" y="754.5" >user_id</text>
-<text x="388" y="778.5" >item_name</text>
-<text x="388" y="802.5" >category</text>
-<text x="388" y="826.5" >description</text>
-<text x="388" y="850.5" >location_lost</text>
-<text x="388" y="874.5" >date_lost</text>
-<text x="388" y="898.5" >image_url</text>
-<text x="388" y="922.5" >status</text>
-<text x="359.0" y="946.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="388" y="946.5" >matched_item_id</text>
-<text x="388" y="970.5" >moderation_reason</text>
-<text x="359.0" y="994.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="388" y="994.5" >moderated_by</text>
-<text x="388" y="1018.5" >moderated_at</text>
-<text x="388" y="1042.5" >deleted_at</text>
-<text x="359.0" y="1066.5" font-weight="700" text-anchor="middle">FK</text>
-<text x="388" y="1066.5" >deleted_by</text>
-<text x="388" y="1090.5" >deletion_reason</text>
-<text x="388" y="1114.5" >created_at</text>
-<text x="388" y="1138.5" >updated_at</text>
-</g>
-</svg>
+        <pre class="mermaid">
+erDiagram
+    lost_reports ||--o{ account_violations : &quot;confirmed false in&quot;
+    users ||--o{ account_violations : &quot;receives&quot;
+    users |o--o{ account_violations : &quot;issues&quot;
+    users |o--o{ categories : &quot;creates&quot;
+    claims ||--o{ claim_reviews : &quot;review history&quot;
+    users |o--o{ claim_reviews : &quot;reviews&quot;
+    claims ||--o{ claim_verifications : &quot;ID checks&quot;
+    users ||--o{ claim_verifications : &quot;validates&quot;
+    found_items ||--o{ claims : &quot;receives&quot;
+    lost_reports |o--o{ claims : &quot;is linked to&quot;
+    users ||--o{ claims : &quot;makes&quot;
+    users |o--o{ found_items : &quot;hands over&quot;
+    users ||--o{ found_items : &quot;logs / posts&quot;
+    claims |o--o| found_items : &quot;returned under&quot;
+    users |o--o{ found_items : &quot;approves post&quot;
+    users |o--o{ found_items : &quot;disposes of&quot;
+    categories ||--o{ found_items : &quot;classifies&quot;
+    categories ||--o{ lost_reports : &quot;classifies&quot;
+    users |o--o{ lost_reports : &quot;removes&quot;
+    found_items |o--o{ lost_reports : &quot;is matched to&quot;
+    users |o--o{ lost_reports : &quot;moderates&quot;
+    users ||--o{ lost_reports : &quot;files&quot;
+    users |o--o{ security_events : &quot;performs&quot;
+    users |o--o{ security_events : &quot;is subject of&quot;
+    visitors |o--o{ security_events : &quot;anonymous events of&quot;
+    users ||--o{ user_sessions : &quot;signs in with&quot;
+    users |o--o{ users : &quot;deactivates&quot;
+    employee_records |o--o| users : &quot;verifies (employee)&quot;
+    student_records |o--o| users : &quot;verifies (student)&quot;
+    users {
+        int user_id PK
+        varchar first_name
+        varchar last_name
+        varchar email UK
+        varchar student_number FK, UK &quot;nullable&quot;
+        varchar employee_number FK, UK &quot;nullable&quot;
+        varchar password_hash
+        enum role &quot;user | staff | admin | master_admin&quot;
+        tinyint is_active
+        varchar deactivation_reason &quot;nullable&quot;
+        datetime deactivated_at &quot;nullable&quot;
+        int deactivated_by FK &quot;nullable&quot;
+        tinyint email_verified
+        datetime email_verified_at &quot;nullable&quot;
+        char email_verification_token_hash UK &quot;nullable&quot;
+        datetime email_verification_expires_at &quot;nullable&quot;
+        tinyint failed_login_attempts
+        datetime locked_at &quot;nullable&quot;
+        datetime last_login_at &quot;nullable&quot;
+        datetime last_activity_at &quot;nullable&quot;
+        datetime created_at
+        datetime updated_at
+    }
+    student_records {
+        varchar student_number PK
+        varchar first_name
+        varchar last_name
+        date birth_date &quot;nullable&quot;
+        varchar school_email UK &quot;nullable&quot;
+        varchar college &quot;nullable&quot;
+        varchar program &quot;nullable&quot;
+        enum academic_status &quot;enrolled | on_leave | graduated | withdrawn&quot;
+        datetime created_at
+        datetime updated_at
+    }
+    employee_records {
+        varchar employee_number PK
+        varchar first_name
+        varchar last_name
+        date birth_date &quot;nullable&quot;
+        varchar school_email UK &quot;nullable&quot;
+        varchar department &quot;nullable&quot;
+        enum employment_status &quot;active | on_leave | separated | retired&quot;
+        datetime created_at
+        datetime updated_at
+    }
+    visitors {
+        int visitor_id PK
+        char token_hash UK
+        datetime consented_at
+        datetime first_seen_at
+        datetime last_seen_at
+        int page_views
+    }
+    user_sessions {
+        int session_id PK
+        int user_id FK
+        char token_hash UK
+        enum status &quot;active | logged_out | expired | revoked&quot;
+        varchar ip_address &quot;nullable&quot;
+        varchar user_agent &quot;nullable&quot;
+        datetime created_at
+        datetime last_activity_at
+        datetime expires_at
+        datetime ended_at &quot;nullable&quot;
+    }
+    security_events {
+        bigint event_id PK
+        int user_id FK &quot;nullable&quot;
+        int actor_id FK &quot;nullable&quot;
+        int visitor_id FK &quot;nullable&quot;
+        varchar email &quot;nullable&quot;
+        varchar event_type
+        int session_id &quot;nullable&quot;
+        varchar ip_address &quot;nullable&quot;
+        varchar user_agent &quot;nullable&quot;
+        json metadata &quot;nullable&quot;
+        datetime created_at
+    }
+    categories {
+        int category_id PK
+        varchar name UK
+        varchar description &quot;nullable&quot;
+        tinyint is_active
+        int created_by FK &quot;nullable&quot;
+        datetime created_at
+        datetime updated_at
+    }
+    lost_reports {
+        int report_id PK
+        int user_id FK
+        varchar item_name
+        int category_id FK
+        varchar category_detail &quot;nullable&quot;
+        text description
+        varchar location_lost
+        date date_lost
+        varchar image_url &quot;nullable&quot;
+        enum status &quot;open | matched | closed | rejected | false_report | spam&quot;
+        int matched_item_id FK &quot;nullable&quot;
+        text moderation_reason &quot;nullable&quot;
+        int moderated_by FK &quot;nullable&quot;
+        datetime moderated_at &quot;nullable&quot;
+        datetime deleted_at &quot;nullable&quot;
+        int deleted_by FK &quot;nullable&quot;
+        text deletion_reason &quot;nullable&quot;
+        datetime created_at
+        datetime updated_at
+    }
+    found_items {
+        int item_id PK
+        int user_id FK
+        varchar item_name
+        int category_id FK
+        varchar category_detail &quot;nullable&quot;
+        text description
+        text private_details
+        varchar location_found
+        varchar storage_location
+        date date_found
+        varchar image_url &quot;nullable&quot;
+        enum status &quot;stored | returned | disposed&quot;
+        enum moderation_status &quot;pending | approved | rejected&quot;
+        int moderated_by FK &quot;nullable&quot;
+        text moderation_note &quot;nullable&quot;
+        datetime moderated_at &quot;nullable&quot;
+        datetime returned_at &quot;nullable&quot;
+        int returned_by FK &quot;nullable&quot;
+        int return_claim_id FK, UK &quot;nullable&quot;
+        datetime disposed_at &quot;nullable&quot;
+        int disposed_by FK &quot;nullable&quot;
+        text disposal_reason &quot;nullable&quot;
+        text disposal_notes &quot;nullable&quot;
+        datetime created_at
+        datetime updated_at
+    }
+    claims {
+        int claim_id PK
+        int item_id FK
+        int user_id FK
+        int report_id FK &quot;nullable&quot;
+        text proof_description
+        enum status &quot;pending | approved | verified | returned&quot;
+        date date_claimed
+        datetime created_at
+        datetime updated_at
+    }
+    claim_reviews {
+        int review_id PK
+        int claim_id FK
+        int reviewer_id FK &quot;nullable&quot;
+        enum outcome &quot;approved | rejected&quot;
+        enum previous_outcome &quot;nullable approved | rejected&quot;
+        text reason
+        datetime created_at
+    }
+    claim_verifications {
+        int verification_id PK
+        int claim_id FK
+        varchar id_type
+        varchar id_reference &quot;nullable&quot;
+        enum result &quot;verified | failed&quot;
+        text notes &quot;nullable&quot;
+        int verified_by FK
+        datetime verified_at
+    }
+    account_violations {
+        int violation_id PK
+        int user_id FK
+        int report_id FK
+        enum violation_type &quot;false_report&quot;
+        text reason
+        enum action_taken &quot;warning | deactivated&quot;
+        int issued_by FK &quot;nullable&quot;
+        datetime created_at
+    }
+        </pre>
+        <p class="offline" id="offline" hidden>The diagram is drawn by Mermaid from a CDN and needs an internet connection. Offline, paste the text above into
+            <a href="https://mermaid.live">mermaid.live</a>, or use the tables below, which list the same schema.</p>
         <div class="legend">
             <span><b>||</b> exactly one</span>
             <span><b>|o</b> zero or one</span>
-            <span><b>o&lt;</b> zero or many (crow’s foot)</span>
-            <span><b>PK</b> primary key · <b>FK</b> foreign key</span>
-            <span>Hover a line to see the relationship. Lines are drawn for the main relationships; staff/admin reference
-                columns (<code>reviewed_by</code>, <code>moderated_by</code>, <code>deleted_by</code>, <code>issued_by</code>,
-                <code>deactivated_by</code>) also point to <code>users</code>.</span>
+            <span><b>o{</b> zero or many (crow’s foot)</span>
+            <span><b>PK</b> primary key · <b>FK</b> foreign key · <b>UK</b> unique key</span>
+            <span>Every foreign key is drawn, including the staff/admin reference columns (<code>reviewed_by</code>-style columns all point to <code>users</code>).</span>
         </div>
     </div>
 
+    <h2>How registration is verified against the school's records</h2>
+    <ol class="notes">
+        <li>The person picks Student or Faculty / Employee and enters their school number. The server checks the format, then looks it up in
+            <code>student_records</code> or <code>employee_records</code> and checks that the record may register (enrolled / on leave; active / on leave).</li>
+        <li>The name is shown from that record for confirmation. On submit the number is looked up again on the server, so the account type and name always come from the record.</li>
+        <li>The account (<code>users</code>, role always <code>user</code>) stores the number in <code>users.student_number</code> or <code>users.employee_number</code>:
+            a foreign key to the record and a unique key, so one school number can belong to one account only. A CHECK constraint allows at most one of the two.</li>
+        <li>Design choice: the first and last name are <em>copied</em> into <code>users</code> at registration, because staff and administrator accounts (which have no
+            school record) and old accounts need a name too, and history must keep the name the account had. The birth date is <em>not</em> copied: it stays only in
+            the reference record and is read through the foreign key to reject passwords containing it. School emails also stay in the reference tables.</li>
+    </ol>
+
+    <h2>Entities</h2>
+    <table>
+        <thead><tr><th>Table</th><th>Primary key</th><th>Foreign keys</th><th>Unique keys</th><th>Required columns</th><th>Optional (nullable) columns</th></tr></thead>
+        <tbody>
+<tr><td><code>users</code></td><td><code>user_id</code></td><td>deactivated_by → users<br>employee_number → employee_records<br>student_number → student_records</td><td>email<br>employee_number<br>student_number<br>email_verification_token_hash</td><td class="cols">first_name, last_name, email, password_hash, role, is_active, email_verified, failed_login_attempts, created_at, updated_at</td><td class="cols">student_number, employee_number, deactivation_reason, deactivated_at, deactivated_by, email_verified_at, email_verification_token_hash, email_verification_expires_at, locked_at, last_login_at, last_activity_at</td></tr>
+<tr><td><code>student_records</code> <span class="new">new</span></td><td><code>student_number</code></td><td>—</td><td>school_email</td><td class="cols">first_name, last_name, academic_status, created_at, updated_at</td><td class="cols">birth_date, school_email, college, program</td></tr>
+<tr><td><code>employee_records</code> <span class="new">new</span></td><td><code>employee_number</code></td><td>—</td><td>school_email</td><td class="cols">first_name, last_name, employment_status, created_at, updated_at</td><td class="cols">birth_date, school_email, department</td></tr>
+<tr><td><code>visitors</code> <span class="new">new</span></td><td><code>visitor_id</code></td><td>—</td><td>token_hash</td><td class="cols">token_hash, consented_at, first_seen_at, last_seen_at, page_views</td><td class="cols">—</td></tr>
+<tr><td><code>user_sessions</code></td><td><code>session_id</code></td><td>user_id → users</td><td>token_hash</td><td class="cols">user_id, token_hash, status, created_at, last_activity_at, expires_at</td><td class="cols">ip_address, user_agent, ended_at</td></tr>
+<tr><td><code>security_events</code></td><td><code>event_id</code></td><td>actor_id → users<br>user_id → users<br>visitor_id → visitors</td><td>—</td><td class="cols">event_type, created_at</td><td class="cols">user_id, actor_id, visitor_id, email, session_id, ip_address, user_agent, metadata</td></tr>
+<tr><td><code>categories</code> <span class="new">new</span></td><td><code>category_id</code></td><td>created_by → users</td><td>name</td><td class="cols">name, is_active, created_at, updated_at</td><td class="cols">description, created_by</td></tr>
+<tr><td><code>lost_reports</code></td><td><code>report_id</code></td><td>category_id → categories<br>deleted_by → users<br>matched_item_id → found_items<br>moderated_by → users<br>user_id → users</td><td>—</td><td class="cols">user_id, item_name, category_id, description, location_lost, date_lost, status, created_at, updated_at</td><td class="cols">category_detail, image_url, matched_item_id, moderation_reason, moderated_by, moderated_at, deleted_at, deleted_by, deletion_reason</td></tr>
+<tr><td><code>found_items</code></td><td><code>item_id</code></td><td>returned_by → users<br>user_id → users<br>return_claim_id → claims<br>moderated_by → users<br>disposed_by → users<br>category_id → categories</td><td>return_claim_id</td><td class="cols">user_id, item_name, category_id, description, private_details, location_found, storage_location, date_found, status, moderation_status, created_at, updated_at</td><td class="cols">category_detail, image_url, moderated_by, moderation_note, moderated_at, returned_at, returned_by, return_claim_id, disposed_at, disposed_by, disposal_reason, disposal_notes</td></tr>
+<tr><td><code>claims</code></td><td><code>claim_id</code></td><td>item_id → found_items<br>report_id → lost_reports<br>user_id → users</td><td>—</td><td class="cols">item_id, user_id, proof_description, status, date_claimed, created_at, updated_at</td><td class="cols">report_id</td></tr>
+<tr><td><code>claim_reviews</code> <span class="new">new</span></td><td><code>review_id</code></td><td>claim_id → claims<br>reviewer_id → users</td><td>—</td><td class="cols">claim_id, outcome, reason, created_at</td><td class="cols">reviewer_id, previous_outcome</td></tr>
+<tr><td><code>claim_verifications</code> <span class="new">new</span></td><td><code>verification_id</code></td><td>claim_id → claims<br>verified_by → users</td><td>—</td><td class="cols">claim_id, id_type, result, verified_by, verified_at</td><td class="cols">id_reference, notes</td></tr>
+<tr><td><code>account_violations</code></td><td><code>violation_id</code></td><td>report_id → lost_reports<br>user_id → users<br>issued_by → users</td><td>report_id + violation_type</td><td class="cols">user_id, report_id, violation_type, reason, action_taken, created_at</td><td class="cols">issued_by</td></tr>
+        </tbody>
+    </table>
+
+    <h2>Relationships, cardinality and deletion behaviour</h2>
+    <table>
+        <thead><tr><th>Relationship (parent — child)</th><th>Foreign key</th><th>Meaning</th><th>On delete</th><th>On update</th></tr></thead>
+        <tbody>
+<tr><td><code>users</code> 0..1 — 0..n <code>users</code></td><td><code>users.deactivated_by</code></td><td>deactivates</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>employee_records</code> 0..1 — 0..1 <code>users</code></td><td><code>users.employee_number</code></td><td>verifies (employee)</td><td>RESTRICT</td><td>RESTRICT</td></tr>
+<tr><td><code>student_records</code> 0..1 — 0..1 <code>users</code></td><td><code>users.student_number</code></td><td>verifies (student)</td><td>RESTRICT</td><td>RESTRICT</td></tr>
+<tr><td><code>users</code> 1 — 0..n <code>user_sessions</code></td><td><code>user_sessions.user_id</code></td><td>signs in with</td><td>CASCADE</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 0..1 — 0..n <code>security_events</code></td><td><code>security_events.actor_id</code></td><td>performs</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 0..1 — 0..n <code>security_events</code></td><td><code>security_events.user_id</code></td><td>is subject of</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>visitors</code> 0..1 — 0..n <code>security_events</code></td><td><code>security_events.visitor_id</code></td><td>anonymous events of</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 0..1 — 0..n <code>categories</code></td><td><code>categories.created_by</code></td><td>creates</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>categories</code> 1 — 0..n <code>lost_reports</code></td><td><code>lost_reports.category_id</code></td><td>classifies</td><td>RESTRICT</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 0..1 — 0..n <code>lost_reports</code></td><td><code>lost_reports.deleted_by</code></td><td>removes</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>found_items</code> 0..1 — 0..n <code>lost_reports</code></td><td><code>lost_reports.matched_item_id</code></td><td>is matched to</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 0..1 — 0..n <code>lost_reports</code></td><td><code>lost_reports.moderated_by</code></td><td>moderates</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 1 — 0..n <code>lost_reports</code></td><td><code>lost_reports.user_id</code></td><td>files</td><td>RESTRICT</td><td>CASCADE</td></tr>
+<tr><td><code>categories</code> 1 — 0..n <code>found_items</code></td><td><code>found_items.category_id</code></td><td>classifies</td><td>RESTRICT</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 0..1 — 0..n <code>found_items</code></td><td><code>found_items.disposed_by</code></td><td>disposes of</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 0..1 — 0..n <code>found_items</code></td><td><code>found_items.moderated_by</code></td><td>approves post</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>claims</code> 0..1 — 0..1 <code>found_items</code></td><td><code>found_items.return_claim_id</code></td><td>returned under</td><td>RESTRICT</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 0..1 — 0..n <code>found_items</code></td><td><code>found_items.returned_by</code></td><td>hands over</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 1 — 0..n <code>found_items</code></td><td><code>found_items.user_id</code></td><td>logs / posts</td><td>RESTRICT</td><td>CASCADE</td></tr>
+<tr><td><code>found_items</code> 1 — 0..n <code>claims</code></td><td><code>claims.item_id</code></td><td>receives</td><td>CASCADE</td><td>CASCADE</td></tr>
+<tr><td><code>lost_reports</code> 0..1 — 0..n <code>claims</code></td><td><code>claims.report_id</code></td><td>is linked to</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 1 — 0..n <code>claims</code></td><td><code>claims.user_id</code></td><td>makes</td><td>RESTRICT</td><td>CASCADE</td></tr>
+<tr><td><code>claims</code> 1 — 0..n <code>claim_reviews</code></td><td><code>claim_reviews.claim_id</code></td><td>review history</td><td>CASCADE</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 0..1 — 0..n <code>claim_reviews</code></td><td><code>claim_reviews.reviewer_id</code></td><td>reviews</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>claims</code> 1 — 0..n <code>claim_verifications</code></td><td><code>claim_verifications.claim_id</code></td><td>ID checks</td><td>CASCADE</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 1 — 0..n <code>claim_verifications</code></td><td><code>claim_verifications.verified_by</code></td><td>validates</td><td>RESTRICT</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 0..1 — 0..n <code>account_violations</code></td><td><code>account_violations.issued_by</code></td><td>issues</td><td>SET NULL</td><td>CASCADE</td></tr>
+<tr><td><code>lost_reports</code> 1 — 0..n <code>account_violations</code></td><td><code>account_violations.report_id</code></td><td>confirmed false in</td><td>RESTRICT</td><td>CASCADE</td></tr>
+<tr><td><code>users</code> 1 — 0..n <code>account_violations</code></td><td><code>account_violations.user_id</code></td><td>receives</td><td>RESTRICT</td><td>CASCADE</td></tr>
+        </tbody>
+    </table>
+
+    <h2>Status model (no duplicate status systems)</h2>
+    <ul class="notes">
+        <li><code>claims.status</code> is the main claim status: <code>pending → approved</code> (approved for collection) <code>→ verified</code>
+            (identity checked at the desk) <code>→ returned</code>. A rejection does not change it: the claim stays <code>pending</code>.</li>
+        <li>The current review outcome is the latest <code>claim_reviews</code> row (<code>approved</code> / <code>rejected</code>); there is no separate outcome column
+            that could disagree with the history. Every decision is a new row with its reviewer, reason, previous outcome and time.</li>
+        <li><code>found_items.status</code> keeps its three values; <code>returned</code> and <code>disposed</code> are the two final outcomes.
+            The return record is on the item (<code>returned_at</code>, <code>returned_by</code>, <code>return_claim_id</code>, unique), the disposal record too
+            (<code>disposed_at</code>, <code>disposed_by</code>, <code>disposal_reason</code>, <code>disposal_notes</code>), so the dashboard and the Claims section read the same rows.</li>
+        <li><code>claim_verifications</code> stores one row per identity check: ID type, the last four characters of the ID number only (cleared after the retention period),
+            result, the validating staff member and the database time.</li>
+    </ul>
+
     <h2>Changes since the original ERD</h2>
-    <p class="sub">
-        The first version of the diagram had only the four core tables and their base columns.
-        Everything below was added later; the diagram above now shows the full current schema.
-    </p>
     <table>
         <thead><tr><th>Table</th><th>Column / table</th><th>Added by</th><th>Used by</th></tr></thead>
         <tbody>
-            <tr><td><code>users</code></td><td><code>password_hash</code></td><td>schema.sql §5</td><td>Log-in / registration — required for any authentication.</td></tr>
-            <tr><td><code>users</code></td><td><code>is_active</code></td><td>schema.sql §5</td><td>Admin “Deactivate / Reactivate” on <code>index.php?tab=users</code>.</td></tr>
+            <tr><td><code>users</code></td><td><code>password_hash</code>, <code>is_active</code></td><td>schema.sql §5</td><td>Log-in; admin “Deactivate / Reactivate”.</td></tr>
             <tr><td><code>lost_reports</code></td><td><code>item_name</code>, <code>matched_item_id</code></td><td>schema.sql §5</td><td>Report titles; the found item staff matched a report to.</td></tr>
-            <tr><td><code>found_items</code></td><td><code>item_name</code>, <code>private_details</code>, <code>returned_at</code></td><td>schema.sql §5</td><td>Item titles; staff-only intake record claims are compared against; hand-over time.</td></tr>
-            <tr><td><code>claims</code></td><td><code>proof_description</code>, <code>reviewed_by</code>, <code>review_note</code>, <code>reviewed_at</code></td><td>schema.sql §5</td><td>What the claimant wrote, and the staff decision with its note.</td></tr>
-            <tr><td><code>users</code></td><td><code>role</code> gains <code>master_admin</code></td><td>migration 001</td><td>Master admin: manages admin accounts and is never locked out.</td></tr>
-            <tr><td><code>users</code></td><td><code>email_verified</code>, <code>email_verified_at</code>, <code>email_verification_token_hash</code>, <code>email_verification_expires_at</code></td><td>migration 001</td><td>Email confirmation on registration (single-use, expiring link; only the token's hash is stored).</td></tr>
-            <tr><td><code>users</code></td><td><code>failed_login_attempts</code>, <code>locked_at</code></td><td>migration 001, renamed from <code>locked_until</code> by 002</td><td>Lock after 3 wrong passwords in a row, until an admin unlocks the account.</td></tr>
-            <tr><td><code>users</code></td><td><code>last_login_at</code>, <code>last_activity_at</code></td><td>migration 001</td><td>Admin “Users &amp; Activity” page.</td></tr>
+            <tr><td><code>found_items</code></td><td><code>item_name</code>, <code>private_details</code>, <code>returned_at</code></td><td>schema.sql §5</td><td>Item titles; staff-only intake record; hand-over time.</td></tr>
+            <tr><td><code>claims</code></td><td><code>proof_description</code></td><td>schema.sql §5</td><td>What the claimant wrote.</td></tr>
+            <tr><td><code>users</code></td><td><code>master_admin</code> role, email verification, lockout and activity columns</td><td>migrations 001–002</td><td>Account security.</td></tr>
             <tr><td><code>found_items</code></td><td><code>moderation_status</code>, <code>moderated_by</code>, <code>moderation_note</code>, <code>moderated_at</code></td><td>migration 001</td><td>Students’ found-item posts stay private until staff approve them.</td></tr>
-            <tr><td><code>user_sessions</code></td><td>new table</td><td>migration 001</td><td>Server-side sessions: inactivity timeout, logout, one device per account.</td></tr>
-            <tr><td><code>security_events</code></td><td>new table</td><td>migration 001</td><td>Login history and security log on <code>index.php?tab=logs</code>.</td></tr>
-            <tr><td><code>users</code></td><td><code>deactivation_reason</code>, <code>deactivated_at</code>, <code>deactivated_by</code></td><td>migration 008</td><td>Why and by whom an account was deactivated; <code>false_reports</code> accounts are reactivated only after an office review.</td></tr>
-            <tr><td><code>lost_reports</code></td><td><code>status</code> gains <code>rejected</code>, <code>false_report</code>, <code>spam</code>; <code>moderation_reason</code>, <code>moderated_by</code>, <code>moderated_at</code>, <code>deleted_at</code>, <code>deleted_by</code>, <code>deletion_reason</code></td><td>migration 008</td><td>Staff moderation of lost reports and soft-deleted removal of false or spam reports.</td></tr>
-            <tr><td><code>account_violations</code></td><td>new table</td><td>migration 008</td><td>Confirmed false reports: the first warns the account, the second deactivates it.</td></tr>
-            <tr><td><code>security_events</code></td><td><code>actor_id</code></td><td>migration 008</td><td>Who performed an action, for the admin activity feed on the dashboard.</td></tr>
+            <tr><td><code>user_sessions</code>, <code>security_events</code></td><td>new tables</td><td>migration 001</td><td>Server-side sessions; security and activity log.</td></tr>
+            <tr><td><code>users</code>, <code>lost_reports</code>, <code>security_events</code></td><td>deactivation, report moderation and soft-delete columns, <code>actor_id</code></td><td>migration 008</td><td>False-report handling and the admin activity feed.</td></tr>
+            <tr><td><code>account_violations</code></td><td>new table</td><td>migration 008</td><td>Confirmed false reports.</td></tr>
+            <tr><td><code>categories</code> <span class="new">new</span></td><td>new table; <code>lost_reports.category_id</code>, <code>found_items.category_id</code>; old <code>category</code> text kept as <code>category_detail</code> (only the “Other” description)</td><td>migration 011</td><td>Admin-managed form categories (Admin → Categories).</td></tr>
+            <tr><td><code>student_records</code>, <code>employee_records</code> <span class="new">new</span></td><td>new tables; <code>users.student_number</code>, <code>users.employee_number</code></td><td>migration 012</td><td>Registration verified against the school's records; password check against the birth date.</td></tr>
+            <tr><td><code>visitors</code> <span class="new">new</span></td><td>new table; <code>security_events.visitor_id</code></td><td>migration 013</td><td>Local, pseudonymous record of consenting anonymous visitors.</td></tr>
+            <tr><td><code>claim_reviews</code>, <code>claim_verifications</code> <span class="new">new</span></td><td>new tables; <code>claims.status</code> becomes pending / approved / verified / returned;
+                <code>claims.reviewed_by</code>, <code>review_note</code>, <code>reviewed_at</code> moved into <code>claim_reviews</code></td><td>migration 014</td><td>Rejection history (rejected claims stay pending), identity checks at pickup.</td></tr>
+            <tr><td><code>found_items</code></td><td><code>returned_by</code>, <code>return_claim_id</code>, <code>disposed_at</code>, <code>disposed_by</code>, <code>disposal_reason</code>, <code>disposal_notes</code></td><td>migration 014</td><td>Successful returns dashboard and Claims section; Disposed Items section.</td></tr>
         </tbody>
     </table>
 </main>
-
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+    if (window.mermaid) {
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', er: { useMaxWidth: false }, securityLevel: 'strict' });
+    } else {
+        document.getElementById('offline').hidden = false;
+    }
+</script>
 </body>
 </html>
