@@ -27,7 +27,7 @@
 <main>
     <h1>Cardinal Finds — Entity-Relationship Diagram</h1>
     <p class="sub">Campus lost-and-found system · ITS122P Group 4 · generated from the implemented database: <code>database/schema.sql</code>
-        plus every file in <code>database/migrations/</code> (001–016, applied in order by <code>database/seed.php</code>).
+        plus every file in <code>database/migrations/</code> (001–017, applied in order by <code>database/seed.php</code>).
         Every table, column, primary key, foreign key, unique key and check below is read from that database, so the diagram and the schema match.
         11 tables; the bookkeeping table <code>schema_migrations</code> is left out.</p>
 
@@ -158,7 +158,9 @@ erDiagram
         varchar image_url &quot;nullable&quot;
         enum status &quot;open | matched | closed | rejected | false_report | spam&quot;
         int matched_item_id FK &quot;nullable&quot;
-        text moderation_reason &quot;nullable&quot;
+        varchar moderation_reason_code &quot;nullable, REPORT_REJECTION_REASONS / FALSE_REPORT_REASONS / SPAM_TYPES key&quot;
+        text moderation_reason &quot;nullable, details or evidence&quot;
+        tinyint resubmission_allowed &quot;nullable&quot;
         int moderated_by FK &quot;nullable&quot;
         datetime moderated_at &quot;nullable&quot;
         datetime deleted_at &quot;nullable&quot;
@@ -182,7 +184,12 @@ erDiagram
         enum status &quot;stored | returned | disposed&quot;
         enum moderation_status &quot;pending | approved | rejected&quot;
         int moderated_by FK &quot;nullable&quot;
-        text moderation_note &quot;nullable&quot;
+        text moderation_note &quot;nullable, rejection details&quot;
+        varchar moderation_reason_code &quot;nullable, POST_REJECTION_REASONS key&quot;
+        tinyint resubmission_allowed &quot;nullable&quot;
+        text required_corrections &quot;nullable&quot;
+        enum item_condition &quot;nullable good | minor_damage | damaged | unknown&quot;
+        text moderation_internal_note &quot;nullable, staff only&quot;
         datetime moderated_at &quot;nullable&quot;
         datetime returned_at &quot;nullable&quot;
         int returned_by FK &quot;nullable&quot;
@@ -211,7 +218,13 @@ erDiagram
         int reviewer_id FK &quot;nullable&quot;
         enum outcome &quot;approved | rejected&quot;
         enum previous_outcome &quot;nullable approved | rejected&quot;
-        text reason
+        varchar reason_code &quot;nullable, CLAIM_REJECTION_REASONS key&quot;
+        text details &quot;nullable&quot;
+        tinyint resubmission_allowed &quot;nullable&quot;
+        text required_followup &quot;nullable&quot;
+        varchar pickup_location &quot;nullable&quot;
+        text pickup_instructions &quot;nullable&quot;
+        varchar required_ids &quot;nullable, ID_TYPES keys&quot;
         datetime created_at
     }
     claim_verifications {
@@ -270,10 +283,10 @@ erDiagram
 <tr><td><code>user_sessions</code></td><td><code>session_id</code></td><td>user_id → users</td><td>token_hash</td><td class="cols">session_id, user_id, token_hash, status, created_at, last_activity_at, expires_at</td><td class="cols">ip_address, user_agent, ended_at</td></tr>
 <tr><td><code>security_events</code></td><td><code>event_id</code></td><td>actor_id → users<br>user_id → users</td><td>—</td><td class="cols">event_id, event_type, created_at</td><td class="cols">user_id, actor_id, email, session_id, ip_address, user_agent, metadata</td></tr>
 <tr><td><code>categories</code></td><td><code>category_id</code></td><td>created_by → users</td><td>name</td><td class="cols">category_id, name, is_active, created_at, updated_at</td><td class="cols">description, created_by</td></tr>
-<tr><td><code>lost_reports</code></td><td><code>report_id</code></td><td>category_id → categories<br>deleted_by → users<br>matched_item_id → found_items<br>moderated_by → users<br>reported_by → users</td><td>—</td><td class="cols">report_id, reported_by, item_name, category_id, description, location_lost, date_lost, status, created_at, updated_at</td><td class="cols">category_detail, image_url, matched_item_id, moderation_reason, moderated_by, moderated_at, deleted_at, deleted_by, deletion_reason</td></tr>
-<tr><td><code>found_items</code></td><td><code>item_id</code></td><td>added_by → users<br>category_id → categories<br>disposed_by → users<br>moderated_by → users<br>return_claim_id → claims<br>returned_by → users</td><td>return_claim_id</td><td class="cols">item_id, added_by, item_name, category_id, description, private_details, location_found, storage_location, date_found, status, moderation_status, created_at, updated_at</td><td class="cols">category_detail, image_url, moderated_by, moderation_note, moderated_at, returned_at, returned_by, return_claim_id, disposed_at, disposed_by, disposal_reason, disposal_notes</td></tr>
+<tr><td><code>lost_reports</code></td><td><code>report_id</code></td><td>category_id → categories<br>deleted_by → users<br>matched_item_id → found_items<br>moderated_by → users<br>reported_by → users</td><td>—</td><td class="cols">report_id, reported_by, item_name, category_id, description, location_lost, date_lost, status, created_at, updated_at</td><td class="cols">category_detail, image_url, matched_item_id, moderation_reason_code, moderation_reason, resubmission_allowed, moderated_by, moderated_at, deleted_at, deleted_by, deletion_reason</td></tr>
+<tr><td><code>found_items</code></td><td><code>item_id</code></td><td>added_by → users<br>category_id → categories<br>disposed_by → users<br>moderated_by → users<br>return_claim_id → claims<br>returned_by → users</td><td>return_claim_id</td><td class="cols">item_id, added_by, item_name, category_id, description, private_details, location_found, storage_location, date_found, status, moderation_status, created_at, updated_at</td><td class="cols">category_detail, image_url, moderated_by, moderation_note, moderation_reason_code, resubmission_allowed, required_corrections, item_condition, moderation_internal_note, moderated_at, returned_at, returned_by, return_claim_id, disposed_at, disposed_by, disposal_reason, disposal_notes</td></tr>
 <tr><td><code>claims</code></td><td><code>claim_id</code></td><td>claimant_id → users<br>item_id → found_items<br>report_id → lost_reports</td><td>—</td><td class="cols">claim_id, item_id, claimant_id, proof_description, status, date_claimed, created_at, updated_at</td><td class="cols">report_id</td></tr>
-<tr><td><code>claim_reviews</code></td><td><code>review_id</code></td><td>claim_id → claims<br>reviewer_id → users</td><td>—</td><td class="cols">review_id, claim_id, outcome, reason, created_at</td><td class="cols">reviewer_id, previous_outcome</td></tr>
+<tr><td><code>claim_reviews</code></td><td><code>review_id</code></td><td>claim_id → claims<br>reviewer_id → users</td><td>—</td><td class="cols">review_id, claim_id, outcome, created_at</td><td class="cols">reviewer_id, previous_outcome, reason_code, details, resubmission_allowed, required_followup, pickup_location, pickup_instructions, required_ids</td></tr>
 <tr><td><code>claim_verifications</code></td><td><code>verification_id</code></td><td>claim_id → claims<br>verified_by → users</td><td>—</td><td class="cols">verification_id, claim_id, id_type, result, verified_by, verified_at</td><td class="cols">id_reference, notes</td></tr>
         </tbody>
     </table>
@@ -351,6 +364,10 @@ erDiagram
             <tr><td><code>account_violations</code>, <code>lost_reports</code></td><td><code>account_violations</code> removed (its data copied onto the
                 false-reported <code>lost_reports</code> rows first); index <code>idx_lost_user</code> now (<code>reported_by</code>, <code>status</code>)</td>
                 <td>migration 016</td><td>A violation was a copy of a report marked false; it is now read from the report.</td></tr>
+            <tr><td><code>claim_reviews</code>, <code>found_items</code>, <code>lost_reports</code></td><td><code>claim_reviews.reason</code> → <code>details</code>; reason codes,
+                resubmission, follow-up, pickup location / instructions / required IDs on claim reviews; reason code, resubmission, corrections, item condition and
+                internal note on found-item posts; reason code and resubmission on lost reports</td>
+                <td>migration 017</td><td>Structured review decisions: a standard reason plus the fields each decision needs, instead of one free-text note.</td></tr>
         </tbody>
     </table>
 </main>

@@ -279,29 +279,66 @@ def main():
         status, r = b.api('claims.php', {'action': 'create', 'item_id': item, 'proof_description': proof, 'confirm_truth': 1})
         ids[name] = r.get('claim_id')
     check('Three different claimants claim the same item', all(ids.values()), ids)
-    status, r = admin.api('claims.php', {'action': 'review', 'claim_id': ids['andrea'], 'decision': 'reject', 'review_note': 'Not enough detail.'})
+    reject = lambda claim, **fields: dict({'action': 'review', 'claim_id': claim, 'decision': 'reject', 'reason_code': 'insufficient_proof',
+                                           'details': 'The scratch described is on the wrong side of the case.', 'resubmission_allowed': 'no'}, **fields)
+    approve = lambda claim, **fields: dict({'action': 'review', 'claim_id': claim, 'decision': 'approve', 'pickup_location': 'Security Office',
+                                            'pickup_instructions': 'Bring your school ID and quote this claim number at the desk.',
+                                            'required_ids': ['school_id']}, **fields)
+    status, r = admin.api('claims.php', reject(ids['andrea']))
     check('Admin (monitor only) cannot review claims', status == 403, r)
-    for reviewer_note in ('Insufficient ownership evidence.', 'Additional information required.'):
-        status, r = staff.api('claims.php', {'action': 'review', 'claim_id': ids['andrea'], 'decision': 'reject', 'review_note': reviewer_note})
+    for label, payload, field in (('a missing reason code', reject(ids['andrea'], reason_code=''), 'reason_code'),
+                                  ('an invalid reason code', reject(ids['andrea'], reason_code='random reason'), 'reason_code'),
+                                  ('missing details', reject(ids['andrea'], details=''), 'details'),
+                                  ('meaningless details', reject(ids['andrea'], details='asdf asdf asdf asdf'), 'details'),
+                                  ('no resubmission answer', reject(ids['andrea'], resubmission_allowed=''), 'resubmission_allowed'),
+                                  ('resubmission without the follow-up', reject(ids['andrea'], resubmission_allowed='yes'), 'required_followup'),
+                                  ('approval without a pickup location', approve(ids['andrea'], pickup_location=''), 'pickup_location'),
+                                  ('approval with an unknown ID type', approve(ids['andrea'], required_ids=['passport_scan']), 'required_ids'),
+                                  ('approval without instructions', approve(ids['andrea'], pickup_instructions='ok'), 'pickup_instructions'),
+                                  ('no decision', reject(ids['andrea'], decision='maybe'), 'decision')):
+        status, r = staff.api('claims.php', payload)
+        check(f'Claim review refused with {label}', status == 422 and field in r.get('errors', {}), r)
+    check('Refused reviews store nothing', one(f"SELECT COUNT(*) FROM claim_reviews WHERE claim_id = {ids['andrea']}") == '0')
+    status, r = staff.api('claims.php', reject(ids['andrea'], reviewer_id=1, resubmission_allowed='yes',
+                                               required_followup='A photo of the case showing the scratch.'))
+    status, r = staff.api('claims.php', reject(ids['andrea'], reason_code='details_mismatch', details='The earbud colour given does not match the intake record.'))
     check('Rejected claim keeps the Pending main status', status == 200 and one(f"SELECT status FROM claims WHERE claim_id = {ids['andrea']}") == 'pending', r)
-    history = sql(f"SELECT outcome, reviewer_id, reason, previous_outcome FROM claim_reviews WHERE claim_id = {ids['andrea']} ORDER BY review_id")
-    check('Each rejection is a separate history row (not overwritten)', len(history) == 2 and history[0][2] == 'Insufficient ownership evidence.'
-          and history[1][3] == 'rejected' and history[0][1] == staff_id, history)
-    staff.api('claims.php', {'action': 'review', 'claim_id': ids['miguel'], 'decision': 'reject', 'review_note': 'Description does not match.'})
+    history = sql(f"SELECT outcome, reviewer_id, details, previous_outcome, reason_code, resubmission_allowed, required_followup"
+                  f" FROM claim_reviews WHERE claim_id = {ids['andrea']} ORDER BY review_id")
+    check('Each rejection is a separate structured history row (reason code, details, resubmission, follow-up)', len(history) == 2
+          and history[0][2:] == ['The scratch described is on the wrong side of the case.', 'NULL', 'insufficient_proof', '1', 'A photo of the case showing the scratch.']
+          and history[1][3:6] == ['rejected', 'details_mismatch', '0'], history)
+    check('Reviewer comes from the session, not the request', history[0][1] == staff_id and history[1][1] == staff_id, history)
+    staff.api('claims.php', reject(ids['miguel']))
     _, html, _ = staff.get('/?tab=queue&status=rejected')
     check('Rejected listing shows the item once for multiple rejected claims', html.count('Black JBL earbuds case') == 1 and '3 events' in html, html.count('Black JBL earbuds case'))
     check('Grouped row keeps distinct claims and claimants', f"#{ids['andrea']} Andrea Villareal" in html and f"#{ids['miguel']} Miguel Santiago" in html)
     _, html, _ = staff.get(f'/view_item.php?type=found&id={item}')
-    check('Item page shows each rejection with reason and reviewer', 'Insufficient ownership evidence.' in html and 'Additional information required.' in html)
+    check('Item page shows each rejection with reason label, details and follow-up', 'Insufficient proof of ownership' in html
+          and 'The scratch described is on the wrong side of the case.' in html and 'A photo of the case showing the scratch.' in html)
+    _, html, _ = andrea.get(f'/view_item.php?type=found&id={item}')
+    check('Claimant sees the structured reason of the latest rejection', 'Information does not match the item' in html
+          and 'The earbud colour given does not match the intake record.' in html)
+    sql(f"INSERT INTO claim_reviews (claim_id, reviewer_id, outcome, details) VALUES ({ids['miguel']}, {staff_id}, 'rejected', 'Old free-text note from before.')")
+    _, html, _ = staff.get(f'/view_item.php?type=found&id={item}')
+    check('A review from before structured decisions shows its original note, with no invented reason',
+          'Original note (earlier review)' in html and 'Old free-text note from before.' in html)
+    sql(f"DELETE FROM claim_reviews WHERE details = 'Old free-text note from before.'")
     status, r = andrea.api('claims.php', {'action': 'withdraw', 'claim_id': ids['andrea']})
     check('A reviewed claim cannot be withdrawn (history kept)', status == 409, r)
 
     status, r = staff.api('update_status.php', {'type': 'found', 'id': item, 'status': 'disposed', 'disposal_reason': 'Unclaimed for a long time.', 'confirm_disposal': 1})
     check('Item with a claim awaiting review cannot be disposed of', status == 409 and 'awaiting review' in r.get('error', ''), r)
 
-    staff.api('claims.php', {'action': 'review', 'claim_id': ids['ramon'], 'decision': 'approve', 'review_note': 'Details match. Bring your ID.'})
-    check('Approved claim is "approved" (for collection)', one(f"SELECT status FROM claims WHERE claim_id = {ids['ramon']}") == 'approved')
-    status, r = staff.api('claims.php', {'action': 'review', 'claim_id': ids['miguel'], 'decision': 'approve', 'review_note': 'Second approval attempt.'})
+    staff.api('claims.php', approve(ids['ramon'], required_ids=['school_id', 'government_id']))
+    check('Approved claim is "approved" (for collection); the item stays in storage',
+          one(f"SELECT status FROM claims WHERE claim_id = {ids['ramon']}") == 'approved' and one(f'SELECT status FROM found_items WHERE item_id = {item}') == 'stored')
+    review = sql(f"SELECT pickup_location, pickup_instructions, required_ids FROM claim_reviews WHERE claim_id = {ids['ramon']}")
+    check('Approval stores pickup location, instructions and required IDs', review == [['Security Office',
+          'Bring your school ID and quote this claim number at the desk.', 'school_id,government_id']], review)
+    _, html, _ = ramon.get(f'/view_item.php?type=found&id={item}')
+    check('Claimant sees where and with which ID to collect', 'Security Office' in html and 'Government-issued photo ID' in html)
+    status, r = staff.api('claims.php', approve(ids['miguel']))
     check('A second claim on the same item cannot also be approved', status == 409, r)
     status, r = staff.api('claims.php', {'action': 'return', 'claim_id': ids['ramon'], 'confirm_handover': 1})
     check('Item cannot be returned before the ID is verified', status == 409, r)
@@ -324,7 +361,7 @@ def main():
     row = sql(f"SELECT f.status, f.returned_by, f.return_claim_id, c.status FROM found_items f JOIN claims c ON c.claim_id = f.return_claim_id WHERE f.item_id = {item}")
     check('Return updates item and claim together (who, when, which claim)', status == 200 and row == [['returned', staff_id, str(ids['ramon']), 'returned']], (r, row))
     check('Other open claims get a rejection and stay pending', one(f"SELECT status FROM claims WHERE claim_id = {ids['miguel']}") == 'pending'
-          and one(f"SELECT reason FROM claim_reviews WHERE claim_id = {ids['miguel']} ORDER BY review_id DESC LIMIT 1") is not None)
+          and one(f"SELECT reason_code FROM claim_reviews WHERE claim_id = {ids['miguel']} ORDER BY review_id DESC LIMIT 1") is not None)
     logged_for = one(f"SELECT e.user_id = c.claimant_id FROM security_events e JOIN claims c ON c.claim_id = {ids['miguel']} WHERE e.event_type = 'claim_rejected'"
                      f" AND CAST(JSON_EXTRACT(e.metadata, '$.claim_id') AS UNSIGNED) = {ids['miguel']} ORDER BY e.event_id DESC LIMIT 1")
     check('Hand-over rejection of another claim is logged against that claimant', logged_for == '1', logged_for)
@@ -441,26 +478,107 @@ def main():
                                            'location_lost': place, 'description': desc})
         reports.append(r.get('id'))
     check('Miguel files two lost reports', all(reports), reports)
-    status, r = staff.api('moderate_report.php', {'report_id': reports[0], 'action': 'false_report', 'reason': 'Reporter admitted the watch was never lost.'})
+    false_report = lambda report, **fields: dict({'report_id': report, 'action': 'false_report', 'reason_code': 'admitted_fabricated',
+                                                  'details': 'Reporter admitted at the desk that the watch was never lost.', 'confirm_false': 1}, **fields)
+    for label, payload, field in (('without the confirmation', false_report(reports[0], confirm_false=''), 'confirm_false'),
+                                  ('with short evidence', false_report(reports[0], details='It was a prank.'), 'details'),
+                                  ('with an ordinary rejection reason', false_report(reports[0], reason_code='incomplete'), 'reason_code')):
+        status, r = staff.api('moderate_report.php', payload)
+        check(f'False report refused {label}', status == 422 and field in r.get('errors', {}), r)
+    status, r = staff.api('moderate_report.php', false_report(reports[0]))
     check('First false report warns and keeps the account active', status == 200 and 'warned' in r.get('message', '')
           and one(f'SELECT is_active FROM users WHERE user_id = {miguel_id}') == '1', r)
     _, html, _ = admin.get(f'/?tab=users&id={miguel_id}')
-    check('Admin sees violation 1 of 2 as a warning, with reason and issuer', 'False-report violations (1 of 2)' in html
-          and 'Reporter admitted the watch was never lost.' in html and 'Warning' in html)
-    status, r = staff.api('moderate_report.php', {'report_id': reports[1], 'action': 'false_report', 'reason': 'Same umbrella was reported by its real owner.'})
+    check('Admin sees violation 1 of 2 as a warning, with reason label, evidence and issuer', 'False-report violations (1 of 2)' in html
+          and 'Reporter admitted the report was fabricated' in html and 'Reporter admitted at the desk that the watch was never lost.' in html and 'Warning' in html)
+    second = false_report(reports[1], reason_code='never_lost', details='The real owner reported this umbrella and holds the receipt.')
+    status, r = staff.api('moderate_report.php', second)
+    check('Second violation needs the deactivation confirmation', status == 422 and 'confirm_deactivation' in r.get('errors', {})
+          and one(f'SELECT is_active FROM users WHERE user_id = {miguel_id}') == '1', r)
+    status, r = staff.api('moderate_report.php', dict(second, confirm_deactivation=1))
     row = sql(f'SELECT is_active, deactivation_reason, deactivated_by FROM users WHERE user_id = {miguel_id}')
     check('Second false report deactivates the account', status == 200 and row == [['0', 'false_reports', staff_id]], (r, row))
     status, _, headers = miguel.get('/?tab=reports')
     check('Deactivated account is logged out', status == 302 and 'login.php' in headers.get('Location', ''), (status, headers.get('Location')))
     _, html, _ = admin.get(f'/?tab=users&id={miguel_id}')
     check('Violation history lists both reports, the second as the deactivation', 'False-report violations (2 of 2)' in html and 'Account deactivated' in html)
-    staff.api('moderate_report.php', {'report_id': reports[0], 'action': 'delete', 'reason': 'Removing the confirmed false report.'})
+    staff.api('moderate_report.php', {'report_id': reports[0], 'action': 'delete', 'details': 'Removing the confirmed false report.'})
     _, html, _ = admin.get(f'/?tab=users&id={miguel_id}')
     check('A removed false report still counts as a violation', 'False-report violations (2 of 2)' in html)
     _, html, _ = admin.get('/')
     check('Deactivated reporter is listed under accounts needing attention', 'Miguel Santiago' in html and '2 / 2' in html)
     check('account_violations table is gone (violations are lost_reports rows)',
           one("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'account_violations'") == '0')
+
+    # ------------------------------------------------------------------ Structured post reviews (found items posted by students)
+    posts = []
+    for name in ('Grey water bottle', 'Spiral notebook'):
+        status, r = andrea.api('add_item.php', {'type': 'found', 'item_name': name, 'category_id': 4, 'date_found': today, 'location_found': 'Library',
+                                                'description': f'{name} left on a reading table.', 'private_details': 'Initials A.V. written on the bottom.'})
+        posts.append(r.get('id'))
+    check('Student posts two found items (pending review)', all(posts) and one(f'SELECT moderation_status FROM found_items WHERE item_id = {posts[0]}') == 'pending', posts)
+    approve_post = lambda post, **fields: dict({'type': 'found', 'id': post, 'moderation': 'approved', 'storage_location': 'Bin 4 (Misc)',
+                                                'received_at_office': 'yes', 'item_condition': 'minor_damage', 'internal_note': 'Handed in by the librarian.'}, **fields)
+    reject_post = lambda post, **fields: dict({'type': 'found', 'id': post, 'moderation': 'rejected', 'reason_code': 'not_at_office',
+                                               'details': 'The notebook was never brought to the office.', 'resubmission_allowed': 'yes',
+                                               'required_corrections': 'Bring the notebook to the office, then post it again.'}, **fields)
+    for label, payload, field in (('the item not at the office', approve_post(posts[0], received_at_office='no'), 'received_at_office'),
+                                  ('no receipt answer', approve_post(posts[0], received_at_office=''), 'received_at_office'),
+                                  ('no storage location', approve_post(posts[0], storage_location=''), 'storage_location'),
+                                  ('no item condition', approve_post(posts[0], item_condition='shiny'), 'item_condition'),
+                                  ('an invalid rejection reason', reject_post(posts[1], reason_code='because'), 'reason_code'),
+                                  ('blank rejection details', reject_post(posts[1], details='          '), 'details'),
+                                  ('resubmission without corrections', reject_post(posts[1], required_corrections=''), 'required_corrections')):
+        status, r = staff.api('update_status.php', payload)
+        check(f'Post review refused with {label}', status == 422 and field in r.get('errors', {}), r)
+    status, r = admin.api('update_status.php', approve_post(posts[0]))
+    check('Admins cannot review posts', status == 403, r)
+    status, r = staff.api('update_status.php', approve_post(posts[0]))
+    row = sql(f"SELECT moderation_status, storage_location, item_condition, moderation_internal_note, moderated_by FROM found_items WHERE item_id = {posts[0]}")
+    check('Approved post stores storage, condition, internal note and reviewer', status == 200
+          and row == [['approved', 'Bin 4 (Misc)', 'minor_damage', 'Handed in by the librarian.', staff_id]], (r, row))
+    _, html, _ = Browser().get('/browse.php')
+    check('Approved post is in the public listing', 'Grey water bottle' in html)
+    _, html, _ = andrea.get(f'/view_item.php?type=found&id={posts[0]}')
+    check('Poster never sees the internal note', 'Handed in by the librarian.' not in html)
+    _, html, _ = staff.get(f'/view_item.php?type=found&id={posts[0]}')
+    check('Staff see the post review with condition and internal note', 'Post review' in html and 'Minor damage' in html and 'Handed in by the librarian.' in html)
+    status, r = staff.api('update_status.php', reject_post(posts[1]))
+    row = sql(f"SELECT moderation_status, moderation_reason_code, moderation_note, resubmission_allowed, required_corrections FROM found_items WHERE item_id = {posts[1]}")
+    check('Rejected post stores reason code, details and corrections', status == 200 and row == [['rejected', 'not_at_office',
+          'The notebook was never brought to the office.', '1', 'Bring the notebook to the office, then post it again.']], (r, row))
+    _, html, _ = andrea.get(f'/view_item.php?type=found&id={posts[1]}')
+    check('Poster sees the reason, details and required corrections', 'Item was never brought to the office' in html
+          and 'Bring the notebook to the office, then post it again.' in html)
+    status, r = staff.api('update_status.php', approve_post(posts[1]))
+    check('A reviewed post cannot be reviewed again', status == 409, r)
+
+    # ------------------------------------------------------------------ Ordinary rejections and spam never count as violations
+    ramon_id = one("SELECT user_id FROM users WHERE email = 'ramon@example.com'")
+    ramon_reports = []
+    for cat, place, name, desc in ((5, 'Gymnasium', 'Blue towel', 'Blue gym towel with white stripes, left on the bleachers.'),
+                                   (6, 'Cinema', 'Black cap', 'Black baseball cap with a red logo on the front panel.')):
+        _, r = ramon.api('add_item.php', {'type': 'lost', 'item_name': name, 'category_id': cat, 'date_lost': today, 'location_lost': place, 'description': desc})
+        ramon_reports.append(r.get('id'))
+    status, r = staff.api('moderate_report.php', {'report_id': ramon_reports[0], 'action': 'rejected', 'reason_code': 'item_found',
+                                                  'details': 'The towel was collected from the gym office yesterday.'})
+    check('Report rejection needs the resubmission answer', status == 422 and 'resubmission_allowed' in r.get('errors', {}), r)
+    status, r = staff.api('moderate_report.php', {'report_id': ramon_reports[0], 'action': 'rejected', 'reason_code': 'item_found',
+                                                  'details': 'The towel was collected from the gym office yesterday.', 'resubmission_allowed': 'no'})
+    row = sql(f"SELECT status, moderation_reason_code, resubmission_allowed FROM lost_reports WHERE report_id = {ramon_reports[0]}")
+    check('Rejected report stores its reason code', status == 200 and row == [['rejected', 'item_found', '0']], (r, row))
+    status, r = staff.api('moderate_report.php', {'report_id': ramon_reports[1], 'action': 'spam', 'reason_code': 'free text spam'})
+    check('Spam needs a known spam type', status == 422 and 'reason_code' in r.get('errors', {}), r)
+    status, r = staff.api('moderate_report.php', {'report_id': ramon_reports[1], 'action': 'spam', 'reason_code': 'nonsense'})
+    check('Spam is recorded with its type (details optional)', status == 200
+          and one(f'SELECT moderation_reason_code FROM lost_reports WHERE report_id = {ramon_reports[1]}') == 'nonsense', r)
+    _, html, _ = admin.get(f'/?tab=users&id={ramon_id}')
+    check('Rejection and spam create no false-report violation', 'False-report violations (0 of 2)' in html
+          and one(f'SELECT is_active FROM users WHERE user_id = {ramon_id}') == '1')
+    _, html, _ = ramon.get(f'/view_item.php?type=lost&id={ramon_reports[0]}')
+    check('Reporter sees the rejection reason and details', 'Item already found' in html and 'The towel was collected from the gym office yesterday.' in html)
+    logged = one(f"SELECT CAST(metadata AS CHAR) FROM security_events WHERE event_type = 'report_rejected' ORDER BY event_id DESC LIMIT 1")
+    check('Activity log records the reason code, not the full text', json.loads(logged).get('reason_code') == 'item_found' and 'gym office' not in logged, logged)
 
     # ------------------------------------------------------------------ Data integrity
     orphans = one("""SELECT (SELECT COUNT(*) FROM lost_reports r LEFT JOIN categories c ON c.category_id = r.category_id WHERE c.category_id IS NULL)
@@ -473,7 +591,7 @@ def main():
                           + (SELECT COUNT(*) FROM users u LEFT JOIN students s ON s.student_number = u.student_number
                                  WHERE u.student_number IS NOT NULL AND s.student_number IS NULL)""")
     check('No orphaned foreign keys (reports, claims, posts, sessions, school links, reviews)', orphans == '0', orphans)
-    check('All 16 migrations recorded', one('SELECT COUNT(*) FROM schema_migrations') == '16')
+    check('All 17 migrations recorded', one('SELECT COUNT(*) FROM schema_migrations') == '17')
 
     failed = results.count(False)
     print(f'\n{len(results) - failed} of {len(results)} checks passed' + (f', {failed} failed' if failed else ''))

@@ -79,7 +79,7 @@
                     <td>#<?= (int) $v['report_id'] ?> <?= e($v['item_name']) ?></td>
                     <td class="nowrap"><?= e(format_datetime($v['created_at'])) ?></td>
                     <td><span class="badge badge-<?= $v['action_taken'] === 'warning' ? 'pending' : 'rejected' ?>"><?= $v['action_taken'] === 'warning' ? 'Warning' : 'Account deactivated' ?></span></td>
-                    <td class="cell-wide"><?= e($v['reason']) ?></td>
+                    <td class="cell-wide"><?= e(report_reason_label('false_report', $v['reason_code']) ?? 'Earlier review') ?><span class="table-sub"><?= e($v['reason']) ?></span></td>
                     <td><?= $v['issued_by'] ? e($v['first_name'] . ' ' . $v['last_name']) : '—' ?></td>
                 </tr>
             <?php endforeach; ?>

@@ -55,6 +55,64 @@ const DISPOSAL_HOLD_DAYS = 30;
 /** Masked ID references are cleared from claim_verifications after this many days (the check itself stays). */
 const ID_RECORD_RETENTION_DAYS = 365;
 
+/* ---------------------------------------------------------------- Review decisions */
+
+/**
+ * Standard reasons staff pick when reviewing; the database stores the key, the pages show the label. The server
+ * accepts only these keys ("other" needs the details text like every other reason). Keys are kept forever: rename a
+ * label freely, but add a new key instead of reusing an old one.
+ */
+const CLAIM_REJECTION_REASONS = [
+    'insufficient_proof'    => 'Insufficient proof of ownership',
+    'incorrect_description' => 'Incorrect item description',
+    'details_mismatch'      => 'Information does not match the item',
+    'duplicate_claim'       => 'Duplicate claim',
+    'unverified_details'    => 'Claimant could not verify identifying details',
+    'returned_to_other'     => 'Item already returned to another verified claimant',
+    'incomplete'            => 'Incomplete claim information',
+    'other'                 => 'Other',
+];
+const POST_REJECTION_REASONS = [
+    'duplicate'       => 'Duplicate submission',
+    'not_at_office'   => 'Item was never brought to the office',
+    'incomplete'      => 'Incomplete information',
+    'invalid_details' => 'Invalid item details',
+    'unrelated'       => 'Not related to lost-and-found',
+    'inappropriate'   => 'Inappropriate content',
+    'other'           => 'Other',
+];
+const REPORT_REJECTION_REASONS = [
+    'incomplete'               => 'Incomplete information',
+    'item_found'               => 'Item already found',
+    'duplicate'                => 'Accidental duplicate',
+    'invalid_place_date'       => 'Invalid location or date information',
+    'insufficient_description' => 'Insufficient description',
+    'unverifiable'             => 'Report cannot be verified',
+    'other'                    => 'Other',
+];
+/** Only an intentional falsehood is a false report; an honest mistake is a rejection. */
+const FALSE_REPORT_REASONS = [
+    'admitted_fabricated' => 'Reporter admitted the report was fabricated',
+    'never_lost'          => 'Evidence confirms the item was never lost',
+    'misleading'          => 'Intentionally misleading information',
+    'abusive'             => 'Abusive or malicious submission',
+    'repeated_false'      => 'Repeated deliberate false information',
+    'other'               => 'Other confirmed intentional falsehood',
+];
+/** Spam hides a report and never counts as a false-report violation. */
+const SPAM_TYPES = [
+    'duplicate_spam' => 'Repeated duplicate submission',
+    'unrelated'      => 'Unrelated content',
+    'advertising'    => 'Advertising or promotional content',
+    'nonsense'       => 'Nonsense submission',
+    'automated'      => 'Automated or bot-like submission',
+    'junk'           => 'Repeated junk reports',
+    'other'          => 'Other',
+];
+const ITEM_CONDITIONS = ['good' => 'Good', 'minor_damage' => 'Minor damage', 'damaged' => 'Damaged', 'unknown' => 'Unknown'];
+/** Where an approved claimant collects the item. Placeholder list until the school confirms it: edit it here. */
+const PICKUP_LOCATIONS = ['Lost & Found desk, Admin Office', 'Security Office'];
+
 /* ---------------------------------------------------------------- School registration */
 
 /** Format of a school identifier, checked before the reference tables are searched. */

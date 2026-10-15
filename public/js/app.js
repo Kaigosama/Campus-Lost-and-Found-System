@@ -12,6 +12,7 @@
  *   [data-next-holiday]                filled with the next office closure from the public-holiday API
  *   input[type=file][data-preview]     image preview
  *   [data-table-filter]                quick text filter for a table
+ *   [data-show-when="name=value"]      shown and enabled only while that radio is chosen (review forms: one fieldset per decision)
  */
 (function () {
     var IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -274,10 +275,22 @@
     function labelOf(field) { return field.dataset.label || ''; }
 
     function validateField(field) {
-        if (field.disabled || field.type === 'hidden' || field.type === 'submit' || field.type === 'button') return '';
+        // :disabled also covers fields inside a disabled fieldset (the decisions not chosen), which aren't sent either.
+        if (field.matches(':disabled') || field.type === 'hidden' || field.type === 'submit' || field.type === 'button') return '';
         var value = (field.value || '').trim();
         var label = labelOf(field);
 
+        if (field.type === 'radio') {
+            var group = Array.prototype.slice.call(field.form.querySelectorAll('[name="' + field.name + '"]:enabled'));
+            var chosen = group.filter(function (radio) { return radio.checked; })[0];
+            if (!chosen) return group.some(function (radio) { return radio.required; }) ? 'Choose one of these.' : '';
+            // data-required-value: the only answer that lets the form go ahead, e.g. "the office has the item" before approving.
+            var rule = group.filter(function (radio) { return radio.dataset.requiredValue; })[0];
+            return rule && chosen.value !== rule.dataset.requiredValue ? rule.dataset.requiredMessage || 'This answer does not allow this decision.' : '';
+        }
+        if (field.type === 'checkbox' && field.hasAttribute('data-one-of')) {   // a group of which at least one must be ticked
+            return field.form.querySelector('[name="' + field.name + '"]:checked:enabled') ? '' : 'Tick at least one.';
+        }
         if (field.type === 'checkbox') return field.required && !field.checked ? 'Please tick this box to continue.' : '';
         if (field.type === 'file') {
             if (field.required && !field.files.length) return 'Please choose a file.';
@@ -313,6 +326,11 @@
         if (field.type === 'date' && field.min && value < field.min) return 'Date cannot be more than a year ago.';
         var minWords = parseInt(field.dataset.minWords, 10);
         if (minWords && value.split(/\s+/).length < minWords) return 'Please give a little more detail (at least ' + minWords + ' words).';
+        // Same rule as text_error() in src/validation.php: a real sentence, not "aaaa", "asdf asdf" or "123".
+        if (minWords) {
+            var chars = value.toLowerCase().match(/[\p{L}\p{N}]/gu) || [];
+            if (new Set(chars).size < 5 || !/\p{L}/u.test(value)) return 'Write a real explanation, not repeated or random characters.';
+        }
         return '';
     }
 
@@ -350,7 +368,9 @@
     function fields(formData) {
         var data = {};
         formData.forEach(function (value, key) {
-            if (!(value instanceof File)) data[key] = value;
+            if (value instanceof File) return;
+            if (key.slice(-2) === '[]') (data[key.slice(0, -2)] = data[key.slice(0, -2)] || []).push(value);   // name="ids[]": a list
+            else data[key] = value;
         });
         return data;
     }
@@ -385,8 +405,9 @@
     // Does every enabled required field hold something?
     function requiredFilled(form) {
         return Array.prototype.every.call(form.querySelectorAll('[required]'), function (field) {
-            if (field.disabled) return true;
+            if (field.matches(':disabled')) return true;
             if (field.type === 'checkbox') return field.checked;
+            if (field.type === 'radio') return !!form.querySelector('[name="' + field.name + '"]:checked:enabled');
             if (field.type === 'file') return field.files.length > 0;
             return field.value.trim() !== '' || autofilled(field);
         });
@@ -414,6 +435,24 @@
         });
     });
 
+    // [data-show-when="<radio name>=<value>"]: the part of a form for one choice, e.g. the rejection fields of a review.
+    // While another choice is picked it is hidden and disabled, so it is neither validated nor sent. Runs before the
+    // submit guard below, which then sees only the chosen decision's fields.
+    document.querySelectorAll('[data-show-when]').forEach(function (box) {
+        var rule = box.dataset.showWhen.split('=');
+        var form = box.closest('form');
+        function sync() {
+            var chosen = form.querySelector('[name="' + rule[0] + '"]:checked');
+            var on = !!chosen && chosen.value === rule[1];
+            box.hidden = !on;
+            if (box.tagName === 'FIELDSET') box.disabled = !on;
+            else box.querySelectorAll('input, select, textarea').forEach(function (field) { field.disabled = !on; });
+            if (!on) box.querySelectorAll('.is-invalid').forEach(clearError);
+        }
+        form.addEventListener('change', function (event) { if (event.target.name === rule[0]) sync(); });
+        sync();
+    });
+
     // A reset button restores the fields but not the state scripts keep: once it has run, clear errors and
     // replay "change" on selects and file inputs so "Other" boxes, photo previews and the submit guard catch up.
     document.addEventListener('reset', function (event) {
@@ -437,9 +476,9 @@
 
     // Submit buttons stay disabled until the user has filled the form in. That covers forms with required fields and
     // role="search" filter bars: a field must differ from how the page loaded, and every required field must hold
-    // something. form[data-submit-guard] also waits for every field to pass validateField(). A button with
-    // data-requires="<name>" waits only for that field to hold at least data-min (default 1) characters,
-    // e.g. Approve needs a storage location and Reject a reason. Feedback only: the API validates every field again.
+    // something. form[data-submit-guard] also waits for every field to pass validateField(), e.g. a review's Confirm
+    // button until its decision's reason, details and confirmations are complete. Feedback only: the API validates
+    // every field again.
     function guarded(form) {
         return form.hasAttribute('data-submit-guard') || form.matches('[role="search"]') || !!form.querySelector('[required]');
     }
@@ -450,8 +489,7 @@
             : requiredFilled(form);
         var ready = valid && isDirty(form);
         form.querySelectorAll('button[type="submit"]:not([formnovalidate])').forEach(function (button) {   // "Back" always works
-            var needed = button.dataset.requires && form.querySelector('[name="' + button.dataset.requires + '"]');
-            button.disabled = needed ? needed.value.trim().length < (parseInt(button.dataset.min, 10) || 1) : !ready;
+            button.disabled = !ready;
         });
         var hint = form.querySelector('[data-guard-hint]');
         if (hint) hint.hidden = valid;
@@ -476,7 +514,7 @@
         var errors = error.data && error.data.errors;
         if (errors) {
             Object.keys(errors).forEach(function (name) {
-                var field = form.querySelector('[name="' + name + '"]');
+                var field = form.querySelector('[name="' + name + '"]:enabled') || form.querySelector('[name="' + name + '[]"]:enabled');
                 if (field) setError(field, errors[name]);
             });
         }
@@ -556,7 +594,7 @@
                 });
         },
         moderate_report: function (form, data) {
-            return ClafsApi.moderateReport(parseInt(data.report_id, 10), data.action, data.reason)
+            return ClafsApi.moderateReport(data)
                 .then(function (result) {
                     if (result.status !== 'deleted') setBadge('lost-' + result.report_id, result.status);
                     finish(form, result.message);
@@ -596,22 +634,10 @@
             return ClafsApi.createClaim(data).then(function (result) { finish(form, result.message); });
         },
         moderate: function (form, data) {
-            return ClafsApi.moderateItem(parseInt(data.id, 10), data.moderation, data.review_note, data.storage_location)
-                .then(function (result) {
-                    // Match what a reload would show: no banner once approved, a "Not approved" one once rejected.
-                    var banner = document.querySelector('[data-moderation-banner]');
-                    if (banner && result.status === 'approved') banner.remove();
-                    if (banner && result.status === 'rejected') {
-                        banner.className = 'alert alert-error mb-0';
-                        banner.innerHTML = '<strong>Not approved.</strong> This post is not public. ' + escapeHtml(data.review_note.trim());
-                    }
-                    var storage = document.querySelector('[data-storage-location]');
-                    if (storage) storage.textContent = result.storage_location || '';
-                    finish(form, result.message);
-                });
+            return ClafsApi.moderateItem(data).then(function (result) { finish(form, result.message); });
         },
         review: function (form, data) {
-            return ClafsApi.reviewClaim(parseInt(data.claim_id, 10), data.decision, data.review_note)
+            return ClafsApi.reviewClaim(data)
                 .then(function (result) { finish(form, result.message); });
         },
         withdraw: function (form, data) {

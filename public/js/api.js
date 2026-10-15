@@ -72,13 +72,13 @@ window.ClafsApi = (function () {
         deleteItem:   function (id)                       { return post('delete_item.php', { id: id }); },
         updateStatus: function (type, id, status, itemId) { return post('update_status.php', { type: type, id: id, status: status, item_id: itemId }); },
         createClaim:  function (fields)                   { return post('claims.php', Object.assign({ action: 'create' }, fields)); },
-        moderateItem: function (id, decision, note, storage) { return post('update_status.php', { type: 'found', id: id, moderation: decision, review_note: note, storage_location: storage }); },
-        reviewClaim:  function (claimId, decision, note)  { return post('claims.php', { action: 'review', claim_id: claimId, decision: decision, review_note: note }); },
+        moderateItem: function (fields)                   { return post('update_status.php', Object.assign({ type: 'found' }, fields)); },   // id, moderation, …
+        reviewClaim:  function (fields)                   { return post('claims.php', Object.assign({ action: 'review' }, fields)); },     // claim_id, decision, …
         withdrawClaim: function (claimId)                 { return post('claims.php', { action: 'withdraw', claim_id: claimId }); },
         verifyClaim:  function (claimId, fields)          { return post('claims.php', { action: 'verify', claim_id: claimId, id_type: fields.id_type, id_last4: fields.id_last4, id_result: fields.id_result, id_notes: fields.id_notes }); },
         returnItem:   function (claimId, confirmed)       { return post('claims.php', { action: 'return', claim_id: claimId, confirm_handover: confirmed }); },
         disposeItem:  function (id, fields)               { return post('update_status.php', { type: 'found', id: id, status: 'disposed', disposal_reason: fields.disposal_reason, disposal_notes: fields.disposal_notes, confirm_disposal: fields.confirm_disposal }); },
-        moderateReport: function (reportId, action, reason) { return post('moderate_report.php', { report_id: reportId, action: action, reason: reason }); },
+        moderateReport: function (fields)                 { return post('moderate_report.php', fields); },   // report_id, action, reason_code, details, …
         updateUser:   function (userId, changes)          { return post('update_user.php', Object.assign({ user_id: userId }, changes)); },
         manageCategory: function (fields)                 { return post('categories.php', fields); },   // action: create | set_active | delete
         staffUpdates: function ()                         { return get('staff_updates.php'); },

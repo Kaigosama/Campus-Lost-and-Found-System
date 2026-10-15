@@ -291,6 +291,67 @@ longer inserts a copy; it counts after marking the report, inside the same trans
 locked. The two counts (`accounts_needing_attention()` in `src/repository.php`, the Users list in
 `templates/dashboard/users.php`) count `lost_reports` rows. Pages and messages are unchanged.
 
+### 1.4 Structured review and moderation forms
+
+Claim reviews, found-post reviews and lost-report moderation each used one free-text box next to every action
+button, so a reviewer could write "asdf", or write a rejection reason and click Approve. Each form now works the same
+way: **1. choose a decision** (radio buttons styled as buttons), **2. complete that decision's fields** (only that
+fieldset is shown and sent), **3. optional notes**, **4. the consequences shown**, **5. one Confirm button**, which
+stays disabled until the decision's required fields are valid. The server repeats every check (`claim_review_input()`,
+`post_review_input()`, `report_moderation_input()` in `src/validation.php`) and refuses anything else with HTTP 422.
+
+| Decision | Required (structured) | Free text |
+|---|---|---|
+| Approve claim | Pickup location (`PICKUP_LOCATIONS`), pickup instructions (20+ characters), required identification (one or more `ID_TYPES`) | Additional notes (optional) |
+| Reject claim | Reason (`CLAIM_REJECTION_REASONS`), details (15+ characters, 3+ words), can the claimant add information (Yes / No); if Yes, what is needed | — |
+| Approve found post | Office has the item (must be Yes), storage location, item condition (`ITEM_CONDITIONS`) | Internal notes (staff only, optional); the poster gets a standard approval message |
+| Reject found post | Reason (`POST_REJECTION_REASONS`), details, can the poster post again (Yes / No); if Yes, required corrections | — |
+| Reject lost report | Reason (`REPORT_REJECTION_REASONS`), details, can a corrected report be filed (Yes / No) | — |
+| False report | Reason (`FALSE_REPORT_REASONS`), evidence (30+ characters, 5+ words), "I confirm this report is intentionally false"; for the deactivating violation also "I understand this deactivates the account". The form shows the violation count before and after, and the result | — |
+| Spam | Spam type (`SPAM_TYPES`) | Details (optional). Spam never counts as a violation; there is no separate penalty option |
+| Remove report | Reason (10+ characters) | — |
+
+**Reason codes** (stored keys; labels are in `config/config.php`):
+
+- Claim rejection: `insufficient_proof`, `incorrect_description`, `details_mismatch`, `duplicate_claim`,
+  `unverified_details`, `returned_to_other` (also set automatically when an item is handed to another claimant),
+  `incomplete`, `other`.
+- Post rejection: `duplicate`, `not_at_office`, `incomplete`, `invalid_details`, `unrelated`, `inappropriate`, `other`.
+- Report rejection: `incomplete`, `item_found`, `duplicate`, `invalid_place_date`, `insufficient_description`,
+  `unverifiable`, `other`.
+- False report: `admitted_fabricated`, `never_lost`, `misleading`, `abusive`, `repeated_false`, `other`.
+- Spam: `duplicate_spam`, `unrelated`, `advertising`, `nonsense`, `automated`, `junk`, `other`.
+
+**Meaningless text.** Required text must have a minimum length and word count, at least five different letters or
+digits, and at least one letter, so "aaaa", "asdf asdf asdf asdf", "123" and whitespace are refused (`text_error()`,
+mirrored in `app.js`). The text is not judged further: the reason code says why, the text adds the detail.
+
+**Database (migration `017_structured_reviews.sql`), no new tables:**
+
+- `claim_reviews`: `reason` renamed `details` (now nullable); new `reason_code`, `resubmission_allowed`,
+  `required_followup`, `pickup_location`, `pickup_instructions`, `required_ids`.
+- `found_items`: new `moderation_reason_code`, `resubmission_allowed`, `required_corrections`, `item_condition`,
+  `moderation_internal_note`; `moderation_note` stays the rejection detail shown to the poster.
+- `lost_reports`: new `moderation_reason_code`, `resubmission_allowed`; `moderation_reason` stays the detail (the
+  evidence, for a false report).
+
+Reason codes are checked by the server against the lists in `config/config.php`, not by a database `ENUM`, so a
+label can change and a reason can be added without a migration. Reviewer and time still come from the session and
+the database; a `reviewer_id` sent in the request is ignored.
+
+**History and messages.** Review histories, the claimant's claim panel, My Claims, the poster's post page and the
+reporter's report page show the decision as labelled lines (Reason, Details, Resubmission, Required; or Pickup
+location, Bring, Instructions, Notes) instead of one paragraph. The admin's violation history shows the false-report
+reason and the evidence. The activity log records the reason code, the resulting status and any warning or
+deactivation, and points to the record; the long text stays on the record.
+
+**Legacy data.** Nothing is deleted or rewritten. Decisions saved before 017 have no reason code; they are shown as
+"Original note (earlier review)" with their text, and no reason is invented for them.
+
+**Unchanged:** a rejected claim stays Pending with the rejection added to its history; approving a claim does not
+return the item (ID check and hand-over remain separate steps with their own forms, validator and time set by the
+server).
+
 ## 2. Files changed
 
 **New**
@@ -331,11 +392,12 @@ locked. The two counts (`accounts_needing_attention()` in `src/repository.php`, 
 | `public/js/app.js`, `public/js/api.js`, `public/css/styles.css` | Live password checklist, Turnstile states, unsaved-change guard, new API calls, styles; visitor consent call removed |
 | `templates/layout/navbar.php`, `header.php`, `footer.php` | Staff and admin header reduced to Dashboard and account (no duplicate menus), cookie banner text (login cookie only) |
 | `docs/erd.html`, `README.md`, `.env.example`, `docker-compose.yml` | Documentation and configuration |
+| `database/migrations/017_structured_reviews.sql`, `config/config.php`, `src/validation.php`, `src/claims.php`, `src/reports.php`, `src/repository.php`, `src/views.php`, `public/api/claims.php`, `public/api/update_status.php`, `public/api/moderate_report.php`, `public/view_item.php`, `templates/dashboard/my_claims.php`, `posts.php`, `users.php`, `public/js/app.js`, `public/js/api.js`, `public/css/styles.css`, `tests/acceptance_test.py`, `docs/erd.html`, API documentation | Structured review forms (section 1.4) |
 | `database/migrations/016_violations_from_reports.sql`, `src/reports.php`, `src/repository.php`, `templates/dashboard/users.php`, `tests/acceptance_test.py`, `docs/erd.html` | Table reduction (section 1.3): violations read from `lost_reports`, `account_violations` dropped, false-report regression tests, ERD redrawn |
 
 ## 3. Database changes
 
-Migrations 011–016 run once each, in order, through `php database/seed.php` (automatically on every Docker / Railway
+Migrations 011–017 run once each, in order, through `php database/seed.php` (automatically on every Docker / Railway
 start). They add, rename and move data; the only records deleted are the visitor records (015) and the
 `account_violations` copies (016, after their data is on the reports).
 
@@ -355,6 +417,8 @@ start). They add, rename and move data; the only records deleted are the visitor
   `visitors` and `security_events.visitor_id` dropped.
 - **016** See section 1.3: violation data copied onto the false-reported `lost_reports` rows; index
   `idx_lost_user` becomes (`reported_by`, `status`); `account_violations` dropped.
+- **017** See section 1.4: `claim_reviews.reason` → `details`; reason codes and the fields each review decision needs
+  on `claim_reviews`, `found_items` and `lost_reports`. Existing text is kept as it was.
 
 Tested on an empty database, on a copy of a populated local database, and on the original sample claims (a rejected claim
 became Pending with one history row).
@@ -407,14 +471,14 @@ Registration always creates a Student / Faculty account. Staff and admin roles a
 
 - `php tests/password_policy_test.php`: **29 / 29 passed** (names, look-alikes, accents, birthdays, full dates,
   legitimate passwords without false positives).
-- `python tests/acceptance_test.py` against a test container: **129 / 129 passed**, covering every scenario in section 17
+- `python tests/acceptance_test.py` against a test container: **172 / 172 passed**, covering every scenario in section 17
   of the brief: category create / deactivate / reactivate / delete rules and permissions; student and employee look-ups,
   invalid, ineligible and tampered identifiers, duplicate numbers and emails, role forcing; password rules on the server;
   30-minute expiry, expired, used and replaced links, resend, unverified log-in; CAPTCHA pass / fail via Cloudflare's
   test keys, missing credentials, wrong password; rejection history, Pending main status, grouped rejected listing,
   ID check (masked, validator, server time, not logged), hand-over consistency, returns on the dashboard and in
   Returned Items, edit lock; disposal permissions, eligibility, confirmation, listing, exclusion from claims; admin
-  read-only monitoring; no orphaned foreign keys; all 16 migrations applied. Navigation (section 1.1):
+  read-only monitoring; no orphaned foreign keys; all 17 migrations applied. Navigation (section 1.1):
   Found Items in the staff and admin section bar and no header menus; staff opening `/browse.php` go to Found Items;
   Found Items lists no returned or disposed items; Back from a lost report returns to Lost Reports with its filters;
   an item opened from Claims goes Back to Claims; a disposed item goes Back to Disposed Items, shows Disposal details
@@ -426,7 +490,14 @@ Registration always creates a Student / Faculty account. Staff and admin roles a
   `visitors` table, its column and the Visitors page are gone. Table reduction (section 1.3): the first false report
   warns and keeps the account active, the second deactivates it and logs it out, the admin's violation history shows
   1 of 2 then 2 of 2 with reason, issuer and action, a removed false report still counts, the account is listed under
-  Accounts needing attention, and `account_violations` no longer exists. Existing log-in, registration, reports, claims,
+  Accounts needing attention, and `account_violations` no longer exists. Structured reviews (section 1.4): every
+  form refuses, through the API, a missing or invalid reason code, missing or meaningless details ("asdf asdf asdf
+  asdf", blanks), a missing resubmission answer or follow-up, an approval without pickup location, instructions or a
+  valid ID type, a post approval while the item is not at the office, a false report without confirmation or with
+  short evidence, and the deactivating violation without its second confirmation; a forged `reviewer_id` is ignored;
+  admins get 403; structured fields are stored and shown to the claimant, poster and reporter; internal notes are
+  hidden from the poster; rejections and spam create no violation; an earlier free-text review shows as
+  "Original note (earlier review)"; the activity log keeps the reason code, not the text. Existing log-in, registration, reports, claims,
   moderation, returns, disposal and activity-log checks all still pass after the migration.
 - Browser check (desktop and 375 px phone): login CAPTCHA states, registration steps with the live checklist, Back,
   admin dashboard, Claims → Rejected, Categories, item page history, disposed item page, Found Items section. No
@@ -434,7 +505,7 @@ Registration always creates a Student / Faculty account. Staff and admin roles a
 
 ## 9. Deployment
 
-1. Deploy as before (push to `main` for Railway, or `docker compose up --build`). Migrations 011–016 run on start.
+1. Deploy as before (push to `main` for Railway, or `docker compose up --build`). Migrations 011–017 run on start.
    Afterwards, review accounts flagged "No school record" (section 1.2).
 2. Optionally set `EMAIL_VERIFICATION_EXPIRY_MINUTES` (defaults to 30).
 3. Load authorized student and employee records before opening registration (section 5).

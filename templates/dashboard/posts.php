@@ -15,7 +15,8 @@
                     <td><?= photo_tag($post['image_url'], $post['item_name'], 'photo-thumb') ?></td>
                     <td>
                         <a class="table-title" href="<?= e(item_url('found', $post['item_id'])) ?>"><?= e($post['item_name']) ?></a>
-                        <?php if ($post['moderation_status'] === 'rejected' && $post['moderation_note']): ?><span class="table-sub"><?= e($post['moderation_note']) ?></span><?php endif; ?>
+                        <?php if ($post['moderation_status'] === 'rejected'): ?><span class="table-sub"><?= e(POST_REJECTION_REASONS[$post['moderation_reason_code']] ?? $post['moderation_note']) ?></span>
+                        <?php elseif ($post['moderation_status'] === 'approved'): ?><span class="table-sub">Approved and visible in the public listing.</span><?php endif; ?>
                     </td>
                     <td class="nowrap"><?= e(format_date($post['date_found'])) ?></td>
                     <td><?= status_badge($post['moderation_status']) ?></td>

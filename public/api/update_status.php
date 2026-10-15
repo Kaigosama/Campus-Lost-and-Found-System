@@ -10,8 +10,10 @@ require_once __DIR__ . '/../../src/bootstrap.php';
  *   { type: 'lost', id, status, item_id? }
  *   → staff may set any status (status=matched takes item_id, the found item it was matched to);
  *     the owner may only close their own open report.
- *   { type: 'found', id, moderation: 'approved'|'rejected', review_note?, storage_location? }
- *   → staff review of a student's found-item post. Approving needs a storage location; rejecting needs a reason.
+ *   { type: 'found', id, moderation: 'approved', storage_location, received_at_office: yes, item_condition, internal_note? }
+ *   { type: 'found', id, moderation: 'rejected', reason_code (POST_REJECTION_REASONS), details, resubmission_allowed: yes|no,
+ *     required_corrections (when yes) }
+ *   → staff review of a student's found-item post (see post_review_input()).
  * Response: { ok, type, id, status, message }
  *   (moderation responses also carry storage_location)
  */
@@ -38,31 +40,24 @@ if ($type === 'found' && isset($in['moderation'])) {
     if ($row['moderation_status'] !== 'pending') {
         json_error(409, 'This post has already been reviewed.');
     }
-    $status  = (string) $in['moderation'];
-    $note    = trim((string) ($in['review_note'] ?? ''));
-    $storage = trim((string) ($in['storage_location'] ?? '')) ?: $row['storage_location'];
-    $errors  = [];
-    if (!in_array($status, ['approved', 'rejected'], true)) {
-        json_error(422, 'Choose approve or reject.');
-    }
-    if ($status === 'rejected' && mb_strlen($note) < 10) {
-        $errors['review_note'] = 'Give the poster a reason (at least 10 characters).';
-    }
-    if (mb_strlen($note) > 1000) {
-        $errors['review_note'] = 'Must be 1000 characters or fewer.';
-    }
-    if ($status === 'approved' && !in_array($storage, STORAGE_LOCATIONS, true)) {
-        $errors['storage_location'] = 'Record where the item is stored before approving it.';
-    }
+    [$errors, $v] = post_review_input($in, $row);
     if ($errors) {
         json_error(422, 'Please fix the highlighted fields.', ['errors' => $errors]);
     }
-    $pdo->prepare('UPDATE found_items SET moderation_status = ?, moderated_by = ?, moderation_note = ?, moderated_at = NOW(), storage_location = ? WHERE item_id = ?')
-        ->execute([$status, $user['user_id'], $note ?: null, $storage, $id]);
-    log_event($status === 'approved' ? 'post_approved' : 'post_rejected', find_user($row['added_by']),
-        ['item_id' => $id, 'item_name' => $row['item_name']] + ($note !== '' ? ['reason' => $note] : []));
+    $status = $v['moderation_status'];
+    $stmt   = $pdo->prepare('UPDATE found_items SET moderation_status = ?, storage_location = ?, moderation_note = ?, moderation_reason_code = ?,
+                                    resubmission_allowed = ?, required_corrections = ?, item_condition = ?, moderation_internal_note = ?,
+                                    moderated_by = ?, moderated_at = NOW()
+                             WHERE item_id = ? AND moderation_status = "pending"');
+    $stmt->execute([$status, $v['storage_location'], $v['moderation_note'], $v['moderation_reason_code'], $v['resubmission_allowed'],
+                    $v['required_corrections'], $v['item_condition'], $v['moderation_internal_note'], $user['user_id'], $id]);
+    if (!$stmt->rowCount()) {
+        json_error(409, 'This post has already been reviewed.');
+    }
+    log_event($status === 'approved' ? 'post_approved' : 'post_rejected', find_user($row['added_by']), ['item_id' => $id, 'item_name' => $row['item_name']]
+        + ($status === 'approved' ? ['item_condition' => $v['item_condition']] : ['reason_code' => $v['moderation_reason_code']]));
     json_response([
-        'ok' => true, 'type' => 'found', 'id' => $id, 'status' => $status, 'storage_location' => $storage,
+        'ok' => true, 'type' => 'found', 'id' => $id, 'status' => $status, 'storage_location' => $v['storage_location'],
         'message' => $status === 'approved' ? "Post #$id approved. It is now listed publicly." : "Post #$id rejected. The poster can see your reason.",
     ]);
 }

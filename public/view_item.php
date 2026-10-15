@@ -121,7 +121,7 @@ include APP_ROOT . '/templates/layout/header.php';
                         <div>
                             Claim on <a href="<?= e(item_url('found', $ci['item_id'])) ?>" class="fw-600"><?= e($ci['item_name']) ?></a>
                             <?= claim_badges($claim) ?>
-                            <?php if ($claim['review_note']): ?><div class="text-sm text-muted"><?= e($claim['review_note']) ?></div><?php endif; ?>
+                            <?php if ($latest = latest_claim_review($claim)): ?><div class="text-sm"><?= decision_list(claim_decision_lines($latest)) ?></div><?php endif; ?>
                         </div>
                     </li>
                 <?php endforeach; ?>
@@ -160,8 +160,8 @@ include APP_ROOT . '/templates/layout/header.php';
                     'spam'         => 'Lost &amp; Found staff marked this report as spam.',
                     default        => 'Lost &amp; Found staff did not accept this report.',
                 } ?>
-                Reason: <?= e($report['moderation_reason']) ?>
-                <?php if (can_monitor()): ?><br><small>By <?= e($moderator ? full_name($moderator) : '—') ?> &middot; <?= e(format_datetime($report['moderated_at'])) ?></small><?php endif; ?>
+                <?= decision_list(report_decision_lines($report)) ?>
+                <?php if (can_monitor()): ?><small>By <?= e($moderator ? full_name($moderator) : '—') ?> &middot; <?= e(format_datetime($report['moderated_at'])) ?></small><?php endif; ?>
             </div>
             <?php if ($report['deleted_at'] !== null): $deleter = find_user($report['deleted_by']); ?>
                 <div class="alert alert-info mt-2 mb-0"><strong>Removed</strong> from every list by <?= e($deleter ? full_name($deleter) : '—') ?>
@@ -195,27 +195,78 @@ include APP_ROOT . '/templates/layout/header.php';
             $deactivates   = $nextViolation >= FALSE_REPORTS_TO_DEACTIVATE; ?>
             <div class="card card-staff mt-2" data-replace>
                 <h3>Moderate this report</h3>
-                <p class="text-sm text-muted">
-                    <strong>Reject</strong>: incomplete, already found, an accidental duplicate or otherwise not usable. No penalty.<br>
-                    <strong>False report</strong>: confirmed intentionally false, misleading or abusive. Violation <?= $nextViolation ?> of <?= FALSE_REPORTS_TO_DEACTIVATE ?>:
-                    <?= $deactivates ? "<strong>the reporter's account will be deactivated.</strong>" : 'the reporter gets a warning.' ?><br>
-                    <strong>Spam</strong>: junk or repeated submissions. Hidden from lists; no penalty by itself.
-                </p>
-                <form method="post" action="<?= e(item_url('lost', $report['report_id'])) ?>" class="form" data-validate data-api="moderate_report" data-done="replace">
+                <form method="post" action="<?= e(item_url('lost', $report['report_id'])) ?>" class="form" data-validate data-api="moderate_report" data-done="replace" data-submit-guard>
                     <input type="hidden" name="report_id" value="<?= $report['report_id'] ?>">
-                    <div class="form-group">
-                        <label for="mod_reason">Reason <span class="req" aria-hidden="true">*</span></label>
-                        <textarea id="mod_reason" name="reason" required minlength="10" maxlength="1000"
-                                  placeholder="Shown to the reporter, e.g. the described item was never lost; the student admitted the report was a prank."></textarea>
-                    </div>
-                    <div class="btn-row">
-                        <button type="submit" name="action" value="rejected" class="btn btn-secondary btn-sm" data-confirm="Reject this report?">Reject</button>
-                        <button type="submit" name="action" value="false_report" class="btn btn-danger btn-sm"
-                                data-confirm="<?= e($deactivates
-                                    ? "Confirm this is a false report? It is the reporter's violation $nextViolation: their account will be deactivated and logged out."
-                                    : 'Confirm this is a false report? The reporter will receive a warning.') ?>">False report</button>
-                        <button type="submit" name="action" value="spam" class="btn btn-danger btn-sm" data-confirm="Mark this report as spam?">Spam</button>
-                    </div>
+                    <fieldset class="form-group decision-choices">
+                        <legend>1. Choose an outcome <span class="req" aria-hidden="true">*</span></legend>
+                        <label><input type="radio" name="action" value="rejected" required> <span>Reject</span></label>
+                        <label><input type="radio" name="action" value="false_report"> <span>False report</span></label>
+                        <label><input type="radio" name="action" value="spam"> <span>Spam</span></label>
+                    </fieldset>
+
+                    <fieldset class="decision-form" data-show-when="action=rejected" hidden disabled>
+                        <legend>2. Rejection details</legend>
+                        <p class="text-sm text-muted">Incomplete, already found, an accidental duplicate or otherwise not usable. No penalty for the reporter.</p>
+                        <div class="form-group">
+                            <label for="rep_reason_rejected">Rejection reason <span class="req" aria-hidden="true">*</span></label>
+                            <select id="rep_reason_rejected" name="reason_code" required><option value="">Select a reason…</option><?= options(REPORT_REJECTION_REASONS) ?></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="rep_details_rejected">Rejection details <span class="req" aria-hidden="true">*</span></label>
+                            <textarea id="rep_details_rejected" name="details" required minlength="15" maxlength="1000" data-min-words="3"
+                                      placeholder="Shown to the reporter: what is missing or wrong, e.g. the date lost is after the date it was reported."></textarea>
+                        </div>
+                        <fieldset class="form-group">
+                            <legend>Can the reporter file a corrected report? <span class="req" aria-hidden="true">*</span></legend>
+                            <label class="check"><input type="radio" name="resubmission_allowed" value="yes" required> Yes</label>
+                            <label class="check"><input type="radio" name="resubmission_allowed" value="no"> No</label>
+                        </fieldset>
+                        <div class="form-actions"><button type="submit" class="btn btn-secondary" data-confirm="Reject this report? It doesn't count as a false report.">Confirm rejection</button></div>
+                    </fieldset>
+
+                    <fieldset class="decision-form" data-show-when="action=false_report" hidden disabled>
+                        <legend>2. False report: confirmed intentional falsehood</legend>
+                        <p class="text-sm text-muted">Only for a report shown to be deliberately false, misleading or abusive. An honest mistake is a rejection.</p>
+                        <div class="form-group">
+                            <label for="rep_reason_false">False-report reason <span class="req" aria-hidden="true">*</span></label>
+                            <select id="rep_reason_false" name="reason_code" required><option value="">Select a reason…</option><?= options(FALSE_REPORT_REASONS) ?></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="rep_details_false">Evidence or basis <span class="req" aria-hidden="true">*</span></label>
+                            <textarea id="rep_details_false" name="details" required minlength="30" maxlength="1000" data-min-words="5"
+                                      placeholder="What information or evidence confirms the report was intentionally false? Shown to the reporter."></textarea>
+                        </div>
+                        <div class="alert alert-<?= $deactivates ? 'error' : 'warning' ?> text-sm">
+                            <strong>This counts as a false-report violation.</strong>
+                            Confirmed violations now: <?= $nextViolation - 1 ?>. After this decision: <?= $nextViolation ?> of <?= FALSE_REPORTS_TO_DEACTIVATE ?>.<br>
+                            Result: <?= $deactivates
+                                ? "<strong>the reporter's account is deactivated and every active session ends.</strong> Only an administrator can reactivate it."
+                                : 'the reporter receives a warning. Violation ' . FALSE_REPORTS_TO_DEACTIVATE . ' deactivates the account.' ?>
+                        </div>
+                        <div class="form-group">
+                            <label class="check"><input type="checkbox" name="confirm_false" value="1" required> I confirm this report has been reviewed and is intentionally false.</label>
+                            <?php if ($deactivates): ?>
+                                <label class="check"><input type="checkbox" name="confirm_deactivation" value="1" required> I understand this decision deactivates the reporter's account.</label>
+                            <?php endif; ?>
+                        </div>
+                        <div class="form-actions"><button type="submit" class="btn btn-danger" data-confirm="<?= e($deactivates
+                            ? "Confirm this false report? It is the reporter's violation $nextViolation: their account will be deactivated and logged out."
+                            : 'Confirm this false report? The reporter will receive a warning.') ?>">Confirm false report</button></div>
+                    </fieldset>
+
+                    <fieldset class="decision-form" data-show-when="action=spam" hidden disabled>
+                        <legend>2. Spam details</legend>
+                        <p class="text-sm text-muted">Hides the report from every list. Spam never counts as a false-report violation; to penalise the reporter, classify it as a false report instead.</p>
+                        <div class="form-group">
+                            <label for="rep_reason_spam">Spam type <span class="req" aria-hidden="true">*</span></label>
+                            <select id="rep_reason_spam" name="reason_code" required><option value="">Select a type…</option><?= options(SPAM_TYPES) ?></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="rep_details_spam">Details <span class="text-muted text-sm">(optional)</span></label>
+                            <textarea id="rep_details_spam" name="details" maxlength="1000"></textarea>
+                        </div>
+                        <div class="form-actions"><button type="submit" class="btn btn-danger" data-confirm="Mark this report as spam?">Confirm spam</button></div>
+                    </fieldset>
                 </form>
             </div>
         <?php elseif (is_staff() && $report['deleted_at'] === null && in_array($report['status'], ['false_report', 'spam'], true)): ?>
@@ -227,7 +278,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     <input type="hidden" name="action" value="delete">
                     <div class="form-group">
                         <label for="del_reason">Reason <span class="req" aria-hidden="true">*</span></label>
-                        <textarea id="del_reason" name="reason" required minlength="10" maxlength="1000"></textarea>
+                        <textarea id="del_reason" name="details" required minlength="10" maxlength="1000" data-min-words="2"></textarea>
                     </div>
                     <button type="submit" class="btn btn-danger btn-sm" data-confirm="Remove this report from every list?">Remove report</button>
                 </form>
@@ -245,7 +296,7 @@ include APP_ROOT . '/templates/layout/header.php';
                                 <div>
                                     Violation #<?= $i + 1 ?>: report #<?= (int) $v['report_id'] ?> <?= e($v['item_name']) ?>
                                     <span class="badge badge-<?= $v['action_taken'] === 'warning' ? 'pending' : 'rejected' ?>"><?= $v['action_taken'] === 'warning' ? 'Warning' : 'Deactivated' ?></span>
-                                    <div class="text-sm text-muted"><?= e($v['reason']) ?> &middot; issued by <?= e(trim($v['first_name'] . ' ' . $v['last_name']) ?: '—') ?></div>
+                                    <div class="text-sm text-muted"><?= e(trim(report_reason_label('false_report', $v['reason_code']) . ': ' . $v['reason'], ': ')) ?> &middot; issued by <?= e(trim($v['first_name'] . ' ' . $v['last_name']) ?: '—') ?></div>
                                 </div>
                             </li>
                         <?php endforeach; ?>
@@ -276,11 +327,12 @@ include APP_ROOT . '/templates/layout/header.php';
         <p>Item #<?= $item['item_id'] ?> &middot; turned in <?= e(format_date($item['date_found'])) ?></p>
     </div>
     <?php if ($item['moderation_status'] !== 'approved' && ($isPoster || can_monitor())): ?>
-        <div class="alert alert-<?= $item['moderation_status'] === 'pending' ? 'warning' : 'error' ?> mb-0" role="status" data-moderation-banner>
+        <div class="alert alert-<?= $item['moderation_status'] === 'pending' ? 'warning' : 'error' ?> mb-0" role="status">
             <?php if ($item['moderation_status'] === 'pending'): ?>
                 <strong>Pending review.</strong> This post is not public yet<?= $isPoster ? '. Bring the item to the Lost &amp; Found office so staff can approve it.' : '.' ?>
             <?php else: ?>
-                <strong>Not approved.</strong> This post is not public. <?= e($item['moderation_note']) ?>
+                <strong>Not approved.</strong> This post is not public.
+                <?= decision_list(post_decision_lines($item, false)) ?>
             <?php endif; ?>
         </div>
     <?php endif; ?>
@@ -335,9 +387,14 @@ include APP_ROOT . '/templates/layout/header.php';
                 <span class="badge badge-role-staff">Not visible to users</span>
             </div>
             <dl class="detail-list">
-                <dt>Storage location</dt><dd class="fw-600" data-storage-location><?= e($item['storage_location']) ?></dd>
+                <dt>Storage location</dt><dd class="fw-600"><?= e($item['storage_location']) ?></dd>
                 <dt>Private details</dt><dd><div class="quote staff"><?= e($item['private_details']) ?></div></dd>
                 <dt>Logged by</dt><dd><?= e(full_name($loggedBy)) ?> &middot; <?= e(format_datetime($item['created_at'])) ?></dd>
+                <?php if ($item['moderated_at'] && $item['moderation_status'] !== 'pending'): $postReviewer = find_user($item['moderated_by']); ?>
+                    <dt>Post review</dt>
+                    <dd><?= status_badge($item['moderation_status']) ?> by <?= e($postReviewer ? full_name($postReviewer) : '—') ?> &middot; <?= e(format_datetime($item['moderated_at'])) ?>
+                        <?= decision_list(post_decision_lines($item, true)) ?></dd>
+                <?php endif; ?>
                 <?php if ($item['status'] === 'returned'): $returnedBy = find_user($item['returned_by']); ?>
                     <dt>Handed over</dt>
                     <dd><?= $returnedBy ? 'by ' . e(full_name($returnedBy)) : '<span class="text-muted">Staff member not recorded</span>' ?>
@@ -365,23 +422,66 @@ include APP_ROOT . '/templates/layout/header.php';
         <div class="card card-staff mt-2" data-replace>
             <h2>Review this post</h2>
             <p class="text-sm text-muted">Posted by a student or faculty member. Approve it once the item is at the office; it then appears in the public list.</p>
-            <form method="post" action="<?= e(item_url('found', $item['item_id'])) ?>" class="form" data-api="moderate" data-done="replace" data-submit-guard>
+            <form method="post" action="<?= e(item_url('found', $item['item_id'])) ?>" class="form" data-validate data-api="moderate" data-done="reload" data-submit-guard>
                 <input type="hidden" name="id" value="<?= $item['item_id'] ?>">
-                <div class="form-group">
-                    <label for="mod_storage">Storage location <span class="text-muted text-sm">(required to approve)</span></label>
-                    <select id="mod_storage" name="storage_location">
-                        <option value="">Select a storage location…</option>
-                        <?= options(STORAGE_LOCATIONS, $item['storage_location'], false) ?>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="mod_note">Note to the poster <span class="text-muted text-sm">(required to reject, at least 10 characters)</span></label>
-                    <textarea id="mod_note" name="review_note" maxlength="1000" placeholder="If rejecting: the reason, e.g. duplicate post or item never brought in."></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" name="moderation" value="approved" class="btn btn-success" data-requires="storage_location" data-confirm="Approve and publish this post?">Approve post</button>
-                    <button type="submit" name="moderation" value="rejected" class="btn btn-danger" data-requires="review_note" data-min="10" data-confirm="Reject this post?">Reject post</button>
-                </div>
+                <fieldset class="form-group decision-choices">
+                    <legend>1. Choose a decision <span class="req" aria-hidden="true">*</span></legend>
+                    <label><input type="radio" name="moderation" value="approved" required> <span>Approve post</span></label>
+                    <label><input type="radio" name="moderation" value="rejected"> <span>Reject post</span></label>
+                </fieldset>
+
+                <fieldset class="decision-form" data-show-when="moderation=approved" hidden disabled>
+                    <legend>2. Intake details</legend>
+                    <fieldset class="form-group">
+                        <legend>Has the office received the physical item? <span class="req" aria-hidden="true">*</span></legend>
+                        <label class="check"><input type="radio" name="received_at_office" value="yes" required data-required-value="yes"
+                                                      data-required-message="Approve a post only once the item is at the office."> Yes, it is at the office</label>
+                        <label class="check"><input type="radio" name="received_at_office" value="no"> No, not yet</label>
+                    </fieldset>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="mod_storage">Storage location <span class="req" aria-hidden="true">*</span></label>
+                            <select id="mod_storage" name="storage_location" required>
+                                <option value="">Select a storage location…</option>
+                                <?= options(STORAGE_LOCATIONS, $item['storage_location'], false) ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="mod_condition">Item condition <span class="req" aria-hidden="true">*</span></label>
+                            <select id="mod_condition" name="item_condition" required><option value="">Select…</option><?= options(ITEM_CONDITIONS) ?></select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="mod_internal">Internal notes <span class="text-muted text-sm">(optional)</span></label>
+                        <textarea id="mod_internal" name="internal_note" maxlength="1000" placeholder="Staff only, e.g. received from the guard at the main gate."></textarea>
+                        <span class="form-hint">Only staff and administrators see this. The poster is told: "Your found-item post has been approved and is now visible in the public listing."</span>
+                    </div>
+                    <div class="form-actions"><button type="submit" class="btn btn-success" data-confirm="Approve and publish this post?">Confirm approval</button></div>
+                </fieldset>
+
+                <fieldset class="decision-form" data-show-when="moderation=rejected" hidden disabled>
+                    <legend>2. Rejection details</legend>
+                    <div class="form-group">
+                        <label for="mod_reason">Rejection reason <span class="req" aria-hidden="true">*</span></label>
+                        <select id="mod_reason" name="reason_code" required><option value="">Select a reason…</option><?= options(POST_REJECTION_REASONS) ?></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="mod_details">Rejection details <span class="req" aria-hidden="true">*</span></label>
+                        <textarea id="mod_details" name="details" required minlength="15" maxlength="1000" data-min-words="3"
+                                  placeholder="Shown to the poster: what needs to be corrected before the item can be posted again."></textarea>
+                    </div>
+                    <fieldset class="form-group">
+                        <legend>Can the poster post the item again? <span class="req" aria-hidden="true">*</span></legend>
+                        <label class="check"><input type="radio" name="resubmission_allowed" value="yes" required> Yes</label>
+                        <label class="check"><input type="radio" name="resubmission_allowed" value="no"> No</label>
+                    </fieldset>
+                    <div class="form-group" data-show-when="resubmission_allowed=yes" hidden>
+                        <label for="mod_corrections">Required corrections <span class="req" aria-hidden="true">*</span></label>
+                        <textarea id="mod_corrections" name="required_corrections" required minlength="10" maxlength="1000" data-min-words="2" disabled
+                                  placeholder="e.g. Bring the item to the office first, then post it again with a photo."></textarea>
+                    </div>
+                    <div class="form-actions"><button type="submit" class="btn btn-danger" data-confirm="Reject this post?">Confirm rejection</button></div>
+                </fieldset>
             </form>
         </div>
         <?php endif; ?>
@@ -448,7 +548,7 @@ include APP_ROOT . '/templates/layout/header.php';
                                 <div>
                                     <?= status_badge($r['outcome']) ?> by <?= e($reviewer ? full_name($reviewer) : 'a former staff member') ?>
                                     <?= $r['previous_outcome'] ? '<small class="text-muted">(was ' . e(strtolower(status_label($r['previous_outcome']))) . ')</small>' : '' ?>
-                                    <div class="text-sm pre-line"><?= e($r['reason']) ?></div>
+                                    <div class="text-sm"><?= decision_list(claim_decision_lines($r)) ?></div>
                                 </div>
                             </li>
                         <?php endforeach; ?>
@@ -479,18 +579,63 @@ include APP_ROOT . '/templates/layout/header.php';
                 <hr>
                 <h4><?= is_rejected_claim($claim) ? 'Review again' : 'Decision' ?></h4>
                 <?php if (is_rejected_claim($claim)): ?><p class="text-sm text-muted">This claim was rejected. A new decision is added to its history; earlier ones stay.</p><?php endif; ?>
-                <form method="post" action="<?= e(item_url('found', $item['item_id']) . '#claim-' . $cid) ?>" class="form" data-validate data-api="review" data-done="reload">
+                <form method="post" action="<?= e(item_url('found', $item['item_id']) . '#claim-' . $cid) ?>" class="form" data-validate data-api="review" data-done="reload" data-submit-guard>
                     <input type="hidden" name="claim_id" value="<?= $cid ?>">
-                    <div class="form-group">
-                        <label for="review_note_<?= $cid ?>">Note to claimant <span class="req" aria-hidden="true">*</span></label>
-                        <textarea id="review_note_<?= $cid ?>" name="review_note" required minlength="10" maxlength="1000"
-                                  placeholder="If approving: pickup instructions (e.g. bring a valid ID to the Admin Office). If rejecting: the reason."></textarea>
-                        <span class="form-hint">This message is shown to the claimant.</span>
-                    </div>
-                    <div class="form-actions">
-                        <button type="submit" name="decision" value="approve" class="btn btn-success" data-confirm="Approve this claim for collection? The claimant will be told to bring their ID.">Approve for collection</button>
-                        <button type="submit" name="decision" value="reject" class="btn btn-danger" data-confirm="Reject this claim? It stays pending, with this rejection in its history.">Reject claim</button>
-                    </div>
+                    <fieldset class="form-group decision-choices">
+                        <legend>1. Choose a decision <span class="req" aria-hidden="true">*</span></legend>
+                        <label><input type="radio" name="decision" value="approve" required> <span>Approve for collection</span></label>
+                        <label><input type="radio" name="decision" value="reject"> <span>Reject claim</span></label>
+                    </fieldset>
+
+                    <fieldset class="decision-form" data-show-when="decision=approve" hidden disabled>
+                        <legend>2. Collection details (shown to the claimant)</legend>
+                        <div class="form-group">
+                            <label for="pickup_location_<?= $cid ?>">Pickup location <span class="req" aria-hidden="true">*</span></label>
+                            <select id="pickup_location_<?= $cid ?>" name="pickup_location" required><option value="">Select a location…</option><?= options(PICKUP_LOCATIONS, null, false) ?></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="pickup_instructions_<?= $cid ?>">Pickup instructions <span class="req" aria-hidden="true">*</span></label>
+                            <textarea id="pickup_instructions_<?= $cid ?>" name="pickup_instructions" required minlength="20" maxlength="1000" data-min-words="4"
+                                      placeholder="Bring a valid school ID and present claim #<?= $cid ?> at the Lost &amp; Found desk, Mon–Fri 8 AM–5 PM."></textarea>
+                        </div>
+                        <fieldset class="form-group">
+                            <legend>Required identification <span class="req" aria-hidden="true">*</span></legend>
+                            <?php foreach (ID_TYPES as $idKey => $idLabel): ?>
+                                <label class="check"><input type="checkbox" name="required_ids[]" value="<?= e($idKey) ?>" data-one-of> <?= e($idLabel) ?></label>
+                            <?php endforeach; ?>
+                        </fieldset>
+                        <div class="form-group">
+                            <label for="approve_notes_<?= $cid ?>">Additional notes <span class="text-muted text-sm">(optional)</span></label>
+                            <textarea id="approve_notes_<?= $cid ?>" name="details" maxlength="1000"></textarea>
+                        </div>
+                        <p class="text-sm text-muted">Approving does not hand the item over: the ID check and hand-over come next, at the desk.</p>
+                        <div class="form-actions"><button type="submit" class="btn btn-success" data-confirm="Approve this claim for collection?">Confirm approval</button></div>
+                    </fieldset>
+
+                    <fieldset class="decision-form" data-show-when="decision=reject" hidden disabled>
+                        <legend>2. Rejection details (shown to the claimant)</legend>
+                        <div class="form-group">
+                            <label for="reject_reason_<?= $cid ?>">Rejection reason <span class="req" aria-hidden="true">*</span></label>
+                            <select id="reject_reason_<?= $cid ?>" name="reason_code" required><option value="">Select a reason…</option><?= options(CLAIM_REJECTION_REASONS) ?></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="reject_details_<?= $cid ?>">Rejection details <span class="req" aria-hidden="true">*</span></label>
+                            <textarea id="reject_details_<?= $cid ?>" name="details" required minlength="15" maxlength="1000" data-min-words="3"
+                                      placeholder="Which ownership details did not match, or what information is still needed."></textarea>
+                        </div>
+                        <fieldset class="form-group">
+                            <legend>Can the claimant provide more information and try again? <span class="req" aria-hidden="true">*</span></legend>
+                            <label class="check"><input type="radio" name="resubmission_allowed" value="yes" required> Yes</label>
+                            <label class="check"><input type="radio" name="resubmission_allowed" value="no"> No</label>
+                        </fieldset>
+                        <div class="form-group" data-show-when="resubmission_allowed=yes" hidden>
+                            <label for="followup_<?= $cid ?>">What information is needed? <span class="req" aria-hidden="true">*</span></label>
+                            <textarea id="followup_<?= $cid ?>" name="required_followup" required minlength="10" maxlength="1000" data-min-words="2" disabled
+                                      placeholder="e.g. A photo of the item or a receipt showing the serial number."></textarea>
+                        </div>
+                        <p class="text-sm text-muted">The claim stays <strong>Pending</strong>; this rejection is added to its review history.</p>
+                        <div class="form-actions"><button type="submit" class="btn btn-danger" data-confirm="Reject this claim? It stays pending, with this rejection in its history.">Confirm rejection</button></div>
+                    </fieldset>
                 </form>
 
             <?php elseif (is_staff() && $claim['status'] === 'approved' && $item['status'] === 'stored'): ?>
@@ -614,9 +759,9 @@ include APP_ROOT . '/templates/layout/header.php';
                 <?php elseif (awaiting_review($myClaim)): ?>
                     <p class="text-sm text-muted">Staff are reviewing your claim. You'll see the result here and on <a href="<?= e(url('/?tab=my_claims')) ?>">My Claims</a>.</p>
                 <?php elseif (is_rejected_claim($myClaim)): ?>
-                    <div class="alert alert-error text-sm mb-0"><strong>Not approved.</strong> <?= e($myClaim['review_note']) ?></div>
+                    <div class="alert alert-error text-sm mb-0"><strong>Not approved.</strong> <?= decision_list(claim_decision_lines(latest_claim_review($myClaim))) ?></div>
                 <?php else: ?>
-                    <div class="alert alert-success text-sm mb-0"><strong><?= $myClaim['status'] === 'verified' ? 'ID verified.' : 'Approved for collection.' ?></strong> <?= e($myClaim['review_note']) ?></div>
+                    <div class="alert alert-success text-sm mb-0"><strong><?= $myClaim['status'] === 'verified' ? 'ID verified.' : 'Approved for collection.' ?></strong> <?= decision_list(claim_decision_lines(latest_claim_review($myClaim))) ?></div>
                 <?php endif; ?>
             </div>
         <?php else: ?>

@@ -75,6 +75,187 @@ function validate_item_input(array $in, string $type, bool $needsStorage = true,
     return [$errors, $values];
 }
 
+/**
+ * The error for a free-text field, or null. Required when $min > 0; $min to $max characters; at least $minWords
+ * words; and, for required text, a real sentence rather than "aaaa", "asdf asdf" or "123" (5 different letters or
+ * digits, at least one letter). Not a meaning check: the reason code says why, this text only adds the detail.
+ * public/js/app.js runs the same checks on fields with data-min-words.
+ */
+function text_error(string $value, int $min, int $max, int $minWords = 0): ?string
+{
+    $len = mb_strlen($value);
+    if ($len === 0) {
+        return $min ? 'This field is required.' : null;
+    }
+    if ($len < $min) {
+        return "Must be at least $min characters.";
+    }
+    if ($len > $max) {
+        return "Must be $max characters or fewer.";
+    }
+    if ($minWords && count(preg_split('/\s+/u', $value)) < $minWords) {
+        return "Please give a little more detail (at least $minWords words).";
+    }
+    preg_match_all('/[\p{L}\p{N}]/u', mb_strtolower($value), $m);
+    if ($min && (count(array_unique($m[0])) < 5 || !preg_match('/\p{L}/u', $value))) {
+        return 'Write a real explanation, not repeated or random characters.';
+    }
+    return null;
+}
+
+/** A Yes / No radio as 1 or 0 for the database; null when neither was chosen. */
+function yes_no(mixed $value): ?int
+{
+    return match ($value) { 'yes' => 1, 'no' => 0, default => null };
+}
+
+/* ---------------------------------------------------------------- Review decisions */
+
+/**
+ * A staff decision on a claim (api/claims.php action=review). decision 'approve' needs pickup_location (one of
+ * PICKUP_LOCATIONS), pickup_instructions and required_ids (keys of ID_TYPES), with optional details; 'reject' needs
+ * reason_code (CLAIM_REJECTION_REASONS), details and resubmission_allowed, plus required_followup when the claimant
+ * may add information. Returns [errors, values]: values are claim_reviews columns, null when not used.
+ */
+function claim_review_input(array $in): array
+{
+    $text   = fn (string $key) => trim((string) ($in[$key] ?? ''));
+    $errors = [];
+    $v = ['details' => $text('details'), 'reason_code' => null, 'resubmission_allowed' => null, 'required_followup' => null,
+          'pickup_location' => null, 'pickup_instructions' => null, 'required_ids' => null];
+    $decision = (string) ($in['decision'] ?? '');
+    if ($decision === 'approve') {
+        $v['pickup_location'] = $text('pickup_location');
+        if (!in_array($v['pickup_location'], PICKUP_LOCATIONS, true)) {
+            $errors['pickup_location'] = 'Choose where the claimant collects the item.';
+        }
+        $v['pickup_instructions'] = $text('pickup_instructions');
+        if ($message = text_error($v['pickup_instructions'], 20, 1000, 4)) {
+            $errors['pickup_instructions'] = $message;
+        }
+        $ids = array_values(array_unique(array_map(fn ($id) => is_scalar($id) ? (string) $id : '', (array) ($in['required_ids'] ?? []))));
+        if (!$ids || array_diff($ids, array_keys(ID_TYPES))) {
+            $errors['required_ids'] = 'Tick the identification the claimant must bring.';
+        }
+        $v['required_ids'] = implode(',', $ids);
+        if ($message = text_error($v['details'], 0, 1000)) {
+            $errors['details'] = $message;
+        }
+    } elseif ($decision === 'reject') {
+        $v['reason_code'] = (string) ($in['reason_code'] ?? '');
+        if (!isset(CLAIM_REJECTION_REASONS[$v['reason_code']])) {
+            $errors['reason_code'] = 'Choose a rejection reason.';
+        }
+        if ($message = text_error($v['details'], 15, 1000, 3)) {
+            $errors['details'] = $message;
+        }
+        $v['resubmission_allowed'] = yes_no($in['resubmission_allowed'] ?? null);
+        if ($v['resubmission_allowed'] === null) {
+            $errors['resubmission_allowed'] = 'Choose whether the claimant can provide more information.';
+        } elseif ($v['resubmission_allowed'] === 1) {
+            $v['required_followup'] = $text('required_followup');
+            if ($message = text_error($v['required_followup'], 10, 1000, 2)) {
+                $errors['required_followup'] = $message;
+            }
+        }
+    } else {
+        $errors['decision'] = 'Choose approve or reject.';
+    }
+    $v['details'] = $v['details'] === '' ? null : $v['details'];
+    return [$errors, $v];
+}
+
+/**
+ * A staff review of a student's found-item post (api/update_status.php). moderation 'approved' needs a storage
+ * location, received_at_office = yes (a post is approved only once the item is at the office) and item_condition,
+ * with an optional staff-only internal_note; 'rejected' needs reason_code (POST_REJECTION_REASONS), details and
+ * resubmission_allowed, plus required_corrections when the poster may post again. Returns [errors, values]: values
+ * are found_items columns.
+ */
+function post_review_input(array $in, array $item): array
+{
+    $text   = fn (string $key) => trim((string) ($in[$key] ?? ''));
+    $errors = [];
+    $status = (string) ($in['moderation'] ?? '');
+    $v = ['moderation_status' => $status, 'storage_location' => $item['storage_location'], 'moderation_note' => null,
+          'moderation_reason_code' => null, 'resubmission_allowed' => null, 'required_corrections' => null,
+          'item_condition' => null, 'moderation_internal_note' => null];
+    if ($status === 'approved') {
+        $v['storage_location'] = $text('storage_location');
+        if (!in_array($v['storage_location'], STORAGE_LOCATIONS, true)) {
+            $errors['storage_location'] = 'Record where the item is stored.';
+        }
+        $received = yes_no($in['received_at_office'] ?? null);
+        if ($received !== 1) {
+            $errors['received_at_office'] = $received === 0 ? 'Approve a post only once the item is at the office.' : 'Confirm whether the office has the item.';
+        }
+        $v['item_condition'] = (string) ($in['item_condition'] ?? '');
+        if (!isset(ITEM_CONDITIONS[$v['item_condition']])) {
+            $errors['item_condition'] = 'Choose the item\'s condition.';
+        }
+        $v['moderation_internal_note'] = $text('internal_note') ?: null;
+        if ($message = text_error((string) $v['moderation_internal_note'], 0, 1000)) {
+            $errors['internal_note'] = $message;
+        }
+    } elseif ($status === 'rejected') {
+        $v['moderation_reason_code'] = (string) ($in['reason_code'] ?? '');
+        if (!isset(POST_REJECTION_REASONS[$v['moderation_reason_code']])) {
+            $errors['reason_code'] = 'Choose a rejection reason.';
+        }
+        $v['moderation_note'] = $text('details');
+        if ($message = text_error($v['moderation_note'], 15, 1000, 3)) {
+            $errors['details'] = $message;
+        }
+        $v['resubmission_allowed'] = yes_no($in['resubmission_allowed'] ?? null);
+        if ($v['resubmission_allowed'] === null) {
+            $errors['resubmission_allowed'] = 'Choose whether the poster can post the item again.';
+        } elseif ($v['resubmission_allowed'] === 1) {
+            $v['required_corrections'] = $text('required_corrections');
+            if ($message = text_error($v['required_corrections'], 10, 1000, 2)) {
+                $errors['required_corrections'] = $message;
+            }
+        }
+    } else {
+        $errors['moderation'] = 'Choose approve or reject.';
+    }
+    return [$errors, $v];
+}
+
+/**
+ * A staff outcome for a lost report (api/moderate_report.php): action 'rejected' (REPORT_REJECTION_REASONS, details,
+ * resubmission_allowed), 'false_report' (FALSE_REPORT_REASONS, at least 30 characters of evidence in details, and
+ * confirm_false; confirm_deactivation too is checked by moderate_report(), which knows the violation count) or 'spam'
+ * (SPAM_TYPES, optional details). Returns [errors, values]: values are lost_reports columns.
+ */
+function report_moderation_input(array $in): array
+{
+    $action  = (string) ($in['action'] ?? '');
+    $details = trim((string) ($in['details'] ?? ''));
+    $lists   = ['rejected' => REPORT_REJECTION_REASONS, 'false_report' => FALSE_REPORT_REASONS, 'spam' => SPAM_TYPES];
+    if (!isset($lists[$action])) {
+        return [['action' => 'Choose an action.'], []];
+    }
+    $errors = [];
+    $v = ['status' => $action, 'moderation_reason_code' => (string) ($in['reason_code'] ?? ''), 'moderation_reason' => $details ?: null, 'resubmission_allowed' => null];
+    if (!isset($lists[$action][$v['moderation_reason_code']])) {
+        $errors['reason_code'] = $action === 'spam' ? 'Choose the type of spam.' : 'Choose a reason.';
+    }
+    $rule = ['rejected' => [15, 3], 'false_report' => [30, 5], 'spam' => [0, 0]][$action];
+    if ($message = text_error($details, $rule[0], 1000, $rule[1])) {
+        $errors['details'] = $message;
+    }
+    if ($action === 'rejected') {
+        $v['resubmission_allowed'] = yes_no($in['resubmission_allowed'] ?? null);
+        if ($v['resubmission_allowed'] === null) {
+            $errors['resubmission_allowed'] = 'Choose whether the reporter can file the report again.';
+        }
+    }
+    if ($action === 'false_report' && empty($in['confirm_false'])) {
+        $errors['confirm_false'] = 'Confirm that the report was reviewed and is intentionally false.';
+    }
+    return [$errors, $v];
+}
+
 /** The oldest date_found / date_lost accepted: one year before today. */
 function earliest_item_date(): string
 {

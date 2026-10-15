@@ -280,6 +280,18 @@ function dashboard_returns(): string
         . returns_table(array_slice($returns, 0, 5), 'dashReturns') . '</section>';
 }
 
+/** A decision's details as a definition list from label => text lines (claim_decision_lines() and the like); empty lines are left out. */
+function decision_list(array $lines): string
+{
+    $html = '';
+    foreach ($lines as $label => $text) {
+        if ($text !== null && $text !== '') {
+            $html .= '<dt>' . e($label) . '</dt><dd class="pre-line">' . e($text) . '</dd>';
+        }
+    }
+    return $html === '' ? '' : '<dl class="decision-list">' . $html . '</dl>';
+}
+
 /** Render a full-page message (404, 403, …) inside the normal layout and stop. */
 function abort(int $code, string $title, string $text = '', string $backUrl = '', string $backLabel = 'Go back', string $icon = '&#128269;'): void
 {

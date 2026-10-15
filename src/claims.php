@@ -35,6 +35,39 @@ function claim_badges(array $claim, ?string $for = null): string
         . (is_rejected_claim($claim) ? ' <span class="badge badge-rejected" title="Current review outcome">Review outcome: Rejected</span>' : '');
 }
 
+/** The claim's latest review (its claim_reviews row), or null before the first decision. */
+function latest_claim_review(array $claim): ?array
+{
+    $reviews = claim_reviews_of($claim['claim_id']);
+    return $reviews ? end($reviews) : null;
+}
+
+/**
+ * A review as label => text lines for decision_list(): where and with which ID to collect an approved item, or the
+ * reason, details and follow-up of a rejection. A review saved before structured decisions (no reason code and no
+ * pickup location) keeps its original note; no reason is invented for it.
+ */
+function claim_decision_lines(array $review): array
+{
+    if ($review['reason_code'] === null && $review['pickup_location'] === null) {
+        return ['Original note (earlier review)' => $review['details'] ?: '—'];
+    }
+    if ($review['outcome'] === 'approved') {
+        return [
+            'Pickup location' => $review['pickup_location'],
+            'Bring'           => implode(', ', array_map(fn ($id) => ID_TYPES[$id] ?? $id, explode(',', (string) $review['required_ids']))),
+            'Instructions'    => $review['pickup_instructions'],
+            'Notes'           => $review['details'],
+        ];
+    }
+    return [
+        'Reason'       => CLAIM_REJECTION_REASONS[$review['reason_code']] ?? $review['reason_code'],
+        'Details'      => $review['details'],
+        'Resubmission' => $review['resubmission_allowed'] ? 'Allowed: the claimant may provide more information' : 'Not requested',
+        'Required'     => $review['required_followup'],
+    ];
+}
+
 /** Runs $work inside a transaction, rolling back on any error. */
 function in_transaction(callable $work): mixed
 {
@@ -62,12 +95,13 @@ function lock_claim(PDO $pdo, array $claim): array
 
 /**
  * Staff decision on a pending claim (also one rejected before): 'approve' makes it "approved for collection",
- * 'reject' keeps it pending with a new rejection in its history. $note is shown to the claimant.
+ * 'reject' keeps it pending with a new rejection in its history. $review holds the decision's fields from
+ * claim_review_input() (claim_reviews columns); the claimant sees them through claim_decision_text().
  */
-function review_claim(array $claim, string $decision, string $note, array $staff): string
+function review_claim(array $claim, string $decision, array $review, array $staff): string
 {
     $outcome = $decision === 'approve' ? 'approved' : 'rejected';
-    $events  = in_transaction(function (PDO $pdo) use ($claim, $outcome, $note, $staff) {
+    $events  = in_transaction(function (PDO $pdo) use ($claim, $outcome, $review, $staff) {
         $now = lock_claim($pdo, $claim);
         if ($now['status'] !== 'pending') {
             throw new DomainException('This claim is no longer waiting for a decision.');
@@ -89,18 +123,28 @@ function review_claim(array $claim, string $decision, string $note, array $staff
                     ->execute([$claim['item_id'], $claim['report_id']]);
             }
         }
-        $pdo->prepare('INSERT INTO claim_reviews (claim_id, reviewer_id, outcome, previous_outcome, reason) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$claim['claim_id'], $staff['user_id'], $outcome, $now['outcome'], $note]);
+        insert_claim_review($pdo, $claim['claim_id'], $staff['user_id'], $outcome, $now['outcome'], $review);
         $count = $pdo->prepare('SELECT COUNT(*) FROM claim_reviews WHERE claim_id = ? AND outcome = "rejected"');
         $count->execute([$claim['claim_id']]);
         return (int) $count->fetchColumn();
     });
-    log_event('claim_' . $outcome, find_user($claim['claimant_id']), ['claim_id' => $claim['claim_id'], 'item_id' => $claim['item_id'], 'note' => $note]
-        + ($outcome === 'rejected' ? ['rejections' => $events] : []));
+    // The log says what happened and where; the full decision is the claim_reviews row.
+    log_event('claim_' . $outcome, find_user($claim['claimant_id']), ['claim_id' => $claim['claim_id'], 'item_id' => $claim['item_id']]
+        + ($outcome === 'rejected' ? ['reason_code' => $review['reason_code'], 'rejections' => $events] : ['pickup_location' => $review['pickup_location']]));
     $id = $claim['claim_id'];
     return $outcome === 'approved'
         ? "Claim #$id approved for collection. Verify the claimant's ID when they come to the desk."
         : "Claim #$id rejected. It stays pending, with $events rejection" . ($events === 1 ? '' : 's') . ' in its history.';
+}
+
+/** Adds one decision to a claim's review history; $review holds claim_reviews columns (see claim_review_input()). */
+function insert_claim_review(PDO $pdo, int $claimId, int $reviewerId, string $outcome, ?string $previous, array $review): void
+{
+    $pdo->prepare('INSERT INTO claim_reviews (claim_id, reviewer_id, outcome, previous_outcome, reason_code, details, resubmission_allowed,
+                       required_followup, pickup_location, pickup_instructions, required_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        ->execute([$claimId, $reviewerId, $outcome, $previous, $review['reason_code'] ?? null, $review['details'] ?? null,
+                   $review['resubmission_allowed'] ?? null, $review['required_followup'] ?? null, $review['pickup_location'] ?? null,
+                   $review['pickup_instructions'] ?? null, $review['required_ids'] ?? null]);
 }
 
 /**
@@ -159,8 +203,9 @@ function complete_return(array $claim, array $staff): array
                 continue;   // already rejected: its history says so
             }
             $pdo->prepare("UPDATE claims SET status = 'pending' WHERE claim_id = ?")->execute([$other['claim_id']]);
-            $pdo->prepare('INSERT INTO claim_reviews (claim_id, reviewer_id, outcome, previous_outcome, reason) VALUES (?, ?, "rejected", ?, ?)')
-                ->execute([$other['claim_id'], $staff['user_id'], $other['outcome'], 'The item was returned to another claimant.']);
+            insert_claim_review($pdo, (int) $other['claim_id'], $staff['user_id'], 'rejected', $other['outcome'], [
+                'reason_code' => 'returned_to_other', 'details' => 'The item was handed over to another claimant whose ID was verified.', 'resubmission_allowed' => 0,
+            ]);
             $closed[] = (int) $other['claim_id'];
         }
         return $closed;
@@ -168,7 +213,7 @@ function complete_return(array $claim, array $staff): array
     $item = find_found_item($claim['item_id']);
     log_event('item_returned', find_user($claim['claimant_id']), ['claim_id' => $claim['claim_id'], 'item_id' => $claim['item_id'], 'item_name' => $item['item_name']]);
     foreach ($closed as $otherId) {
-        log_event('claim_rejected', find_user(find_claim($otherId)['claimant_id']), ['claim_id' => $otherId, 'item_id' => $claim['item_id'], 'note' => 'The item was returned to another claimant.']);
+        log_event('claim_rejected', find_user(find_claim($otherId)['claimant_id']), ['claim_id' => $otherId, 'item_id' => $claim['item_id'], 'reason_code' => 'returned_to_other']);
     }
     return ["Item #{$claim['item_id']} returned to the claimant of claim #{$claim['claim_id']}." . ($closed ? ' Other open claims on it were rejected.' : ''), $closed];
 }

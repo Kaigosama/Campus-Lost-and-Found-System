@@ -24,7 +24,7 @@ const TABLE_KEYS = [
 /**
  * Tables read with extra columns:
  *   found_items, lost_reports  category_name (the category row) and category (what is shown: the "Other" detail or the name)
- *   claims                     the latest claim_reviews row: review_outcome, reviewed_by, review_note, reviewed_at
+ *   claims                     from the latest claim_reviews row: review_outcome, reviewed_by, reviewed_at (the full row: latest_claim_review())
  */
 const TABLE_QUERIES = [
     'users'        => 'SELECT * FROM ' . USERS_SQL . ' t',
@@ -32,7 +32,7 @@ const TABLE_QUERIES = [
                        FROM found_items t JOIN categories c ON c.category_id = t.category_id',
     'lost_reports' => 'SELECT t.*, c.name AS category_name, COALESCE(t.category_detail, c.name) AS category
                        FROM lost_reports t JOIN categories c ON c.category_id = t.category_id',
-    'claims'       => 'SELECT c.*, r.outcome AS review_outcome, r.reviewer_id AS reviewed_by, r.reason AS review_note, r.created_at AS reviewed_at
+    'claims'       => 'SELECT c.*, r.outcome AS review_outcome, r.reviewer_id AS reviewed_by, r.created_at AS reviewed_at
                        FROM claims c LEFT JOIN claim_reviews r
                          ON r.review_id = (SELECT MAX(review_id) FROM claim_reviews WHERE claim_id = c.claim_id)',
 ];
@@ -58,6 +58,27 @@ function find_found_item(int $id): ?array  { return all_found_items()[$id] ?? nu
 /** Includes removed reports, for staff audits; callers check deleted_at (or require status "open", which a removed report never has). */
 function find_lost_report(int $id): ?array { return table('lost_reports')[$id] ?? null; }
 function find_claim(int $id): ?array       { return all_claims()[$id] ?? null; }
+
+/**
+ * A student post's review as label => text lines for decision_list(): the reason, details and corrections of a
+ * rejection; for staff also the condition and internal note of an approval. A review saved before structured
+ * decisions keeps its original note.
+ */
+function post_decision_lines(array $item, bool $forStaff): array
+{
+    if ($item['moderation_status'] === 'approved') {
+        return $forStaff ? ['Condition' => ITEM_CONDITIONS[$item['item_condition']] ?? null, 'Internal note' => $item['moderation_internal_note']] : [];
+    }
+    if ($item['moderation_reason_code'] === null) {
+        return ['Original note (earlier review)' => $item['moderation_note']];
+    }
+    return [
+        'Reason'       => POST_REJECTION_REASONS[$item['moderation_reason_code']] ?? $item['moderation_reason_code'],
+        'Details'      => $item['moderation_note'],
+        'Resubmission' => $item['resubmission_allowed'] ? 'Allowed: you may post the item again' : 'Not allowed',
+        'Corrections needed' => $item['required_corrections'],
+    ];
+}
 
 /** Found items the public may see: approved by staff and still in storage. */
 function is_public_item(array $item): bool

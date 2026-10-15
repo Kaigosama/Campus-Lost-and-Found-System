@@ -23,3 +23,6 @@ desktop.ini
 # ---- Logs & temp ----
 *.log
 *.tmp
+
+# Python bytecode from running the tests
+__pycache__/

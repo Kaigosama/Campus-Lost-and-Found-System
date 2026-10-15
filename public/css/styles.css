@@ -219,6 +219,7 @@ code { background: var(--neutral-bg); padding: .1em .35em; border-radius: var(--
 .card-staff { border-left: 4px solid var(--blue); }
 
 .grid { display: grid; gap: 1rem; }
+.grid > * { min-width: 0; }   /* a wide table inside scrolls in its .table-wrap instead of widening the page */
 .grid-2 { grid-template-columns: 1fr; }
 .grid-sidebar { grid-template-columns: 1fr; }
 @media (min-width: 640px) {
@@ -303,6 +304,15 @@ fieldset.staff-only { border-color: var(--blue); background: var(--blue-light); 
 fieldset.staff-only legend { color: var(--blue-dark); }
 .check { display: flex; align-items: center; gap: .5rem; font-weight: 500; }
 .check input { width: 1.15rem; height: 1.15rem; flex-shrink: 0; margin: 0; accent-color: var(--blue); }
+/* Review forms: pick a decision, then only that decision's fieldset is shown (app.js data-show-when). */
+.decision-choices { display: flex; flex-wrap: wrap; gap: .5rem; border: 0; padding: 0; }
+.decision-choices legend { width: 100%; padding: 0; margin-bottom: .4rem; }
+.decision-choices label { display: inline-flex; align-items: center; gap: .45rem; padding: .45rem .9rem; border: 1px solid var(--border);
+    border-radius: var(--radius); background: var(--surface); font-weight: 600; cursor: pointer; }
+.decision-choices label:has(input:checked) { border-color: var(--blue); background: var(--blue-light); color: var(--blue-dark); }
+.decision-choices input { accent-color: var(--blue); margin: 0; }
+.decision-form { border-color: var(--blue); }
+.decision-form .form-actions { margin-top: .25rem; }
 
 .photo-upload { display: grid; grid-template-columns: 1fr; gap: 1rem; }
 @media (min-width: 640px) { .photo-upload { grid-template-columns: 180px 1fr; } }
@@ -465,6 +475,10 @@ img[data-lightbox]:not(a img) { cursor: zoom-in; }
 .detail-list dt { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; padding-top: .15rem; }
 .detail-list dd { margin: 0; }
 .detail-list dd.prose { white-space: pre-line; }
+/* A review decision's details (decision_list()): reason, details, follow-up, pickup… */
+.decision-list { display: grid; grid-template-columns: max-content 1fr; gap: .15rem .75rem; margin: .35rem 0 0; }
+.decision-list dt { font-weight: 600; }
+.decision-list dd { margin: 0; }
 
 .compare { display: grid; grid-template-columns: 1fr; gap: 1rem; }
 @media (min-width: 900px) { .compare { grid-template-columns: 1fr 1fr; } }

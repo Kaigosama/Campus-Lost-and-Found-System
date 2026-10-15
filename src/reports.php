@@ -84,12 +84,12 @@ function is_moderated_report(array $report): bool
 
 /**
  * Confirmed false-report violations of an account, oldest first: its lost reports staff marked "false_report"
- * (removed ones too), with reason, issued_by, created_at, the staff member's name and action_taken. The
+ * (removed ones too), with reason_code, reason (the evidence), issued_by, created_at, the staff member's name and action_taken. The
  * FALSE_REPORTS_TO_DEACTIVATE-th and later deactivated the account; each one before was a warning.
  */
 function account_violations(int $userId): array
 {
-    $stmt = db()->prepare("SELECT r.report_id, r.item_name, r.moderation_reason AS reason, r.moderated_by AS issued_by,
+    $stmt = db()->prepare("SELECT r.report_id, r.item_name, r.moderation_reason_code AS reason_code, r.moderation_reason AS reason, r.moderated_by AS issued_by,
                                   r.moderated_at AS created_at, u.first_name, u.last_name
                            FROM lost_reports r LEFT JOIN " . USERS_SQL . " u ON u.user_id = r.moderated_by
                            WHERE r.reported_by = ? AND r.status = 'false_report' ORDER BY r.moderated_at, r.report_id");
@@ -101,28 +101,57 @@ function account_violations(int $userId): array
     return $rows;
 }
 
-/**
- * Staff outcome for an open or matched report: 'rejected', 'false_report' or 'spam'. A false report is a violation:
- * the first ones warn the account, the FALSE_REPORTS_TO_DEACTIVATE-th deactivates it and ends its sessions.
- * Runs in one transaction with the reporter's row locked, so two staff members can't both count the same
- * violation or race past the deactivation. Returns a message for the staff member; throws DomainException
- * when the report was already moderated.
- */
-function moderate_report(array $report, string $outcome, string $reason, array $staff): string
+/** The label of a moderated report's reason code, from the list that matches its status. */
+function report_reason_label(string $status, ?string $code): ?string
 {
-    [$action, $count] = in_transaction(function (PDO $pdo) use ($report, $outcome, $reason, $staff) {
+    $list = ['rejected' => REPORT_REJECTION_REASONS, 'false_report' => FALSE_REPORT_REASONS, 'spam' => SPAM_TYPES][$status] ?? [];
+    return $code === null ? null : ($list[$code] ?? $code);
+}
+
+/**
+ * A moderated report's decision as label => text lines for decision_list(). A decision saved before structured
+ * decisions (no reason code) keeps its original note.
+ */
+function report_decision_lines(array $report): array
+{
+    if ($report['moderation_reason_code'] === null) {
+        return ['Original note (earlier review)' => $report['moderation_reason']];
+    }
+    return [
+        ($report['status'] === 'spam' ? 'Spam type' : 'Reason') => report_reason_label($report['status'], $report['moderation_reason_code']),
+        ($report['status'] === 'false_report' ? 'Evidence' : 'Details') => $report['moderation_reason'],
+        'Resubmission' => $report['status'] !== 'rejected' ? null : ($report['resubmission_allowed'] ? 'Allowed: a corrected report may be filed' : 'Not allowed'),
+    ];
+}
+
+/**
+ * Staff outcome for an open or matched report, from report_moderation_input(): status 'rejected', 'false_report' or
+ * 'spam' with its reason code and details. Only a false report is a violation: the first ones warn the account, the
+ * FALSE_REPORTS_TO_DEACTIVATE-th deactivates it and ends its sessions, and only when $deactivationConfirmed (the
+ * staff member ticked that they understand). Runs in one transaction with the reporter's row locked, so two staff
+ * members can't both count the same violation or race past the deactivation. Returns a message for the staff
+ * member; throws DomainException when the report was already moderated or the deactivation wasn't confirmed.
+ */
+function moderate_report(array $report, array $v, bool $deactivationConfirmed, array $staff): string
+{
+    $outcome = $v['status'];
+    [$action, $count] = in_transaction(function (PDO $pdo) use ($report, $v, $deactivationConfirmed, $staff) {
         $pdo->prepare('SELECT user_id FROM users WHERE user_id = ? FOR UPDATE')->execute([$report['reported_by']]);
-        $stmt = $pdo->prepare("UPDATE lost_reports SET status = ?, moderation_reason = ?, moderated_by = ?, moderated_at = NOW()
+        $stmt = $pdo->prepare("UPDATE lost_reports SET status = ?, moderation_reason_code = ?, moderation_reason = ?, resubmission_allowed = ?,
+                                      moderated_by = ?, moderated_at = NOW()
                                WHERE report_id = ? AND deleted_at IS NULL AND status IN ('open', 'matched')");
-        $stmt->execute([$outcome, $reason, $staff['user_id'], $report['report_id']]);
+        $stmt->execute([$v['status'], $v['moderation_reason_code'], $v['moderation_reason'], $v['resubmission_allowed'], $staff['user_id'], $report['report_id']]);
         if (!$stmt->rowCount()) {
             throw new DomainException('This report has already been moderated or removed.');
         }
-        if ($outcome !== 'false_report') {
+        if ($v['status'] !== 'false_report') {
             return [null, 0];
         }
         $count  = count(account_violations($report['reported_by']));   // this report included: it is marked above
         $action = $count >= FALSE_REPORTS_TO_DEACTIVATE ? 'deactivated' : 'warning';
+        if ($action === 'deactivated' && !$deactivationConfirmed) {
+            throw new DomainException("This is the reporter's false-report violation $count, so it deactivates their account. Tick the deactivation confirmation and submit again.");
+        }
         if ($action === 'deactivated') {
             $pdo->prepare('UPDATE users SET is_active = 0, deactivation_reason = "false_reports", deactivated_at = NOW(), deactivated_by = ? WHERE user_id = ?')
                 ->execute([$staff['user_id'], $report['reported_by']]);
@@ -132,7 +161,8 @@ function moderate_report(array $report, string $outcome, string $reason, array $
     });
 
     $owner = find_user($report['reported_by']);
-    $meta  = ['report_id' => $report['report_id'], 'item_name' => $report['item_name'], 'reason' => $reason];
+    // The log says what happened and where; the details stay on the report.
+    $meta  = ['report_id' => $report['report_id'], 'item_name' => $report['item_name'], 'reason_code' => $v['moderation_reason_code']];
     log_event(['rejected' => 'report_rejected', 'false_report' => 'report_marked_false', 'spam' => 'report_marked_spam'][$outcome], $owner, $meta);
     $id = $report['report_id'];
     if ($action === null) {
@@ -141,7 +171,7 @@ function moderate_report(array $report, string $outcome, string $reason, array $
     $meta['violation'] = $count;
     if ($action === 'warning') {
         log_event('false_report_warning', $owner, $meta);
-        notify_false_report_warning($owner, $report, $reason, $count);
+        notify_false_report_warning($owner, $report, report_reason_label('false_report', $v['moderation_reason_code']) . ': ' . $v['moderation_reason'], $count);
         return "Report #$id marked as a false report. The reporter has been warned (violation $count of " . FALSE_REPORTS_TO_DEACTIVATE . ').';
     }
     log_event('account_deactivated', $owner, $meta + ['deactivation_reason' => 'false_reports']);
@@ -184,7 +214,8 @@ function false_report_notice(array $user): string
     }
     $last = end($violations);
     return '<div class="alert alert-warning" role="status"><strong>Warning:</strong> your account has received a warning for a confirmed false report'
-        . ' (report #' . (int) $last['report_id'] . ', ' . e($last['item_name']) . '). Reason: ' . e($last['reason']) . ' '
+        . ' (report #' . (int) $last['report_id'] . ', ' . e($last['item_name']) . '). Reason: '
+        . e(trim(report_reason_label('false_report', $last['reason_code']) . ': ' . $last['reason'], ': ')) . ' '
         . 'Please ensure future reports contain accurate information. Another confirmed false report may result in the deactivation of your account.</div>';
 }
 

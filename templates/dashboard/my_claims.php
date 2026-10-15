@@ -35,7 +35,7 @@
                             <div class="alert alert-<?= is_rejected_claim($claim) ? 'error' : 'success' ?> text-sm">
                                 <strong><?= match ($claim['status']) {
                                     'approved' => 'Approved for collection.', 'verified' => 'ID verified.', 'returned' => 'Returned to you.', default => 'Not approved.',
-                                } ?></strong> <?= e($claim['review_note']) ?>
+                                } ?></strong> <?= decision_list(claim_decision_lines(latest_claim_review($claim))) ?>
                             </div>
                             <p class="text-sm mb-0">Reviewed by <?= e($reviewer ? full_name($reviewer) : 'Lost & Found staff') ?> on <?= e(format_datetime($claim['reviewed_at'])) ?></p>
                             <?php if (is_rejected_claim($claim)): ?>

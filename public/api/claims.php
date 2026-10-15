@@ -4,7 +4,10 @@ require_once __DIR__ . '/../../src/bootstrap.php';
 /**
  * POST /api/claims.php   (JSON body or form fields). The workflow is described in src/claims.php.
  *   action=create    { item_id, proof_description, report_id?, confirm_truth }   students / faculty, one claim per item
- *   action=review    { claim_id, decision: approve|reject, review_note }         staff; a pending claim, also one rejected before
+ *   action=review    staff; a pending claim, also one rejected before. Fields by decision (see claim_review_input()):
+ *                    { claim_id, decision: approve, pickup_location, pickup_instructions, required_ids: [ID_TYPES keys], details? }
+ *                    { claim_id, decision: reject, reason_code (CLAIM_REJECTION_REASONS), details, resubmission_allowed: yes|no,
+ *                      required_followup (when yes) }
  *                    approve → "approved" (for collection); reject → stays "pending", rejection added to its history
  *   action=verify    { claim_id, id_type, id_last4, id_result: verified|failed, id_notes? }
  *                    staff, at pickup of an approved claim. Only the last four characters of the ID number are stored.
@@ -35,15 +38,6 @@ function staff_claim(array $in): array
     return find_claim((int) ($in['claim_id'] ?? 0)) ?? json_error(404, 'Claim not found.');
 }
 
-/** Length check for a free-text field; adds to $errors. */
-function text_rule(array &$errors, string $field, string $value, int $min, int $max): void
-{
-    $len = mb_strlen($value);
-    if ($len === 0 && $min)  $errors[$field] = 'This field is required.';
-    elseif ($len < $min)     $errors[$field] = "Must be at least $min characters.";
-    elseif ($len > $max)     $errors[$field] = "Must be $max characters or fewer.";
-}
-
 try {
     if ($action === 'create') {
         // Staff review claims and never file them; admins do neither.
@@ -62,9 +56,8 @@ try {
             json_error(409, 'You have already submitted a claim for this item.');
         }
         $proof = trim((string) ($in['proof_description'] ?? ''));
-        text_rule($errors, 'proof_description', $proof, 30, 2000);
-        if (!$errors && count(preg_split('/\s+/', $proof)) < 8) {
-            $errors['proof_description'] = 'Please give a little more detail (at least 8 words).';
+        if ($message = text_error($proof, 30, 2000, 8)) {
+            $errors['proof_description'] = $message;
         }
         $reportId = (int) ($in['report_id'] ?? 0) ?: null;
         if ($reportId) {
@@ -86,18 +79,13 @@ try {
         $message = 'Your claim was submitted. Staff will review it, usually within one working day.';
 
     } elseif ($action === 'review') {
-        $claim    = staff_claim($in);
-        $claimId  = $claim['claim_id'];
-        $decision = (string) ($in['decision'] ?? '');
-        $note     = trim((string) ($in['review_note'] ?? ''));
-        if (!in_array($decision, ['approve', 'reject'], true)) {
-            json_error(422, 'Choose approve or reject.', ['errors' => ['decision' => 'Choose approve or reject.']]);
-        }
-        text_rule($errors, 'review_note', $note, 10, 1000);
+        $claim   = staff_claim($in);
+        $claimId = $claim['claim_id'];
+        [$errors, $review] = claim_review_input($in);
         if ($errors) {
             json_error(422, 'Please fix the highlighted fields.', ['errors' => $errors]);
         }
-        $message = review_claim($claim, $decision, $note, $user);
+        $message = review_claim($claim, (string) $in['decision'], $review, $user);
 
     } elseif ($action === 'verify') {
         $claim   = staff_claim($in);
@@ -115,7 +103,9 @@ try {
         if (!in_array($result, ['verified', 'failed'], true)) {
             $errors['id_result'] = 'Choose whether the ID matched the claimant.';
         }
-        text_rule($errors, 'id_notes', $notes, $idType === 'other' || $result === 'failed' ? 10 : 0, 1000);
+        if ($message = text_error($notes, $idType === 'other' || $result === 'failed' ? 10 : 0, 1000)) {
+            $errors['id_notes'] = $message;
+        }
         if ($errors) {
             json_error(422, 'Please fix the highlighted fields.', ['errors' => $errors]);
         }
