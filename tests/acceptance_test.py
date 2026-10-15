@@ -205,8 +205,10 @@ def main():
     check('A student number sent as an employee is refused (type comes from the records)', status == 200 and 'employee number' in html
           and one("SELECT COUNT(*) FROM users WHERE email = 'tamper@example.com'") == '0')
     _, status, html, _ = register(b, 'student', '2023100001', 'andrea@example.com', 'Good!Pass9word', {'role': 'admin', 'first_name': 'Hacker'})
-    row = sql("SELECT role, first_name, last_name, student_number, email_verified FROM users WHERE email = 'andrea@example.com'")
-    check('Student registers; name from records, role forced to user, unverified', status == 302 and row and row[0] == ['user', 'Andrea', 'Villareal', '2023100001', '0'], row)
+    row = sql("SELECT u.role, u.first_name, u.last_name, u.student_number, u.email_verified, s.first_name FROM users u"
+              " JOIN students s ON s.student_number = u.student_number WHERE u.email = 'andrea@example.com'")
+    check('Student registers: one users row linked to the student record, name not copied, role forced to user, unverified',
+          status == 302 and row and row[0] == ['user', 'NULL', 'NULL', '2023100001', '0', 'Andrea'], row)
     _, html, _ = Browser().post('/register.php', {'action': 'lookup', 'account_type': 'student', 'school_id': '2023100001'})
     check('Same student number cannot register twice', 'waiting for its email to be confirmed' in html)
     _, status, html, _ = register(Browser(), 'student', '2023100003', 'andrea@example.com', 'Good!Pass9word')
@@ -215,10 +217,15 @@ def main():
     _, status, _, _ = register(Browser(), 'employee', 'EMP-10002', 'ramon@example.com', 'Good!Pass9word')
     check('Employee registers as Student / Faculty (no staff or admin role)', status == 302 and one("SELECT role FROM users WHERE email = 'ramon@example.com'") == 'user')
     try:
-        sql("INSERT INTO users (first_name, last_name, email, student_number, password_hash) VALUES ('X', 'Y', 'dup@example.com', '2023100001', 'x')")
+        sql("INSERT INTO users (email, student_number, password_hash) VALUES ('dup@example.com', '2023100001', 'x')")
         check('Database unique key blocks a second account for one student number', False)
     except RuntimeError as e:
         check('Database unique key blocks a second account for one student number', 'Duplicate entry' in str(e), e)
+    try:
+        sql("INSERT INTO users (first_name, last_name, email, student_number, password_hash) VALUES ('X', 'Y', 'copy@example.com', '2023100004', 'x')")
+        check('Database refuses a copied name on an account linked to a school record', False)
+    except RuntimeError as e:
+        check('Database refuses a copied name on an account linked to a school record', 'chk_users_name_source' in str(e), e)
 
     # ------------------------------------------------------------------ Password policy (server side)
     cases = [('weak', 'password', 'uppercase'), ('first name', 'Miguel!2024x', 'name or birthday'), ('last name', 'Santiago#99X', 'name or birthday'),
@@ -398,30 +405,45 @@ def main():
           'aria-current="true">Disposed Items' in html and 'Disposal details' in html and 'Staff view' not in html
           and 'Review claims' not in html and 'Dispose of this item' not in html and 'data-api="review"' not in html)
 
-    # ------------------------------------------------------------------ Visitors
-    v = Browser()
-    v.api('visitor.php', {'choice': 'accepted'})
-    v.get('/browse.php')
-    v.get('/')
-    row = sql('SELECT visitor_id, page_views FROM visitors')
-    check('Accepted visitor gets one local pseudonymous record, page views counted', len(row) == 1 and row[0][1] == '2', row)
-    v.post('/login.php', {'email': 'nobody@example.com', 'password': 'x', 'cf-turnstile-response': DUMMY_TOKEN})
-    check('Anonymous security events link to the visitor record', one(f'SELECT COUNT(*) FROM security_events WHERE visitor_id = {row[0][0]}') == '1')
-    v.api('visitor.php', {'choice': 'accepted'})
-    check('Returning visitor is not duplicated', one('SELECT COUNT(*) FROM visitors') == '1')
-    status, html, _ = admin.get('/?tab=visitors')
-    check('Admins can view visitor records', status == 200 and 'Visitor #' in html)
-    status, _, _ = staff.get('/?tab=visitors')
-    check('Staff cannot view visitor records', status == 403)
-    v.api('visitor.php', {'choice': 'rejected'})
-    check('Rejecting cookies deletes the visitor record', one('SELECT COUNT(*) FROM visitors') == '0')
+    # ------------------------------------------------------------------ Unified users table (migration 015)
+    roles = dict(sql("SELECT role, COUNT(*) FROM users GROUP BY role"))
+    check('Every login is a users row: seeded staff and admins next to registered students and faculty',
+          roles.get('staff') == '1' and roles.get('admin') == '2' and roles.get('master_admin') == '1' and roles.get('user') == '3', roles)
+    check('Student / Faculty accounts link to exactly one school record',
+          one("SELECT COUNT(*) FROM users WHERE role = 'user' AND (student_number IS NULL) = (employee_number IS NULL)") == '0'
+          and one("SELECT COUNT(*) FROM users u JOIN employees e ON e.employee_number = u.employee_number WHERE u.email = 'ramon@example.com'") == '1')
+    _, html, _ = andrea.get('/')
+    check('Display name comes from the linked student record', 'Hello, Andrea' in html)
+    status, html, _ = staff.get(f"/view_item.php?type=found&id={item}")
+    check('Staff see claimants by their school-record name', 'Andrea Villareal' in html)
+    sql("INSERT INTO users (first_name, last_name, email, password_hash, role, email_verified) VALUES ('Legacy', 'Signup', 'legacy@example.com', 'x', 'user', 1)")
+    _, users_html, _ = admin.get('/?tab=users')
+    _, dash_html, _ = admin.get('/')
+    check('An account with no school record is flagged for review, not deleted',
+          'No school record' in users_html and 'Not linked to a school record' in dash_html)
+    sql("DELETE FROM users WHERE email = 'legacy@example.com'")
+    gone = one("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()"
+               " AND table_name IN ('visitors', 'student_records', 'employee_records')")
+    check('Visitor records removed; school records renamed students / employees', gone == '0', gone)
+    check('No visitor column left on the security log',
+          one("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND column_name = 'visitor_id'") == '0')
+    _, html, _ = Browser().get('/')
+    check('Cookie banner no longer mentions a visitor ID', 'visitor ID' not in html and 'Cookies on' in html)
+    status, _, _ = admin.get('/?tab=visitors')
+    check('Visitors admin page is gone', status == 404)
 
     # ------------------------------------------------------------------ Data integrity
     orphans = one("""SELECT (SELECT COUNT(*) FROM lost_reports r LEFT JOIN categories c ON c.category_id = r.category_id WHERE c.category_id IS NULL)
                           + (SELECT COUNT(*) FROM found_items f LEFT JOIN categories c ON c.category_id = f.category_id WHERE c.category_id IS NULL)
-                          + (SELECT COUNT(*) FROM claim_reviews r LEFT JOIN claims c ON c.claim_id = r.claim_id WHERE c.claim_id IS NULL)""")
-    check('No orphaned foreign keys', orphans == '0', orphans)
-    check('All 14 migrations recorded', one('SELECT COUNT(*) FROM schema_migrations') == '14')
+                          + (SELECT COUNT(*) FROM claim_reviews r LEFT JOIN claims c ON c.claim_id = r.claim_id WHERE c.claim_id IS NULL)
+                          + (SELECT COUNT(*) FROM lost_reports r LEFT JOIN users u ON u.user_id = r.reported_by WHERE u.user_id IS NULL)
+                          + (SELECT COUNT(*) FROM claims c LEFT JOIN users u ON u.user_id = c.claimant_id WHERE u.user_id IS NULL)
+                          + (SELECT COUNT(*) FROM found_items f LEFT JOIN users u ON u.user_id = f.added_by WHERE u.user_id IS NULL)
+                          + (SELECT COUNT(*) FROM user_sessions s LEFT JOIN users u ON u.user_id = s.user_id WHERE u.user_id IS NULL)
+                          + (SELECT COUNT(*) FROM users u LEFT JOIN students s ON s.student_number = u.student_number
+                                 WHERE u.student_number IS NOT NULL AND s.student_number IS NULL)""")
+    check('No orphaned foreign keys (reports, claims, posts, sessions, school links, reviews)', orphans == '0', orphans)
+    check('All 15 migrations recorded', one('SELECT COUNT(*) FROM schema_migrations') == '15')
 
     failed = results.count(False)
     print(f'\n{len(results) - failed} of {len(results)} checks passed' + (f', {failed} failed' if failed else ''))
