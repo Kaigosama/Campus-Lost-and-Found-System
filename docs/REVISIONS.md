@@ -11,7 +11,7 @@ PHP / MySQL application; nothing was rebuilt, and existing accounts, items, repo
 | 3 | Admin item monitoring | A `MONITOR_ROLES` permission (staff + admins) gives admins read-only access to the staff views that already exist: Found Items, Lost Reports, Claims, Returned Items, Disposed Items, Statistics, every item page with its intake record, claims, review history, ID checks and a new per-item activity history. The pages and endpoints are shared, not copied; every action (review, verify, hand over, dispose, log, edit, delete, post review) still checks `is_staff()` on the server, so admins get 403. |
 | 4 | School-based registration | New `student_records` and `employee_records` tables with fictional sample data. Registration is two steps: choose Student or Faculty / Employee and enter the school number (format, record, eligibility and "already registered" are checked on the server), then confirm the name shown from the record and add an email and password. The server looks the number up again on submit, so the type and name can't be changed in the request; the role is always `user`. `users.student_number` / `users.employee_number` are unique foreign keys, so one number = one account even under simultaneous requests. |
 | 5 | Stronger passwords | `password_error()` (server) and the live checklist (app.js) also reject the person's first name, last name, full name (case, accents, separators and look-alikes such as `J0s3` handled), any full calendar date (`YYYYMMDD`, `DDMMYYYY`, `MMDDYYYY`, separators ignored), and — on the server only — the actual birth date from the school record in 8- and 6-digit forms. Three-letter names count only as a whole word, so "Ana" rejects `Ana2024!` but not `Banana!24`. The checklist shows strength, each rule as Passed / Not satisfied, and "No personal information: Failed" with the message "Your password must not contain your name or birthday." Applies to registration, change password and reset password. Passwords are bcrypt-hashed and never logged. |
-| 6 | Local visitor records | Visitors browse anonymously. On "Accept" in the cookie banner the app creates a `visitors` row identified only by the SHA-256 of a random `clafs_vid` cookie (no name, email, IP or browser data), counts page views while logged out, and links anonymous security events (failed log-ins, CAPTCHA failures, sign-ups) through `security_events.visitor_id`. "Reject" deletes the row and cookie. Rows unseen for 90 days are deleted. Only admins see Admin → Visitors. |
+| 6 | Local visitor records (removed in 1.2) | Visitors browse anonymously. On "Accept" in the cookie banner the app creates a `visitors` row identified only by the SHA-256 of a random `clafs_vid` cookie (no name, email, IP or browser data), counts page views while logged out, and links anonymous security events (failed log-ins, CAPTCHA failures, sign-ups) through `security_events.visitor_id`. "Reject" deletes the row and cookie. Rows unseen for 90 days are deleted. Only admins see Admin → Visitors. |
 | 7 | 30-minute verification links | `EMAIL_VERIFICATION_EXPIRY_MINUTES` (default 30). Tokens are 256-bit random, stored as SHA-256, single-use; a resend replaces the previous token; resend is rate-limited per IP and per account. An expired link shows "Your email verification link has expired. Request a new verification email to continue." and activates nothing (checked again on the POST). Unverified accounts can't log in, and any session of an unverified account is ended on the server. |
 | 8 | CAPTCHA on login | The Turnstile widget is no longer rendered on page load (where it showed "Success!" before anything was typed). app.js renders it only when the form is submitted with its required fields filled in, and a status line shows each state separately: waiting for the form, ready, verifying, failed, expired / timed out, passed ("Sending your details to the server…"). Login success is shown only by the server redirect after the credentials pass; wrong credentials show "Incorrect email or password." The server rejects missing credentials, and missing, invalid, expired or already-used tokens (siteverify). Same flow on registration. |
 | 9 | Back and Cancel | A consistent `back_button()` on item and report pages (explicit parent routes, not browser history) and the account review page; `cancel_button()` on report / found-item / edit forms, registration, email confirmation and password reset. Cancel asks before discarding a form with changes; long forms also warn before the tab is closed. Registration step 2 has "Back" (keeps the school number) and "Cancel". ID-check, disposal and category forms have Cancel (clear). Buttons are full width and 44 px tall on phones and have visible focus outlines. |
@@ -56,7 +56,6 @@ site header doesn't repeat them.
 | Statistics | ✓ | ✓ | `/?tab=stats` | |
 | Users & Activity | ✓ | | `/?tab=users` | `/?tab=users&id=N` |
 | Categories | ✓ | | `/?tab=categories` | (edited in place) |
-| Visitors | ✓ | | `/?tab=visitors` | |
 | Security Logs | ✓ | | `/?tab=logs` | |
 | Account | ✓ | ✓ | `/?tab=account` | |
 
@@ -92,6 +91,111 @@ is now **Record status** ("Disposed of. This is a closed record, kept for audits
 returned items say "Returned to its owner"). Earlier claims stay visible as **Claim history** with their review history
 and ID checks, and the Item history table is kept. No claim or history row is deleted.
 
+### 1.2 Accounts and database: one users table linked to the school's records
+
+A third round reviewed the database and account design. The rule now: **`students` and `employees` answer "who exists
+in the school?"; `users` answers "who has an account?"** Every login (Student, Faculty / Employee, staff, administrator,
+master administrator) is one `users` row, and every Student / Faculty row links back to its school record. Migration
+`015_unified_users.sql` makes the change; the code reads accounts through one place (`USERS_SQL` in `src/repository.php`).
+
+**Table audit (before → decision)**
+
+| Table before | Decision | Why |
+|---|---|---|
+| `users` | KEEP | The single account table: authentication, role, status, verification, lockout. Names now kept only for accounts with no school record. |
+| `student_records` | RENAME → `students` | The school's student records. Unchanged content; the new name matches its role. |
+| `employee_records` | RENAME → `employees` | The school's employee records, the same. |
+| `visitors` | REMOVE | It only counted page views of anonymous people who accepted cookies and tagged their failed log-ins. No visitor submits, claims or logs in, so nothing needs a permanent record. |
+| `user_sessions` | KEEP | One row per login, so sessions can expire, end and be revoked on the server. |
+| `security_events` | KEEP (column removed) | The security and activity log; `visitor_id` dropped with `visitors`. |
+| `categories` | KEEP | One category list shared by lost reports and found items. |
+| `lost_reports` | KEEP (column renamed) | `user_id` → `reported_by`. Rejected / false / spam and removed reports are statuses and a soft delete, not extra tables. |
+| `found_items` | KEEP (column renamed) | `user_id` → `added_by` (staff who logged it, or the student / faculty member who posted it). Return and disposal records are columns on the item, not separate tables. |
+| `claims` | KEEP (column renamed) | `user_id` → `claimant_id`. Pending / approved / verified / returned are statuses. |
+| `claim_reviews` | KEEP | One row per decision, because a rejected claim keeps every rejection (the brief requires the history). |
+| `claim_verifications` | KEEP | One row per ID check at pickup; a failed check is kept too. |
+| `account_violations` | KEEP | One row per confirmed false report; the first warns, the second deactivates. |
+| `schema_migrations` | KEEP | Bookkeeping for `database/seed.php`; not part of the ERD. |
+
+**Final tables (12, plus `schema_migrations`)**
+
+| Table | Purpose |
+|---|---|
+| `students` | The school's student records (number, name, birth date, school email, college, program, status). |
+| `employees` | The school's employee / faculty records (number, name, birth date, school email, department, status). |
+| `users` | Every account that can log in, linked to its student or employee record where it has one. |
+| `user_sessions` | Each login's server-side session. |
+| `security_events` | Security and activity log: who it concerns, who did it, what, when, from where. |
+| `categories` | Item categories offered on the lost-report and found-item forms. |
+| `lost_reports` | Lost-item reports filed by students and faculty. |
+| `found_items` | Items logged at intake or posted by students and faculty, with their return or disposal record. |
+| `claims` | Ownership claims on found items. |
+| `claim_reviews` | Every approve / reject decision on a claim. |
+| `claim_verifications` | Identity checks at pickup. |
+| `account_violations` | Confirmed false reports and the action taken. |
+
+**Database changes (migration 015)**
+
+- `student_records` → `students`, `employee_records` → `employees` (indexes renamed to match). The foreign keys from
+  `users` follow the rename.
+- The links stay where migration 012 put them: `users.student_number` → `students` and `users.employee_number` →
+  `employees`, each nullable, **unique** (one account per school record) and `ON DELETE RESTRICT` (deleting a school
+  record can never delete an account or its history). `chk_users_one_school_id` allows at most one link.
+  The school number is the key, not a new numeric id: it is the school's own identifier and was already the primary key.
+- **No copied names.** `users.first_name` / `last_name` become nullable and are cleared for every linked account; the
+  name is read from the school record. New check `chk_users_name_source`: an account has its own name exactly when it
+  has no school record (seeded office accounts and unmatched old sign-ups).
+- **Semantic foreign keys:** `lost_reports.reported_by`, `claims.claimant_id`, `found_items.added_by` (all → `users`),
+  next to the existing `moderated_by`, `deleted_by`, `reviewer_id`, `verified_by`, `returned_by`, `disposed_by`,
+  `issued_by`, `created_by`, `deactivated_by`. User ids are kept, so every reference stays valid.
+- **Old sign-ups are linked by school email.** An account with neither number is linked when its login email equals
+  exactly one record's school email and no other account uses that record (an email found in both tables is left
+  alone). Nothing is matched by name. Accounts that still don't match stay in `users` unchanged and are flagged: a
+  "No school record" badge in Users & Activity and a "Not linked to a school record" row under Accounts needing
+  attention. No separate flag column: the missing link is the flag.
+- `visitors` and `security_events.visitor_id` dropped; the cookie banner now mentions only the login cookie.
+- Steps, in order: rename the record tables → link old sign-ups by email → clear copied names and add the name check →
+  rename the three foreign-key columns → drop the visitor column and table. Every step keeps rows; only visitor records
+  are deleted.
+
+**Migration results**
+
+| Database | Students linked | Employees linked | Staff / admin kept | Unmatched | Rows before = after |
+|---|---|---|---|---|---|
+| Test database after the full acceptance run (pre-015 dump) | 2 | 1 | 4 (1 staff, 2 admin, 1 master admin) | 0 | users 7 = 7; reports 1, claims 3, items 8, sessions 5, events 41 unchanged |
+| Same dump plus two pre-school-record sign-ups | 3 (one by school email) | 1 | 4 | 1 (`old@example.com`, no record has its email) | users 9 = 9 |
+| Copy of the local development database (`clafs`, migrations 011–015 applied in order) | 0 | 0 | 4 | 2 (`sectest.a@…`, `sectest.b@…`, test accounts from before school records) | users 6 = 6; reports 2, claims 1, items 8, sessions 18, events 32 unchanged |
+
+The two unmatched development accounts are test sign-ups. To keep one, an administrator sets its number:
+`UPDATE users SET student_number = '<number>', first_name = NULL, last_name = NULL WHERE user_id = <id>;`
+(the record must exist and not already have an account); otherwise deactivate it.
+
+**Registration flow (Student or Faculty / Employee)**
+
+1. The person picks Student or Faculty / Employee and enters their number. The server checks the format, finds the
+   record in `students` or `employees`, checks it may register (enrolled / on leave; active / on leave) and that no
+   `users` row links to it yet ("An account already uses this student number…").
+2. The name is shown from the record; the person adds an email and a password (checked against the record's name and
+   birth date).
+3. On submit the server looks the number up again and inserts one `users` row with `role = 'user'` and the number in
+   `student_number` or `employee_number`. The browser never sends the link or the role; a tampered `role` or name is
+   ignored. The unique keys stop a second account for the same record or email, even at the same moment.
+4. The account is usable after the emailed link confirms the address.
+
+Staff and administrators are seeded by migrations (two admins, one master admin, one staff member; `INSERT IGNORE`
+by email, so re-running never duplicates; `SEED_PASSWORD` replaces the sample password on deploy) or provisioned by an
+administrator changing an existing account's role. Registration never grants them. An office account may link to its
+employee record with `users.employee_number`; the seeded ones have no employee record and keep their own name.
+
+**Authentication flow:** email → one `users` lookup → password check → active, verified and not locked → session row in
+`user_sessions` → role checks. The linked student or employee record is read only for the name and the birth-date
+password rule; login never searches the school records.
+
+**Choices that differ from the brief's examples** (both confirmed with the group): students and faculty share the role
+`user`, because they have the same permissions and the link already says which they are; and the links use the school
+numbers rather than new numeric ids. The login email is the one the person registers with, not the school email,
+because the sample records use undeliverable `.test` addresses (see Known limitations).
+
 ## 2. Files changed
 
 **New**
@@ -100,56 +204,58 @@ and ID checks, and the Item history table is kept. No claim or history row is de
 |---|---|
 | `database/migrations/011_categories.sql` | `categories` table, `category_id` on lost reports and found items, data moved from the old text column |
 | `database/migrations/012_school_reference.sql` | `student_records`, `employee_records` (fictional data), `users.student_number` / `employee_number` |
-| `database/migrations/013_visitors.sql` | `visitors` table, `security_events.visitor_id` |
+| `database/migrations/013_visitors.sql` | `visitors` table, `security_events.visitor_id` (dropped again by 015) |
+| `database/migrations/015_unified_users.sql` | Record tables renamed, old sign-ups linked by school email, names read from records, semantic foreign keys, `visitors` removed |
 | `database/migrations/014_claim_workflow.sql` | `claim_reviews`, `claim_verifications`, new claim statuses, return and disposal columns |
 | `src/categories.php` | Category queries and name validation |
 | `src/school_records.php` | School-number look-up, eligibility, account type label, password personal data |
-| `src/visitors.php` | Visitor consent, cookie and page-view tracking |
 | `src/claims.php` | Review, ID verification, hand-over, disposal, returns and rejected-item grouping |
 | `public/api/categories.php` | Admin category management API |
-| `public/api/visitor.php` | Cookie-banner consent API |
 | `tests/password_policy_test.php` | Password policy self-check (29 cases, no database) |
-| `tests/acceptance_test.py` | End-to-end acceptance checks (119) |
+| `tests/acceptance_test.py` | End-to-end acceptance checks (123) |
 | `docs/REVISIONS.md` | This report |
 
 **Modified**
 
 | File | Change |
 |---|---|
-| `config/config.php` | Monitor roles, claim statuses, ID types, disposal hold, school-number formats, eligibility, visitor retention, verification expiry; removed `CATEGORIES` and name-entry constants |
-| `database/schema.sql`, `database/seed.php` | Drop list includes the new tables; Manila time zone for migrations; retention on deploy |
-| `src/repository.php` | Category name and latest review joined into the cached tables; per-item activity; final-item helpers |
+| `config/config.php` | Monitor roles, claim statuses, ID types, disposal hold, school-number formats, eligibility, verification expiry; removed `CATEGORIES` and name-entry constants |
+| `database/schema.sql`, `database/seed.php` | Drop list includes the new and renamed tables; Manila time zone for migrations; retention on deploy |
+| `src/repository.php` | Category name and latest review joined into the cached tables; per-item activity; final-item helpers; `USERS_SQL` (every account with its name from the school record) used by every query that shows a person; unlinked accounts flagged for review |
 | `src/validation.php` | Category validation; personal-information password rules |
-| `src/auth.php` | School-number registration, verified-email session check, `can_monitor()` |
-| `src/email_verification.php` | Minute-based expiry, expired vs used links, grace period, `run_retention()` |
-| `src/security.php` | Turnstile rendered on submit; visitor id on events; error codes logged |
+| `src/auth.php`, `src/school_records.php` | School-number registration (links the record, copies no name), verified-email session check, `can_monitor()`; record tables `students` / `employees` |
+| `src/email_verification.php` | Minute-based expiry, expired vs used links, grace period, `run_retention()` (no visitor clean-up) |
+| `src/security.php` | Turnstile rendered on submit; error codes logged |
 | `src/helpers.php`, `src/views.php`, `src/reports.php`, `src/bootstrap.php` | Labels, back/cancel buttons, category select, returns table, duplicate check by category id; `dashboard_tabs()`, `dashboard_nav()` and `dashboard_url()` (one section list, section bar with breadcrumb, remembered list filters) |
 | `public/register.php`, `login.php`, `verify_email.php`, `resend_verification.php`, `reset_password.php` | New registration flow, CAPTCHA states, expiry messages, Cancel |
-| `public/index.php` | Dashboard sections for admins, Found Items, Lost Reports with filters and paging, Claims views, Returned Items, Disposed Items, Categories, Visitors, statistics; legacy Claims "Returned" link redirect |
+| `public/index.php` | Dashboard sections for admins, Found Items, Lost Reports with filters and paging, Claims views, Returned Items, Disposed Items, Categories, statistics; legacy Claims "Returned" link redirect; "No school record" flags |
 | `public/view_item.php` | Review history, ID checks, hand-over, disposal details, claim history, item history, admin read-only view; section bar, breadcrumb and explicit Back link |
 | `public/report.php` | Category select, no edits of final items, Cancel guard; staff intake and edit inside the Found Items section |
 | `public/browse.php` | Public found-items grid only; old `?manage=1` and `?type=lost` links redirect to the dashboard |
-| `public/api/add_item.php`, `update_item.php`, `update_status.php`, `claims.php`, `get_items.php`, `delete_item.php`, `staff_updates.php` | Category ids, final-item lock, disposal, claim workflow, monitor access |
-| `public/js/app.js`, `public/js/api.js`, `public/css/styles.css` | Live password checklist, Turnstile states, unsaved-change guard, new API calls, styles |
-| `templates/layout/navbar.php`, `header.php`, `footer.php` | Staff and admin header reduced to Dashboard and account (no duplicate menus), visitor page views, cookie banner text |
+| `public/api/add_item.php`, `update_item.php`, `update_status.php`, `claims.php`, `get_items.php`, `delete_item.php`, `staff_updates.php`, `public/export_logs.php` | Category ids, final-item lock, disposal, claim workflow, monitor access; `reported_by` / `claimant_id` / `added_by`; names through `USERS_SQL` |
+| `public/js/app.js`, `public/js/api.js`, `public/css/styles.css` | Live password checklist, Turnstile states, unsaved-change guard, new API calls, styles; visitor consent call removed |
+| `templates/layout/navbar.php`, `header.php`, `footer.php` | Staff and admin header reduced to Dashboard and account (no duplicate menus), cookie banner text (login cookie only) |
 | `docs/erd.html`, `README.md`, `.env.example`, `docker-compose.yml` | Documentation and configuration |
 
 ## 3. Database changes
 
-Migrations 011–014 run once each, in order, through `php database/seed.php` (automatically on every Docker / Railway
-start). They only add tables and columns and move data; no record is deleted.
+Migrations 011–015 run once each, in order, through `php database/seed.php` (automatically on every Docker / Railway
+start). They add, rename and move data; the only records deleted are the visitor records (015).
 
 - **011** `categories` (PK `category_id`, unique `name`, `is_active`, `created_by` → users SET NULL). `lost_reports.category_id`
   and `found_items.category_id` NOT NULL → categories RESTRICT. The old `category` column becomes `category_detail`
   (only text typed for "Other"). Existing names map to their category; anything else maps to Other with its text kept.
 - **012** `student_records` (PK `student_number`), `employee_records` (PK `employee_number`), both with unique `school_email`
   and an eligibility status. `users.student_number` / `employee_number`: unique, FK RESTRICT, CHECK at most one.
-- **013** `visitors` (PK `visitor_id`, unique `token_hash`); `security_events.visitor_id` → visitors SET NULL.
+- **013** `visitors` (PK `visitor_id`, unique `token_hash`); `security_events.visitor_id` → visitors SET NULL. Removed by 015.
 - **014** `claim_reviews` (claim CASCADE, reviewer SET NULL); `claim_verifications` (claim CASCADE, `verified_by` RESTRICT);
   existing decisions copied into `claim_reviews`; `claims.status` becomes pending / approved / verified / returned (old
   rejected → pending; approved on a returned item → returned); `claims.reviewed_by`, `review_note`, `reviewed_at` dropped
   after the copy; `found_items` gains `returned_by`, `return_claim_id` (unique, → claims RESTRICT), `disposed_at`,
   `disposed_by`, `disposal_reason`, `disposal_notes`.
+- **015** See section 1.2: record tables renamed `students` / `employees`; old sign-ups linked by school email;
+  linked accounts' names read from the record (`chk_users_name_source`); `reported_by`, `claimant_id`, `added_by`;
+  `visitors` and `security_events.visitor_id` dropped.
 
 Tested on an empty database, on a copy of a populated local database, and on the original sample claims (a rejected claim
 became Pending with one history row).
@@ -157,9 +263,10 @@ became Pending with one history row).
 ## 4. Updated ERD
 
 Open [`erd.html`](erd.html) in a browser (the diagram is drawn by Mermaid from a CDN; the tables under it list the same
-schema offline). It covers users, student and employee reference records, visitors, sessions, security events,
+schema offline). It covers the school records (students, employees), users, sessions, security events,
 categories, lost reports, found items (with return and disposal records), claims, claim review history, identity checks
-and violations, with every primary key, foreign key, unique key, cardinality and delete rule.
+and violations, with every primary key, foreign key, unique key, check, cardinality and delete rule, grouped as
+school records, accounts, lost-and-found and moderation. It was regenerated from the database after migration 015.
 
 ## 5. Registration configuration
 
@@ -171,8 +278,9 @@ and violations, with every primary key, foreign key, unique key, cardinality and
   Registrar / HR export, or `INSERT … ON DUPLICATE KEY UPDATE` to refresh statuses), and delete the sample rows that no
   account uses. Adjust `STUDENT_NUMBER_PATTERN`, `EMPLOYEE_NUMBER_PATTERN` and the eligible statuses in
   `config/config.php` to the real formats. `birth_date` may be left NULL; the name and full-date rules still apply.
-- Names are copied into `users` at registration (staff and admin accounts have no school record, and history keeps the
-  name the account had); the birth date and school email stay only in the reference tables.
+- Names, birth dates and school emails stay only in the school records; `users` reads them through the link (section
+  1.2). Only office accounts with no employee record keep a name in `users`. Refresh the records with UPDATE, never
+  DELETE + INSERT, because accounts link to them (RESTRICT).
 
 ## 6. Email configuration
 
@@ -191,7 +299,7 @@ can register again; until then "Resend verification email" works.
 |---|---|---|
 | Student / Faculty (`user`) | Report lost items, post found items, claim, withdraw an unreviewed claim, see their own records | Own password |
 | Security & Maintenance (`staff`) | Everything on items: log, edit (not once returned or disposed), delete mistakes, review posts, approve / reject claims, verify IDs, hand over, dispose, match and moderate reports | Own password |
-| Office Administrator (`admin`) | Read-only monitoring of all of the above, including ID checks, returns, disposals and item history | Users (students and staff), categories, visitor records, security logs |
+| Office Administrator (`admin`) | Read-only monitoring of all of the above, including ID checks, returns, disposals and item history | Users (students and staff), categories, security logs |
 | Master Administrator | Same as admin | Also administrator accounts |
 
 Registration always creates a Student / Faculty account. Staff and admin roles are granted only in Admin → Users.
@@ -200,25 +308,32 @@ Registration always creates a Student / Faculty account. Staff and admin roles a
 
 - `php tests/password_policy_test.php`: **29 / 29 passed** (names, look-alikes, accents, birthdays, full dates,
   legitimate passwords without false positives).
-- `python tests/acceptance_test.py` against a test container: **119 / 119 passed**, covering every scenario in section 17
+- `python tests/acceptance_test.py` against a test container: **123 / 123 passed**, covering every scenario in section 17
   of the brief: category create / deactivate / reactivate / delete rules and permissions; student and employee look-ups,
   invalid, ineligible and tampered identifiers, duplicate numbers and emails, role forcing; password rules on the server;
   30-minute expiry, expired, used and replaced links, resend, unverified log-in; CAPTCHA pass / fail via Cloudflare's
   test keys, missing credentials, wrong password; rejection history, Pending main status, grouped rejected listing,
   ID check (masked, validator, server time, not logged), hand-over consistency, returns on the dashboard and in
   Returned Items, edit lock; disposal permissions, eligibility, confirmation, listing, exclusion from claims; admin
-  read-only monitoring; visitor records; no orphaned foreign keys; all migrations applied. Navigation (section 1.1):
+  read-only monitoring; no orphaned foreign keys; all 15 migrations applied. Navigation (section 1.1):
   Found Items in the staff and admin section bar and no header menus; five legacy URLs redirect with their filters;
   Found Items lists no returned or disposed items; Back from a lost report returns to Lost Reports with its filters;
   an item opened from Claims goes Back to Claims; a disposed item goes Back to Disposed Items, shows Disposal details
-  and has no "Staff view" panel or review / dispose forms; students get 403 on Found Items.
+  and has no "Staff view" panel or review / dispose forms; students get 403 on Found Items. Accounts (section 1.2):
+  registration creates one `users` row linked to the record with no copied name; the database refuses a second
+  account per record and a copied name on a linked account; one staff, two admin and one master admin account sit
+  next to the three registered students / faculty; display names come from the records (dashboard greeting, claimant
+  names); an unlinked account is flagged, not deleted; no orphaned report, claim, post, session or school link; the
+  `visitors` table, its column and the Visitors page are gone. Existing log-in, registration, reports, claims,
+  moderation, returns, disposal and activity-log checks all still pass after the migration.
 - Browser check (desktop and 375 px phone): login CAPTCHA states, registration steps with the live checklist, Back,
   admin dashboard, Claims → Rejected, Categories, item page history, disposed item page, Found Items section. No
   horizontal page scrolling at phone width; the section bar wraps to three rows with the current section highlighted.
 
 ## 9. Deployment
 
-1. Deploy as before (push to `main` for Railway, or `docker compose up --build`). Migrations 011–014 run on start.
+1. Deploy as before (push to `main` for Railway, or `docker compose up --build`). Migrations 011–015 run on start.
+   Afterwards, review accounts flagged "No school record" (section 1.2).
 2. Optionally set `EMAIL_VERIFICATION_EXPIRY_MINUTES` (defaults to 30).
 3. Load authorized student and employee records before opening registration (section 5).
 4. Ask the school to confirm `ID_TYPES` and `DISPOSAL_HOLD_DAYS` in `config/config.php`.
@@ -228,7 +343,8 @@ Registration always creates a Student / Faculty account. Staff and admin roles a
 - **ID types and disposal holding period are placeholders** until the school confirms its policy. No separate approval
   step for disposal is modelled, and there is no audited "reverse disposal" or admin correction of returned records
   (the brief makes both conditional on school policy).
-- **Anyone who knows another person's school number could register it** with their own email. The real person is then
+- **The login email is chosen at registration, not taken from the school record**, and **anyone who knows another
+  person's school number could register it** with their own email. The real person is then
   blocked until the office deactivates that account. Sending the verification link to the school email on record would
   close this once real school mailboxes are used; the sample data uses undeliverable `.test` addresses, so it was not
   enforced.
@@ -247,3 +363,7 @@ Registration always creates a Student / Faculty account. Staff and admin roles a
   uses the filters from the tab used most recently.
 - Signed-in staff and admins who open the public found-items page are redirected to Found Items, so they can't preview
   the student view.
+- **Old sign-ups with no matching school email stay unlinked** until an administrator links or deactivates them; there
+  is no screen for linking yet (a one-line SQL update, section 1.2).
+- **Email uniqueness is per `users` table only**; school emails in `students` / `employees` are separate and may equal
+  a login email of a different account.

@@ -28,7 +28,7 @@ display case. Cardinal Finds moves that process online.
 |---|---|---|
 | Student / Faculty | registers with a student or employee number found in the school's records, then confirms their email | Browse found items, report lost items, claim items, post items they found (staff approve them before they are public) |
 | Security & Maintenance | assigned by an admin | Log found items at intake, review claims (approve / reject), verify the claimant's ID at pickup, hand items over, dispose of eligible items, review student posts, match lost reports, view statistics. Does not file lost reports or claims |
-| Office Administrator | assigned by the master admin | Manage student and staff accounts, form categories and visitor records, view account activity and security logs. Monitors items, lost reports, claims, returns and disposals read-only (Monitoring menu): does not report, claim, log, review, verify, hand over or dispose |
+| Office Administrator | assigned by the master admin | Manage student and staff accounts and form categories, view account activity and security logs. Monitors items, lost reports, claims, returns and disposals read-only (dashboard sections): does not report, claim, log, review, verify, hand over or dispose |
 | Master Administrator | one seeded account | Everything an administrator does, plus manage administrator accounts. Never locked out by failed log-ins (failures are logged and emailed instead); recovers access through password reset |
 
 Registration never grants staff or administrator roles: those are assigned by an administrator.
@@ -175,7 +175,6 @@ The pages call JSON endpoints in [`public/api/`](public/api/) through [`public/j
 | `POST api/claims.php` | Submit, approve, reject or withdraw a claim; record the ID check at pickup; hand the item over |
 | `POST api/update_user.php` | Admin: change a user's role, deactivate or unlock an account |
 | `POST api/categories.php` | Admin: add, deactivate, reactivate or delete a form category |
-| `POST api/visitor.php` | Cookie banner: create or delete the anonymous visitor record |
 
 Full details: [docs/Group4_API_Documentation.pdf](docs/Group4_API_Documentation.pdf).
 
