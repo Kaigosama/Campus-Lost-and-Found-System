@@ -24,10 +24,11 @@ function user_agent(): string
  */
 function log_event(string $type, ?array $user = null, array $metadata = [], ?string $email = null, ?int $sessionId = null): void
 {
-    db()->prepare('INSERT INTO security_events (user_id, actor_id, email, event_type, session_id, ip_address, user_agent, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    db()->prepare('INSERT INTO security_events (user_id, actor_id, visitor_id, email, event_type, session_id, ip_address, user_agent, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
         ->execute([
             $user['user_id'] ?? null,
             $_SESSION['user_id'] ?? null,
+            isset($_SESSION['user_id']) ? null : current_visitor_id(),   // anonymous events: the consenting visitor's browser
             mb_substr($email ?? ($user['email'] ?? ''), 0, 190) ?: null,
             $type,
             $sessionId ?? ($_SESSION['session_row'] ?? null),
@@ -48,18 +49,29 @@ function turnstile_site_key(): string
     return setting('TURNSTILE_SITE_KEY') ?: (is_production() ? '' : TURNSTILE_TEST_SITE_KEY);
 }
 
-/** The widget for a form. Its token arrives as the cf-turnstile-response field. */
+/**
+ * The CAPTCHA for a form. app.js renders it explicitly and runs the check only when the form is submitted with
+ * its required fields filled in, showing each state in the status line (incomplete, verifying, failed, passed,
+ * expired); a passed check is never shown as a successful log-in. The token arrives as cf-turnstile-response.
+ */
 function turnstile_widget(): string
 {
     $key = turnstile_site_key();
     if ($key === '') {
         return '<div class="alert alert-error" role="alert">The CAPTCHA is not configured, so this form cannot be used yet. Contact the Lost &amp; Found office.</div>';
     }
-    return '<div class="form-group"><div class="cf-turnstile" data-sitekey="' . e($key) . '"></div></div>'
-        . '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>';
+    return '<div class="form-group captcha" data-turnstile="' . e($key) . '">'
+        . '<div class="captcha-widget" data-turnstile-slot></div>'
+        . '<p class="captcha-status" data-captcha-status aria-live="polite">Security check: runs when you submit the form.</p>'
+        . '<noscript><p class="form-error">Turn on JavaScript to pass the security check.</p></noscript>'
+        . '</div>'
+        . '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" defer></script>';
 }
 
-/** Verifies the posted Turnstile token with Cloudflare. The widget saying "success" is never trusted on its own. */
+/**
+ * Verifies the posted Turnstile token with Cloudflare's siteverify API. Missing, invalid, expired and already-used
+ * tokens all fail; so does no answer from Cloudflare. The widget saying "success" is never trusted on its own.
+ */
 function turnstile_passed(): bool
 {
     $secret = setting('TURNSTILE_SECRET_KEY') ?: (is_production() ? '' : TURNSTILE_TEST_SECRET_KEY);
@@ -84,7 +96,11 @@ function turnstile_passed(): bool
         error_log('[turnstile] No answer from Cloudflare; treating the check as failed.');
         return false;
     }
-    return ($result['success'] ?? false) === true;
+    if (($result['success'] ?? false) !== true) {
+        error_log('[turnstile] Check failed: ' . implode(', ', (array) ($result['error-codes'] ?? [])));   // e.g. timeout-or-duplicate
+        return false;
+    }
+    return true;
 }
 
 /* ------------------------------------------------------- Cross-site requests */

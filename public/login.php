@@ -4,7 +4,9 @@ require_once __DIR__ . '/../src/bootstrap.php';
 /**
  * Log in. ?next= (a same-site path) is where to go afterwards; require_login() sets it.
  * ?reset=1 confirms a password reset, ?verified=1 an email verification.
- * Checks, in order: CAPTCHA (server-side), per-IP rate limit, account lockout, password, active, verified email.
+ * Checks, in order: email and password present, CAPTCHA (server-side), per-IP rate limit, account lockout, password,
+ * active, verified email. The page says "logged in" only by redirecting after all of them pass; the CAPTCHA status
+ * line (app.js) only ever reports on the CAPTCHA itself.
  */
 
 $next = $_POST['next'] ?? $_GET['next'] ?? '';
@@ -26,8 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ipBucket = 'login-ip:' . client_ip();
     $found    = $email !== '' ? find_user_by_email($email) : null;
 
-    if (!turnstile_passed()) {
-        $error = 'Please complete the CAPTCHA check.';
+    if ($email === '' || $password === '') {
+        $error = 'Enter your email and password.';
+    } elseif (!turnstile_passed()) {
+        $error = 'The security check failed or expired. Please try again.';
         log_event('captcha_failed', $found, ['form' => 'login'], $email ?: null);
     } elseif (rate_limited($ipBucket, LOGIN_MAX_PER_IP)) {
         http_response_code(429);
@@ -88,7 +92,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <?php if ($error): ?>
                 <div class="alert alert-error" role="alert" id="login-error">
                     <?= e($error) ?>
-                    <?php if ($unverified): ?><a href="<?= e(url('/resend_verification.php?email=' . rawurlencode($email))) ?>">Send a new link</a><?php endif; ?>
+                    <?php if ($unverified): ?><a href="<?= e(url('/resend_verification.php')) ?>">Send a new link</a><?php endif; ?>
                 </div>
             <?php endif; ?>
             <div class="form-group">
