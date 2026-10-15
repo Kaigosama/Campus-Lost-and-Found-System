@@ -319,8 +319,8 @@ def main():
     check('Other open claims get a rejection and stay pending', one(f"SELECT status FROM claims WHERE claim_id = {ids['miguel']}") == 'pending'
           and one(f"SELECT reason FROM claim_reviews WHERE claim_id = {ids['miguel']} ORDER BY review_id DESC LIMIT 1") is not None)
     _, dash, _ = staff.get('/')
-    _, queue, _ = staff.get('/?tab=queue&status=returned')
-    check('Completed return appears on the dashboard and in Claims', 'Successful returns' in dash and 'Black JBL earbuds case' in dash and 'Black JBL earbuds case' in queue)
+    _, returned, _ = staff.get('/?tab=returned')
+    check('Completed return appears on the dashboard and in Returned Items', 'Successful returns' in dash and 'Black JBL earbuds case' in dash and 'Black JBL earbuds case' in returned)
     _, admin_dash, _ = admin.get('/')
     check('Admin dashboard shows successful returns too', 'Successful returns' in admin_dash and 'Black JBL earbuds case' in admin_dash)
     status, r = staff.api('update_item.php', dict(found, id=item, category_id=1))
@@ -357,7 +357,7 @@ def main():
     check('Disposed item cannot be edited', status == 409, r)
 
     # ------------------------------------------------------------------ Admin monitoring (read-only)
-    for path, text in (('/browse.php?manage=1', 'Manage found items'), ('/?tab=queue&status=all', 'Claims'), ('/?tab=reports', 'Lost reports'),
+    for path, text in (('/?tab=items', 'Found items'), ('/?tab=queue&status=all', 'Claims'), ('/?tab=reports', 'Lost reports'), ('/?tab=returned', 'Returned items'),
                        (f'/view_item.php?type=found&id={item}', 'Intake record'), ('/?tab=stats', 'Claim outcomes')):
         status, html, _ = admin.get(path)
         check(f'Admin can monitor {path}', status == 200 and text in html, status)
@@ -367,6 +367,36 @@ def main():
     check('Admin gets no review / dispose forms', 'Record ID check' not in html and 'Dispose of item' not in html and 'data-api="review"' not in html)
     status, _, _ = andrea.get('/?tab=queue')
     check('Students cannot open the Claims monitoring tab', status == 403)
+    status, _, _ = andrea.get('/?tab=items')
+    check('Students cannot open the Found Items management section', status == 403)
+
+    # ------------------------------------------------------------------ Dashboard navigation
+    for who, b in (('Admin', admin), ('Staff', staff)):
+        _, html, _ = b.get('/')
+        check(f'{who}: Found Items is in the dashboard section bar, not the site header',
+              'href="/?tab=items">Found Items</a>' in html and 'browse.php?manage=1' not in html and '<summary>' not in html)
+    for path, target in (('/browse.php?manage=1&category=Electronics', '/?tab=items&category=Electronics'),
+                         ('/browse.php?manage=1&status=disposed', '/?tab=disposed'),
+                         ('/browse.php?type=lost&q=earbuds', '/?tab=reports&q=earbuds'),
+                         ('/browse.php', '/?tab=items'),
+                         ('/?tab=queue&status=returned', '/?tab=returned')):
+        status, _, headers = staff.get(path)
+        check(f'Legacy {path} redirects to {target}', status == 302 and headers.get('Location', '').endswith(target), (status, headers.get('Location')))
+    _, html, _ = staff.get('/?tab=items')
+    check('Found Items lists only items in storage (no disposed or returned)', 'Silver keychain' not in html and 'Black JBL earbuds case' not in html)
+    status, r = andrea.api('add_item.php', {'type': 'lost', 'item_name': 'Brown leather wallet', 'category_id': 1, 'date_lost': time.strftime('%Y-%m-%d'),
+                                            'location_lost': 'Library', 'description': 'Brown leather wallet with a student ID inside.'})
+    report = r.get('id')
+    staff.get('/?tab=reports&status=open&q=wallet')
+    _, html, _ = staff.get(f'/view_item.php?type=lost&id={report}')
+    check('Lost report: Back returns to Lost Reports with its filters', 'href="/?tab=reports&status=open&q=wallet"' in html.replace('&amp;', '&')
+          and 'aria-current="true">Lost Reports' in html and f'<span>Report #{report}</span>' in html, re.findall(r'class="btn btn-ghost btn-sm btn-back"[^>]*>', html))
+    _, html, _ = staff.get(f'/view_item.php?type=found&id={item}&from=queue')
+    check('Item opened from Claims: Back returns to Claims', 'aria-current="true">Claims' in html and 'Claims</a></span>' in html)
+    _, html, _ = staff.get('/view_item.php?type=found&id=5')
+    check('Disposed item: Back to Disposed Items, disposal details, no claim-review prompt',
+          'aria-current="true">Disposed Items' in html and 'Disposal details' in html and 'Staff view' not in html
+          and 'Review claims' not in html and 'Dispose of this item' not in html and 'data-api="review"' not in html)
 
     # ------------------------------------------------------------------ Visitors
     v = Browser()
