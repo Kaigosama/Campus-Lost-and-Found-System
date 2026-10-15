@@ -325,6 +325,9 @@ def main():
     check('Return updates item and claim together (who, when, which claim)', status == 200 and row == [['returned', staff_id, str(ids['ramon']), 'returned']], (r, row))
     check('Other open claims get a rejection and stay pending', one(f"SELECT status FROM claims WHERE claim_id = {ids['miguel']}") == 'pending'
           and one(f"SELECT reason FROM claim_reviews WHERE claim_id = {ids['miguel']} ORDER BY review_id DESC LIMIT 1") is not None)
+    logged_for = one(f"SELECT e.user_id = c.claimant_id FROM security_events e JOIN claims c ON c.claim_id = {ids['miguel']} WHERE e.event_type = 'claim_rejected'"
+                     f" AND CAST(JSON_EXTRACT(e.metadata, '$.claim_id') AS UNSIGNED) = {ids['miguel']} ORDER BY e.event_id DESC LIMIT 1")
+    check('Hand-over rejection of another claim is logged against that claimant', logged_for == '1', logged_for)
     _, dash, _ = staff.get('/')
     _, returned, _ = staff.get('/?tab=returned')
     check('Completed return appears on the dashboard and in Returned Items', 'Successful returns' in dash and 'Black JBL earbuds case' in dash and 'Black JBL earbuds case' in returned)
@@ -382,13 +385,8 @@ def main():
         _, html, _ = b.get('/')
         check(f'{who}: Found Items is in the dashboard section bar, not the site header',
               'href="/?tab=items">Found Items</a>' in html and 'browse.php?manage=1' not in html and '<summary>' not in html)
-    for path, target in (('/browse.php?manage=1&category=Electronics', '/?tab=items&category=Electronics'),
-                         ('/browse.php?manage=1&status=disposed', '/?tab=disposed'),
-                         ('/browse.php?type=lost&q=earbuds', '/?tab=reports&q=earbuds'),
-                         ('/browse.php', '/?tab=items'),
-                         ('/?tab=queue&status=returned', '/?tab=returned')):
-        status, _, headers = staff.get(path)
-        check(f'Legacy {path} redirects to {target}', status == 302 and headers.get('Location', '').endswith(target), (status, headers.get('Location')))
+    status, _, headers = staff.get('/browse.php')
+    check('Staff opening /browse.php go to the Found Items section', status == 302 and headers.get('Location', '').endswith('/?tab=items'), (status, headers.get('Location')))
     _, html, _ = staff.get('/?tab=items')
     check('Found Items lists only items in storage (no disposed or returned)', 'Silver keychain' not in html and 'Black JBL earbuds case' not in html)
     status, r = andrea.api('add_item.php', {'type': 'lost', 'item_name': 'Brown leather wallet', 'category_id': 1, 'date_lost': time.strftime('%Y-%m-%d'),
@@ -428,7 +426,8 @@ def main():
     check('No visitor column left on the security log',
           one("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND column_name = 'visitor_id'") == '0')
     _, html, _ = Browser().get('/')
-    check('Cookie banner no longer mentions a visitor ID', 'visitor ID' not in html and 'Cookies on' in html)
+    check('Cookie note mentions only the log-in cookie (no visitor ID, no consent banner)',
+          'visitor ID' not in html and 'one necessary cookie' in html and 'data-cookie-banner' not in html)
     status, _, _ = admin.get('/?tab=visitors')
     check('Visitors admin page is gone', status == 404)
 

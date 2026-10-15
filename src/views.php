@@ -270,6 +270,16 @@ function returns_table(array $rows, string $id = 'returnsTable'): string
     return ob_get_clean();
 }
 
+/** The dashboard's "Successful returns" section (staff and admin overviews): the latest five, linking to Returned Items. */
+function dashboard_returns(): string
+{
+    $returns = successful_returns();
+    return '<section class="section" id="returns"><div class="section-title">'
+        . '<h2>Successful returns <span class="count-pill">' . count($returns) . '</span></h2>'
+        . '<a href="' . e(dashboard_url('returned')) . '">All returned items &rarr;</a></div>'
+        . returns_table(array_slice($returns, 0, 5), 'dashReturns') . '</section>';
+}
+
 /** Render a full-page message (404, 403, …) inside the normal layout and stop. */
 function abort(int $code, string $title, string $text = '', string $backUrl = '', string $backLabel = 'Go back', string $icon = '&#128269;'): void
 {

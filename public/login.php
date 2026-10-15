@@ -87,7 +87,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <div class="alert alert-info">Please log in to continue.</div>
         <?php endif; ?>
 
-        <form method="post" action="<?= e(url('/login.php')) ?>" class="form" data-validate data-needs-cookies>
+        <form method="post" action="<?= e(url('/login.php')) ?>" class="form" data-validate>
             <input type="hidden" name="next" value="<?= e($next) ?>">
             <?php if ($error): ?>
                 <div class="alert alert-error" role="alert" id="login-error">

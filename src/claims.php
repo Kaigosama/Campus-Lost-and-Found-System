@@ -168,7 +168,7 @@ function complete_return(array $claim, array $staff): array
     $item = find_found_item($claim['item_id']);
     log_event('item_returned', find_user($claim['claimant_id']), ['claim_id' => $claim['claim_id'], 'item_id' => $claim['item_id'], 'item_name' => $item['item_name']]);
     foreach ($closed as $otherId) {
-        log_event('claim_rejected', find_user(find_claim($otherId)['user_id']), ['claim_id' => $otherId, 'item_id' => $claim['item_id'], 'note' => 'The item was returned to another claimant.']);
+        log_event('claim_rejected', find_user(find_claim($otherId)['claimant_id']), ['claim_id' => $otherId, 'item_id' => $claim['item_id'], 'note' => 'The item was returned to another claimant.']);
     }
     return ["Item #{$claim['item_id']} returned to the claimant of claim #{$claim['claim_id']}." . ($closed ? ' Other open claims on it were rejected.' : ''), $closed];
 }

@@ -128,6 +128,7 @@ public/              Web root: pages, JSON API and static files
   uploads/           Item photos uploaded by users (not in git)
 src/                 PHP logic shared by every page: bootstrap.php loads it all
 templates/layout/    Page header, navigation bar and footer
+templates/dashboard/ One file per dashboard section (index.php?tab=<name>)
 config/              Settings: constants and database credentials
 database/            schema.sql (tables and sample data), migrations/ and seed.php (applies them)
 tests/               Password-policy self-check and end-to-end acceptance script

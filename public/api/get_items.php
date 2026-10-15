@@ -21,8 +21,9 @@ $limit    = min(100, max(1, (int) ($_GET['limit'] ?? 50)));
 if ($type === 'found') {
     $rows = search_rows(array_values(can_monitor() ? all_found_items() : public_found_items()), $q, ['status' => $status, 'category' => $category]);
     $dateColumn = 'date_found';
-    if (!can_monitor()) {
-        $rows = array_map(fn ($i) => array_diff_key($i, ['user_id' => 1, 'storage_location' => 1, 'private_details' => 1, 'moderated_by' => 1, 'moderation_note' => 1]), $rows);
+    if (!can_monitor()) {   // allow list: a new or renamed column stays private by default
+        $public = array_flip(['item_id', 'item_name', 'category', 'description', 'location_found', 'date_found', 'image_url', 'status']);
+        $rows = array_map(fn ($i) => array_intersect_key($i, $public), $rows);
     }
 } else {
     if (!is_logged_in()) {

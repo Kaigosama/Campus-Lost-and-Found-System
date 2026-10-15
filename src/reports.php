@@ -101,9 +101,7 @@ function account_violations(int $userId): array
  */
 function moderate_report(array $report, string $outcome, string $reason, array $staff): string
 {
-    $pdo = db();
-    $pdo->beginTransaction();
-    try {
+    [$action, $count] = in_transaction(function (PDO $pdo) use ($report, $outcome, $reason, $staff) {
         $pdo->prepare('SELECT user_id FROM users WHERE user_id = ? FOR UPDATE')->execute([$report['reported_by']]);
         $stmt = $pdo->prepare("UPDATE lost_reports SET status = ?, moderation_reason = ?, moderated_by = ?, moderated_at = NOW()
                                WHERE report_id = ? AND deleted_at IS NULL AND status IN ('open', 'matched')");
@@ -111,23 +109,20 @@ function moderate_report(array $report, string $outcome, string $reason, array $
         if (!$stmt->rowCount()) {
             throw new DomainException('This report has already been moderated or removed.');
         }
-        $action = null;
-        if ($outcome === 'false_report') {
-            $count  = 1 + count(account_violations($report['reported_by']));
-            $action = $count >= FALSE_REPORTS_TO_DEACTIVATE ? 'deactivated' : 'warning';
-            $pdo->prepare('INSERT INTO account_violations (user_id, report_id, reason, action_taken, issued_by) VALUES (?, ?, ?, ?, ?)')
-                ->execute([$report['reported_by'], $report['report_id'], $reason, $action, $staff['user_id']]);
-            if ($action === 'deactivated') {
-                $pdo->prepare('UPDATE users SET is_active = 0, deactivation_reason = "false_reports", deactivated_at = NOW(), deactivated_by = ? WHERE user_id = ?')
-                    ->execute([$staff['user_id'], $report['reported_by']]);
-                revoke_sessions($report['reported_by']);
-            }
+        if ($outcome !== 'false_report') {
+            return [null, 0];
         }
-        $pdo->commit();
-    } catch (Throwable $e) {
-        $pdo->rollBack();
-        throw $e;
-    }
+        $count  = 1 + count(account_violations($report['reported_by']));
+        $action = $count >= FALSE_REPORTS_TO_DEACTIVATE ? 'deactivated' : 'warning';
+        $pdo->prepare('INSERT INTO account_violations (user_id, report_id, reason, action_taken, issued_by) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$report['reported_by'], $report['report_id'], $reason, $action, $staff['user_id']]);
+        if ($action === 'deactivated') {
+            $pdo->prepare('UPDATE users SET is_active = 0, deactivation_reason = "false_reports", deactivated_at = NOW(), deactivated_by = ? WHERE user_id = ?')
+                ->execute([$staff['user_id'], $report['reported_by']]);
+            revoke_sessions($report['reported_by']);
+        }
+        return [$action, $count];
+    });
 
     $owner = find_user($report['reported_by']);
     $meta  = ['report_id' => $report['report_id'], 'item_name' => $report['item_name'], 'reason' => $reason];

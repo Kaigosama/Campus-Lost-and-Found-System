@@ -3,20 +3,10 @@ require_once __DIR__ . '/../src/bootstrap.php';
 
 /**
  * Public card grid of items in storage, for guests, students and faculty.
- * Staff and admins work from the dashboard: their found-item list is index.php?tab=items and every lost report is
- * index.php?tab=reports. The old ?manage=1 and ?type=lost views redirect there, keeping their filters.
+ * Staff and admins work from the dashboard (index.php?tab=items), so they are sent there.
  */
-if (!empty($_GET['manage']) || ($_GET['type'] ?? '') === 'lost') {
-    require_role(MONITOR_ROLES);
-}
 if (can_monitor()) {
-    $keep = fn (array $names) => array_intersect_key($_GET, array_flip($names));
-    $target = match (true) {
-        ($_GET['type'] ?? '') === 'lost'              => ['tab' => 'reports'] + $keep(['q', 'status', 'category', 'from', 'to', 'page']),
-        in_array($_GET['status'] ?? '', ['returned', 'disposed'], true) => ['tab' => $_GET['status']],
-        default                                       => ['tab' => 'items'] + $keep(['category', 'sort']),
-    };
-    header('Location: ' . url('/') . '?' . http_build_query($target));
+    header('Location: ' . dashboard_url('items'));
     exit;
 }
 
@@ -47,7 +37,7 @@ include APP_ROOT . '/templates/layout/header.php';
     <?php endif; ?>
 </div>
 
-<!-- With JavaScript, results are fetched from api/get_items.php as you type (no page reload); without it, the form submits normally. -->
+<!-- With JavaScript, app.js fetches this page as you type and swaps in [data-live-results] (no reload); without it, the form submits normally. -->
 <form method="get" action="<?= e(url('/browse.php')) ?>" class="filter-bar" role="search" data-live-search>
     <div class="form-group grow">
         <label for="q">Search</label>

@@ -28,6 +28,10 @@ function db(): PDO
         } catch (PDOException $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=utf-8');
+            if (is_production()) {   // the message names the DB user and host
+                error_log('[db] ' . $e->getMessage());
+                exit('The database is unavailable. Please try again later.');
+            }
             exit("Database connection failed: {$e->getMessage()}\n\nImport database/schema.sql and set DB_* constants in config/db_connect.local.php (or DB_* / MYSQL_URL environment variables).");
         }
     }

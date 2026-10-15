@@ -83,7 +83,7 @@ function earliest_item_date(): string
 
 /**
  * Mistyped email domains, as meant domain => typos. A typo'd domain often still takes mail (gmail.com.com.com does), so
- * the confirmation link would go to a stranger. public/js/app.js has the same lists; keep them in step.
+ * the confirmation link would go to a stranger. footer.php sends these lists to public/js/app.js for the live check.
  */
 const EMAIL_DOMAIN_TYPOS = [
     'gmail.com'   => ['gmial.com', 'gmai.com', 'gmal.com', 'gamil.com', 'gmali.com', 'gnail.com', 'gmaill.com', 'gmaul.com'],

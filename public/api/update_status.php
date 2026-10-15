@@ -12,7 +12,7 @@ require_once __DIR__ . '/../../src/bootstrap.php';
  *     the owner may only close their own open report.
  *   { type: 'found', id, moderation: 'approved'|'rejected', review_note?, storage_location? }
  *   → staff review of a student's found-item post. Approving needs a storage location; rejecting needs a reason.
- * Response: { ok, type, id, previous, status, message, rejected_claims: [] }
+ * Response: { ok, type, id, status, message }
  *   (moderation responses also carry storage_location)
  */
 require_method('POST');
@@ -26,7 +26,6 @@ $id     = (int) ($in['id'] ?? 0);
 $status = (string) ($in['status'] ?? '');
 $user   = current_user();
 $pdo    = db();
-$rejectedClaims = [];
 
 if ($type === 'found' && isset($in['moderation'])) {
     if (!is_staff()) {
@@ -63,7 +62,7 @@ if ($type === 'found' && isset($in['moderation'])) {
     log_event($status === 'approved' ? 'post_approved' : 'post_rejected', find_user($row['added_by']),
         ['item_id' => $id, 'item_name' => $row['item_name']] + ($note !== '' ? ['reason' => $note] : []));
     json_response([
-        'ok' => true, 'type' => 'found', 'id' => $id, 'previous' => 'pending', 'status' => $status, 'storage_location' => $storage, 'rejected_claims' => [],
+        'ok' => true, 'type' => 'found', 'id' => $id, 'status' => $status, 'storage_location' => $storage,
         'message' => $status === 'approved' ? "Post #$id approved. It is now listed publicly." : "Post #$id rejected. The poster can see your reason.",
     ]);
 }
@@ -101,7 +100,7 @@ if ($type === 'found') {
     } catch (DomainException $e) {
         json_error(409, $e->getMessage());
     }
-    json_response(['ok' => true, 'type' => 'found', 'id' => $id, 'previous' => $row['status'], 'status' => 'disposed', 'message' => $message, 'rejected_claims' => []]);
+    json_response(['ok' => true, 'type' => 'found', 'id' => $id, 'status' => 'disposed', 'message' => $message]);
 } else {
     if (!isset(LOST_STATUSES[$status])) {
         json_error(422, 'Invalid status.', ['allowed' => array_keys(LOST_STATUSES)]);
@@ -130,11 +129,9 @@ if ($type === 'found') {
 }
 
 json_response([
-    'ok'              => true,
-    'type'            => $type,
-    'id'              => $id,
-    'previous'        => $row['status'],
-    'status'          => $status,
-    'message'         => ($type === 'found' ? 'Item' : 'Report') . " #$id is now “" . status_label($status) . '”.',
-    'rejected_claims' => $rejectedClaims,
+    'ok'      => true,
+    'type'    => $type,
+    'id'      => $id,
+    'status'  => $status,
+    'message' => "Report #$id is now “" . status_label($status) . '”.',
 ]);

@@ -6,7 +6,7 @@
  *   form[data-api="…"]                 submitted through ClafsApi with fetch(); see `handlers` for the names
  *     data-done="notify|replace|remove"  what to do with the form after success (default: notify)
  *   [data-status-for="found-3"]        badge that is updated in place after a status change
- *   form[data-live-search]             found-items search: results are fetched from api/get_items.php as you type
+ *   form[data-live-search]             found-items search: browse.php results are fetched as you type
  *   [data-filter-toggle]               "More filters" button that collapses .filter-extra groups on phones
  *   .form-group .form-hint / errors    linked to their field with aria-describedby
  *   [data-next-holiday]                filled with the next office closure from the public-holiday API
@@ -184,16 +184,9 @@
         return '';
     }
 
-    /* ---- Email typos (same lists as email_typo_error() in src/validation.php) ---- */
-    var EMAIL_DOMAIN_TYPOS = {
-        'gmail.com': ['gmial.com', 'gmai.com', 'gmal.com', 'gamil.com', 'gmali.com', 'gnail.com', 'gmaill.com', 'gmaul.com'],
-        'yahoo.com': ['yaho.com', 'yahooo.com', 'yhoo.com', 'yahoo.co', 'yahoo.cm'],
-        'hotmail.com': ['hotmial.com', 'hotmal.com', 'hotmai.com', 'hotmil.com', 'hotnail.com', 'hotmail.co', 'hotmail.cm'],
-        'outlook.com': ['outlok.com', 'outllok.com', 'outloo.com', 'oulook.com', 'otlook.com', 'outlook.co', 'outlook.cm'],
-        'icloud.com': ['iclod.com', 'icoud.com']
-    };
-    var EMAIL_ONLY_DOMAINS = { 'gmail.': 'gmail.com', 'icloud.': 'icloud.com', 'mapua.': 'mapua.edu.ph', 'mymail.mapua.': 'mymail.mapua.edu.ph' };
-    var EMAIL_TLD_TYPOS = ['con', 'cmo', 'ocm', 'comm', 'coom', 'conm', 'cpm', 'vom', 'xom', 'cim'];
+    /* ---- Email typos (lists from src/validation.php, sent in footer.php's clafs-config; same logic as email_typo_error()) ---- */
+    var EMAIL_TYPOS = (CONFIG_NODE && JSON.parse(CONFIG_NODE.textContent).emailTypos) || { domains: {}, only: {}, tlds: [] };
+    var EMAIL_DOMAIN_TYPOS = EMAIL_TYPOS.domains, EMAIL_ONLY_DOMAINS = EMAIL_TYPOS.only, EMAIL_TLD_TYPOS = EMAIL_TYPOS.tlds;
     function emailTypoError(email) {
         email = email.toLowerCase();
         var at = email.lastIndexOf('@');
@@ -768,7 +761,7 @@
     /* ---- Live search (found items) ---- */
     var liveForm = document.querySelector('form[data-live-search]');
     var liveResults = document.querySelector('[data-live-results]');
-    if (liveForm && liveResults && window.ClafsApi) {
+    if (liveForm && liveResults) {
         var liveCount = document.querySelector('[data-live-count]');
         var liveTimer = null;
         var liveSeq = 0;
@@ -779,51 +772,27 @@
             return params;
         }
 
-        function cardHtml(item) {
-            var href = BASE + '/view_item.php?type=found&id=' + item.item_id;
-            var photo = item.image_url
-                ? '<img src="' + escapeHtml(BASE + '/' + item.image_url) + '" alt="' + escapeHtml(item.item_name) + '" class="photo" loading="lazy">'
-                : '<div class="photo photo-placeholder" role="img" aria-label="No photo available">'
-                  + '<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">'
-                  + '<path d="M4 7h3l2-2h6l2 2h3v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>No photo</span></div>';
-            var desc = String(item.description || '').replace(/\s+/g, ' ').trim();
-            if (desc.length > 110) desc = desc.slice(0, 109) + '…';
-            return '<article class="item-card">'
-                + '<div class="item-card-photo">' + photo + '</div>'
-                + '<div class="item-card-body">'
-                + '<span class="item-card-category">' + escapeHtml(item.category) + '</span>'
-                + '<h3 class="item-card-title"><a href="' + escapeHtml(href) + '">' + escapeHtml(item.item_name) + '</a></h3>'
-                + '<p class="item-card-desc">' + escapeHtml(desc) + '</p>'
-                + '<dl class="item-card-meta"><div><dt>Found</dt><dd>' + escapeHtml(formatDate(item.date_found)) + '</dd></div>'
-                + '<div><dt>Where</dt><dd>' + escapeHtml(item.location_found) + '</dd></div></dl>'
-                + '</div>'
-                + '<div class="item-card-footer"><span class="badge badge-' + escapeHtml(item.status) + '">' + escapeHtml(STATUS_LABELS[item.status] || item.status) + '</span>'
-                + '<span class="btn btn-outline btn-sm" aria-hidden="true">View details</span></div>'
-                + '</article>';
-        }
-
-        function renderResults(items, query) {
-            if (liveCount) {
-                liveCount.textContent = items.length + ' item' + (items.length === 1 ? '' : 's') + ' in storage' + (query ? ' matching "' + query + '"' : '');
-            }
-            if (!items.length) {
-                liveResults.innerHTML = '<div class="empty-state"><div class="empty-icon" aria-hidden="true">&#128269;</div>'
-                    + '<h2>No items match your search</h2><p>Try a different keyword or clear the filters.</p></div>';
-                return;
-            }
-            liveResults.innerHTML = '<div class="item-grid">' + items.map(cardHtml).join('') + '</div>';
-        }
-
+        // The results come from browse.php itself, so cards and paging are rendered by item_card() / pagination() only.
         function runSearch() {
             var params = liveParams();
             var mine = ++liveSeq;
+            var qs = new URLSearchParams(params).toString();
+            var url = liveForm.getAttribute('action') + (qs ? '?' + qs : '');
             liveResults.setAttribute('aria-busy', 'true');
-            ClafsApi.getItems(Object.assign({ type: 'found', limit: 100 }, params))
-                .then(function (result) {
+            fetch(url, { credentials: 'same-origin' })
+                .then(function (response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.text();
+                })
+                .then(function (html) {
                     if (mine !== liveSeq) return; // a newer search has started
-                    renderResults(result.items, params.q || '');
-                    var qs = new URLSearchParams(params).toString();
-                    window.history.replaceState(null, '', liveForm.getAttribute('action') + (qs ? '?' + qs : ''));
+                    var page = new DOMParser().parseFromString(html, 'text/html');
+                    var results = page.querySelector('[data-live-results]');
+                    var count = page.querySelector('[data-live-count]');
+                    if (!results) throw new Error('unexpected page');
+                    liveResults.innerHTML = results.innerHTML;
+                    if (liveCount && count) liveCount.textContent = count.textContent;
+                    window.history.replaceState(null, '', url);
                 })
                 .catch(function (error) { notify('error', 'Search failed: ' + error.message); })
                 .then(function () { if (mine === liveSeq) liveResults.removeAttribute('aria-busy'); });
@@ -972,52 +941,6 @@
         input.addEventListener('input', apply);
         apply();
     });
-
-    /* ---- Cookie consent: the choice lives in localStorage (it is not itself a cookie) ---- */
-    var CONSENT_KEY = 'clafs-cookie-consent';
-    var banner = document.querySelector('[data-cookie-banner]');
-    function readConsent() { try { return localStorage.getItem(CONSENT_KEY); } catch (e) { return null; } }
-    function applyConsent(choice) {
-        // Logging in sets the necessary session cookie, so after "Reject" the log-in form explains that instead of submitting.
-        document.querySelectorAll('form[data-needs-cookies]').forEach(function (form) {
-            var note = form.querySelector('.js-cookie-note');
-            var button = form.querySelector('button[type="submit"]');
-            if (choice === 'rejected') {
-                if (!note) {
-                    note = alertNode('warning', 'You rejected cookies. Logging in needs one necessary session cookie, so accept cookies to log in.');
-                    note.classList.add('js-cookie-note');
-                    var accept = document.createElement('button');
-                    accept.type = 'button';
-                    accept.className = 'btn btn-secondary btn-sm mt-1';
-                    accept.textContent = 'Accept necessary cookie';
-                    accept.setAttribute('data-cookie-choice', 'accepted');
-                    note.appendChild(document.createElement('br'));
-                    note.appendChild(accept);
-                    form.insertBefore(note, form.firstChild);
-                }
-                button.disabled = true;
-            } else {
-                if (note) note.remove();
-                button.disabled = false;
-            }
-        });
-    }
-    if (banner) {
-        var consent = readConsent();
-        banner.hidden = !!consent;
-        applyConsent(consent);
-        document.addEventListener('click', function (event) {
-            var choice = event.target.closest('[data-cookie-choice]');
-            if (choice) {
-                try { localStorage.setItem(CONSENT_KEY, choice.dataset.cookieChoice); } catch (e) { /* private mode: ask again next visit */ }
-                banner.hidden = true;
-                applyConsent(choice.dataset.cookieChoice);
-            } else if (event.target.closest('[data-cookie-settings]')) {
-                banner.hidden = false;
-                banner.querySelector('[data-cookie-choice]').focus();
-            }
-        });
-    }
 
     /* ---- Staff pages: notice new claims and student posts without a reload ---- */
     // Polls api/staff_updates.php every 15 s while the tab is visible. A new arrival shows a banner with a
