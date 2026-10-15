@@ -18,10 +18,13 @@
             <h2 id="cookie-title">Cookies on <?= e(APP_NAME) ?></h2>
             <p>
                 We use <strong>one necessary cookie</strong>, set only when you log in, to keep you signed in and protect your session.
-                We use <strong>no optional cookies</strong>: no analytics, advertising or tracking. The CAPTCHA on the log-in and
+                If you accept, we also keep <strong>an anonymous visitor ID</strong> while you browse without logging in, so the office can count
+                visits and spot repeated failed log-ins. It holds no name, email or IP address, stays in our own database, and is deleted after
+                <?= VISITOR_RETENTION_DAYS ?> days without a visit. No advertising or third-party tracking. The CAPTCHA on the log-in and
                 registration forms is provided by Cloudflare Turnstile.
             </p>
-            <p class="text-sm mb-0">If you reject cookies you can still browse found items, but you can't log in, because logging in needs the session cookie.</p>
+            <p class="text-sm mb-0">If you reject cookies (now or later, through Cookie settings) any visitor record is deleted. You can still browse found items,
+                but you can't log in, because logging in needs the session cookie.</p>
         </div>
         <div class="btn-row">
             <button type="button" class="btn btn-primary" data-cookie-choice="accepted">Accept</button>
@@ -30,7 +33,7 @@
     </div>
 </section>
 
-<script type="application/json" id="clafs-config"><?= json_encode(['statusLabels' => LOST_STATUSES + FOUND_STATUSES + CLAIM_STATUSES + REPORT_MODERATION_STATUSES + ['active' => 'Active', 'inactive' => 'Deactivated']], JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
+<script type="application/json" id="clafs-config"><?= json_encode(['statusLabels' => status_labels() + ['active' => 'Active', 'inactive' => 'Deactivated']], JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 <script src="<?= e(asset('js/api.js')) ?>"></script>
 <script src="<?= e(asset('js/app.js')) ?>"></script>
 </body>
