@@ -8,9 +8,10 @@ declare(strict_types=1);
 /**
  * Validates the fields of a lost report ('lost') or found item ('found') from add_item / update_item.
  * A student's found-item post has no storage location yet ($needsStorage false); staff add it when approving.
+ * $currentCategoryId is the edited record's category: it stays allowed after an admin deactivates it.
  * Returns [errors (field => message), values (trimmed, keyed by column)].
  */
-function validate_item_input(array $in, string $type, bool $needsStorage = true): array
+function validate_item_input(array $in, string $type, bool $needsStorage = true, ?int $currentCategoryId = null): array
 {
     $field = fn (string $key) => trim((string) ($in[$key] ?? ''));
     $rules = [
@@ -34,10 +35,21 @@ function validate_item_input(array $in, string $type, bool $needsStorage = true)
         elseif ($len < $min) $errors[$key] = "Must be at least $min characters.";
         elseif ($len > $max) $errors[$key] = "Must be $max characters or fewer.";
     }
-    $values['category'] = $field('category');
+    // Only active categories for new records; the "Other" category also needs the user's description of the item type.
+    $values['category_id']     = (int) $field('category_id');
+    $values['category_detail'] = null;
+    $category = find_category($values['category_id']);
+    if (!$category || (!$category['is_active'] && $values['category_id'] !== $currentCategoryId)) {
+        $errors['category_id'] = 'Choose a category from the list.';
+    } elseif (is_other_category($category)) {
+        $values['category_detail'] = $field('category_detail');
+        $len = mb_strlen($values['category_detail']);
+        if ($len === 0) $errors['category_detail'] = 'Describe what "Other" is.';
+        elseif ($len > 50) $errors['category_detail'] = 'Must be 50 characters or fewer.';
+    }
     $locationKey = $type === 'found' ? 'location_found' : 'location_lost';
     // "Other" is stored as the text typed in the <key>_other box (see other_input()).
-    $choices = ['category' => [CATEGORIES, 50, 'Choose a valid category.'], $locationKey => [CAMPUS_LOCATIONS, 150, 'Choose a location from the list.']];
+    $choices = [$locationKey => [CAMPUS_LOCATIONS, 150, 'Choose a location from the list.']];
     foreach ($choices as $key => [$list, $max, $message]) {
         if (isset($errors[$key])) continue;
         if ($values[$key] === 'Other') {
@@ -67,19 +79,6 @@ function validate_item_input(array $in, string $type, bool $needsStorage = true)
 function earliest_item_date(): string
 {
     return date('Y-m-d', strtotime('-1 year'));
-}
-
-/** A person's name: required, at least $min characters, letters (any script) plus spaces, hyphens, apostrophes, periods. */
-function name_error(string $name, string $label, int $min): ?string
-{
-    $len = mb_strlen($name);
-    return match (true) {
-        $len === 0                       => "$label is required.",
-        $len < $min                      => "$label must contain at least $min characters.",
-        $len > 100                       => "$label must be 100 characters or fewer.",
-        !preg_match(NAME_PATTERN, $name) => "$label: use letters only (spaces, hyphens, apostrophes and periods are allowed).",
-        default                          => null,
-    };
 }
 
 /**
@@ -151,9 +150,13 @@ const PASSWORD_RULES = [
     '/[0-9]/'        => 'Password must contain at least one number.',
     '/[^A-Za-z0-9]/' => 'Password must contain at least one special character.',
 ];
+const PERSONAL_INFO_MESSAGE = 'Your password must not contain your name or birthday.';
 
-/** The first rule $password breaks, or null when it meets the policy. */
-function password_error(string $password): ?string
+/**
+ * The first rule $password breaks, or null when it meets the policy. $person (first_name, last_name, birth_date or
+ * null; see password_person()) adds the personal-information rule. The password is never logged or stored here.
+ */
+function password_error(string $password, ?array $person = null): ?string
 {
     if ($password === '') {
         return 'Password is required.';
@@ -169,14 +172,113 @@ function password_error(string $password): ?string
             return $message;
         }
     }
-    return null;
+    return password_has_personal_info($password, $person) ? PERSONAL_INFO_MESSAGE : null;
+}
+
+/*
+ * Personal information in a password. app.js runs the same name and full-date checks live (passwordPersonal());
+ * the actual birthday is checked only here, because sending it to the browser would reveal it to anyone who
+ * looks up a school number.
+ *   Names: each name word of 3+ letters, and the first, last and full name run together, after lower-casing,
+ *     removing accents and reading look-alikes as letters (J0s3 → jose). Words of 4+ letters match anywhere in the
+ *     password's letters; 3-letter names only as a whole word, so "Ana" rejects "Ana2024!" and "MyAna!24" but
+ *     not "Banana!24".
+ *   Dates: any full calendar date (YYYYMMDD, DDMMYYYY, MMDDYYYY, years 1900 to now, separators ignored), which
+ *     catches every birthday in those forms without knowing it; plus the actual birth date in 6-digit forms.
+ */
+
+function password_has_personal_info(string $password, ?array $person): bool
+{
+    return password_has_full_date($password)
+        || ($person !== null && (password_has_name($password, $person)
+            || (!empty($person['birth_date']) && password_has_birthday($password, (string) $person['birth_date']))));
+}
+
+/** Lower case without accents: "Peña" → "pena". */
+function fold_text(string $text): string
+{
+    return strtr(mb_strtolower($text), [
+        'á' => 'a', 'à' => 'a', 'â' => 'a', 'ä' => 'a', 'ã' => 'a', 'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
+        'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i', 'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'ö' => 'o', 'õ' => 'o',
+        'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u', 'ñ' => 'n', 'ç' => 'c',
+    ]);
+}
+
+/** The name words and run-together names the password must not contain. */
+function name_tokens(array $person): array
+{
+    $words  = fn (string $s) => preg_split('/[^a-z]+/', fold_text($s), -1, PREG_SPLIT_NO_EMPTY);
+    $first  = $words((string) ($person['first_name'] ?? ''));
+    $last   = $words((string) ($person['last_name'] ?? ''));
+    $tokens = [...$first, ...$last, implode('', $first), implode('', $last), implode('', [...$first, ...$last])];
+    return array_values(array_unique(array_filter($tokens, fn ($t) => strlen($t) >= 3)));
+}
+
+function password_has_name(string $password, array $person): bool
+{
+    // Words of the password: runs of letters split where a capital follows a small letter ("MyAna" → my, ana).
+    $mapped = strtr($password, ['0' => 'o', '1' => 'i', '3' => 'e', '4' => 'a', '5' => 's', '7' => 't', '@' => 'a', '$' => 's']);
+    preg_match_all('/\p{L}+/u', $mapped, $m);
+    $words = [];
+    foreach ($m[0] as $run) {
+        foreach (preg_split('/(?<=\p{Ll})(?=\p{Lu})/u', $run) as $word) {
+            $words[] = fold_text($word);
+        }
+    }
+    $letters = implode('', $words);
+    foreach (name_tokens($person) as $token) {
+        if (strlen($token) >= 4 ? str_contains($letters, $token) : in_array($token, $words, true)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** Runs of digits, with - / . _ and spaces between digits dropped: "25-10-2004" → "25102004". */
+function password_digit_runs(string $password): array
+{
+    preg_match_all('/\d+/', preg_replace('/(?<=\d)[\s\-\/._]+(?=\d)/', '', $password), $m);
+    return $m[0];
+}
+
+function password_has_full_date(string $password): bool
+{
+    $thisYear = (int) date('Y');
+    foreach (password_digit_runs($password) as $run) {
+        for ($i = 0; $i + 8 <= strlen($run); $i++) {
+            $s = substr($run, $i, 8);
+            foreach ([[0, 4, 6], [4, 2, 0], [4, 0, 2]] as [$y, $m, $d]) {   // YYYYMMDD, DDMMYYYY, MMDDYYYY
+                $year = (int) substr($s, $y, 4);
+                if ($year >= 1900 && $year <= $thisYear && checkdate((int) substr($s, $m, 2), (int) substr($s, $d, 2), $year)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+/** The actual birth date (Y-m-d) in 8- and 6-digit forms: 20041025, 25102004, 10252004, 041025, 251004, 102504. */
+function password_has_birthday(string $password, string $birthDate): bool
+{
+    [$y, $m, $d] = explode('-', $birthDate);
+    $yy    = substr($y, 2);
+    $forms = ["$y$m$d", "$d$m$y", "$m$d$y", "$yy$m$d", "$d$m$yy", "$m$d$yy"];
+    foreach (password_digit_runs($password) as $run) {
+        foreach ($forms as $form) {
+            if (str_contains($run, $form)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /** Rules for the new_password / new_password_confirm fields. Returns field errors. */
-function new_password_errors(array $in, ?string $current = null): array
+function new_password_errors(array $in, ?string $current = null, ?array $person = null): array
 {
     $new = (string) ($in['new_password'] ?? '');
-    if ($message = password_error($new)) {
+    if ($message = password_error($new, $person)) {
         return ['new_password' => $message];
     }
     if ($current !== null && $new === $current) {

@@ -59,6 +59,9 @@ function session_problem(array $user): ?string
     if (!$user['is_active']) {
         return deactivated_message($user);
     }
+    if (!$user['email_verified']) {   // login refuses these too; this also ends any session that predates the rule
+        return 'Confirm your email address before using your account.';
+    }
     if (!hash_equals($_SESSION['password_sig'] ?? '', password_sig($user['password_hash']))) {
         return 'Your password was changed. Log in with the new password.';
     }
@@ -194,18 +197,21 @@ function record_failed_login(array $user, string $event = 'login_failed'): bool
 /* ---------------------------------------------------------------- Registration */
 
 /**
- * Validates a registration form and creates an unverified account, then emails the verification link.
- * Returns field errors; empty means done. A taken email is not reported (that would reveal who has an account):
- * the owner of that address is emailed instead, and the visitor sees the same "check your email" page.
+ * Validates a registration form and creates an unverified Student / Faculty account, then emails the verification
+ * link. The school identifier ($in account_type + school_id) is looked up again here, so the name always comes
+ * from the school's records and a changed hidden field can't pick another person or type. The role is always
+ * "user": staff and administrator roles are granted only by an administrator, never by registration.
+ * Returns field errors ('school_id' means the identifier itself failed); empty means done. A taken email is not
+ * reported (that would reveal who has an account): its owner is emailed instead, and the visitor sees the same
+ * "check your email" page.
  */
 function register_user(array $in, bool $captchaPassed): array
 {
-    $first  = trim((string) ($in['first_name'] ?? ''));
-    $last   = trim((string) ($in['last_name'] ?? ''));
-    $errors = array_filter([
-        'first_name' => name_error($first, 'First name', NAME_MIN),
-        'last_name'  => name_error($last, 'Last name', 1),
-    ]);
+    [$record, $idError] = lookup_school_record((string) ($in['account_type'] ?? ''), (string) ($in['school_id'] ?? ''));
+    if ($idError) {
+        return ['school_id' => $idError];
+    }
+    $errors = [];
     $email  = mb_strtolower(trim((string) ($in['email'] ?? '')));
     if ($email === '') {
         $errors['email'] = 'Email is required.';
@@ -218,7 +224,7 @@ function register_user(array $in, bool $captchaPassed): array
     }
     $password = (string) ($in['password'] ?? '');
     $confirm  = (string) ($in['password_confirm'] ?? '');
-    if ($message = password_error($password)) {
+    if ($message = password_error($password, $record)) {
         $errors['password'] = $message;
     }
     if ($confirm === '') {
@@ -242,11 +248,22 @@ function register_user(array $in, bool $captchaPassed): array
         log_event('register_existing_email', $existing);
         return [];
     }
-    db()->prepare('INSERT INTO users (first_name, last_name, email, password_hash, role, email_verified) VALUES (?, ?, ?, ?, "user", 0)')
-        ->execute([$first, $last, $email, password_hash($password, PASSWORD_DEFAULT)]);
+    // The name is copied from the school record so the account keeps a display name like staff and admin accounts
+    // (which have no record); the record stays linked through the unique student_number / employee_number column.
+    $column = SCHOOL_ID_TYPES[$record['type']][2];
+    try {
+        db()->prepare("INSERT INTO users (first_name, last_name, email, $column, password_hash, role, email_verified) VALUES (?, ?, ?, ?, ?, 'user', 0)")
+            ->execute([$record['first_name'], $record['last_name'], $email, $record['school_id'], password_hash($password, PASSWORD_DEFAULT)]);
+    } catch (PDOException $e) {
+        // Two sign-ups at the same moment: the unique keys let only one through.
+        if ($e->getCode() !== '23000') {
+            throw $e;
+        }
+        return find_user_by_email($email) ? [] : ['school_id' => 'An account already uses this ' . SCHOOL_ID_TYPES[$record['type']][7] . '. Log in, or reset your password if you forgot it.'];
+    }
     $user = find_user_by_email($email);
     send_verification_email($user);
-    log_event('register', $user);
+    log_event('register', $user, ['account_type' => $record['type']]);
     return [];
 }
 
@@ -280,7 +297,7 @@ function set_password(array $user, string $password, int $keepSessionId = 0): st
 function change_password(array $user, array $in): array
 {
     $current = (string) ($in['current_password'] ?? '');
-    $errors  = new_password_errors($in, $current);
+    $errors  = new_password_errors($in, $current, password_person($user));
     if (!password_verify($current, $user['password_hash'])) {
         $locked = record_failed_login($user, 'password_change_failed');
         $left   = $locked ? 0 : LOCKOUT_ATTEMPTS - (int) $user['failed_login_attempts'] - 1;   // $user is the row from before this miss
@@ -327,6 +344,12 @@ function is_staff(): bool
 function is_admin(): bool
 {
     return has_role(ADMIN_ROLES);
+}
+
+/** Staff and admins: may view items, reports, claims, returns, disposals and their history. Only staff act on them. */
+function can_monitor(): bool
+{
+    return has_role(MONITOR_ROLES);
 }
 
 /** Whether the signed-in admin may change $target. Mirrors api/update_user.php, which enforces it. */
