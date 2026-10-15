@@ -5,14 +5,31 @@ declare(strict_types=1);
  * Data layer: whole tables loaded once per request and filtered in PHP.
  */
 
-const TABLE_KEYS = ['users' => 'user_id', 'found_items' => 'item_id', 'lost_reports' => 'report_id', 'claims' => 'claim_id'];
+const TABLE_KEYS = [
+    'users' => 'user_id', 'found_items' => 'item_id', 'lost_reports' => 'report_id', 'claims' => 'claim_id',
+    'categories' => 'category_id', 'claim_reviews' => 'review_id', 'claim_verifications' => 'verification_id',
+];
+/**
+ * Tables read with extra columns:
+ *   found_items, lost_reports  category_name (the category row) and category (what is shown: the "Other" detail or the name)
+ *   claims                     the latest claim_reviews row: review_outcome, reviewed_by, review_note, reviewed_at
+ */
+const TABLE_QUERIES = [
+    'found_items'  => 'SELECT t.*, c.name AS category_name, COALESCE(t.category_detail, c.name) AS category
+                       FROM found_items t JOIN categories c ON c.category_id = t.category_id',
+    'lost_reports' => 'SELECT t.*, c.name AS category_name, COALESCE(t.category_detail, c.name) AS category
+                       FROM lost_reports t JOIN categories c ON c.category_id = t.category_id',
+    'claims'       => 'SELECT c.*, r.outcome AS review_outcome, r.reviewer_id AS reviewed_by, r.reason AS review_note, r.created_at AS reviewed_at
+                       FROM claims c LEFT JOIN claim_reviews r
+                         ON r.review_id = (SELECT MAX(review_id) FROM claim_reviews WHERE claim_id = c.claim_id)',
+];
 
 /** Whole table keyed by primary key, loaded once per request. Pages filter in PHP with the helpers below. */
 function table(string $name): array
 {
     static $cache = [];
     if (!isset($cache[$name])) {
-        $cache[$name] = array_column(db()->query("SELECT * FROM `$name`")->fetchAll(), null, TABLE_KEYS[$name]);
+        $cache[$name] = array_column(db()->query(TABLE_QUERIES[$name] ?? "SELECT * FROM `$name`")->fetchAll(), null, TABLE_KEYS[$name]);
     }
     return $cache[$name];
 }
@@ -35,11 +52,20 @@ function is_public_item(array $item): bool
     return $item['status'] === 'stored' && $item['moderation_status'] === 'approved';
 }
 
-/** A found item logged by mistake can be deleted until it is returned or a claim on it is approved. */
+/** Returned and disposed items are final: no normal edit, claim or status change. */
+function is_final_item(array $item): bool
+{
+    return $item['status'] !== 'stored';
+}
+
+/**
+ * A found item logged by mistake can be deleted while it is in storage and no claim on it has been reviewed,
+ * so review history is never deleted with it.
+ */
 function can_delete_found_item(array $item): bool
 {
-    return $item['status'] !== 'returned'
-        && !count_where(where(all_claims(), 'item_id', $item['item_id']), 'status', 'approved');
+    return !is_final_item($item)
+        && !array_filter(where(all_claims(), 'item_id', $item['item_id']), fn ($c) => $c['review_outcome'] !== null);
 }
 
 function public_found_items(): array
@@ -59,7 +85,7 @@ const ACTIVITY_FILTERS = [
     ''        => ['All', []],
     'reports' => ['Reports', ['report_', 'false_report_']],
     'claims'  => ['Claims', ['claim_']],
-    'posts'   => ['Posts', ['post_', 'found_item_']],
+    'posts'   => ['Posts & items', ['post_', 'found_item_', 'category_']],
     'accounts' => ['Accounts', ['register', 'email_verified', 'account_', 'role_changed', 'password_', 'false_report_']],
     'auth'    => ['Authentication', ['login_', 'logout', 'session_', 'captcha_']],
     'admin'   => ['Administrative actions', []],
@@ -67,9 +93,10 @@ const ACTIVITY_FILTERS = [
 
 /**
  * Newest security/activity events with the account they concern (u_*) and who performed them (a_*).
- * $filter is a key of ACTIVITY_FILTERS; $userId limits it to events about or by one account.
+ * $filter is a key of ACTIVITY_FILTERS; $userId limits it to events about or by one account; $itemId to events
+ * about one found item (logged, edited, claimed, reviewed, verified, returned, disposed).
  */
-function activity_events(string $filter = '', ?int $userId = null, int $limit = 100): array
+function activity_events(string $filter = '', ?int $userId = null, int $limit = 100, ?int $itemId = null): array
 {
     $where = [];
     $args  = [];
@@ -82,6 +109,10 @@ function activity_events(string $filter = '', ?int $userId = null, int $limit = 
     if ($userId) {
         $where[] = '(e.user_id = ? OR e.actor_id = ?)';
         array_push($args, $userId, $userId);
+    }
+    if ($itemId) {
+        $where[] = "CAST(JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.item_id')) AS UNSIGNED) = ?";
+        $args[]  = $itemId;
     }
     $stmt = db()->prepare('SELECT e.*, u.first_name AS u_first, u.last_name AS u_last, u.role AS u_role,
                                   a.first_name AS a_first, a.last_name AS a_last, a.role AS a_role
@@ -128,8 +159,7 @@ function search_rows(array $rows, string $keyword = '', array $exact = []): arra
     $keyword = mb_strtolower(trim($keyword));
     return array_values(array_filter($rows, function (array $row) use ($keyword, $exact) {
         foreach ($exact as $field => $value) {
-            $actual = (string) ($row[$field] ?? '');
-            if ($field === 'category') $actual = listed($actual, CATEGORIES);   // a typed "Other" category matches the Other filter
+            $actual = (string) ($row[$field === 'category' ? 'category_name' : $field] ?? '');   // a typed "Other" detail matches the Other filter
             if ($value !== '' && $value !== null && $actual !== (string) $value) {
                 return false;
             }

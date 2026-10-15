@@ -26,6 +26,44 @@ function reset_button(): string
     return '<button type="reset" class="btn btn-ghost btn-lg" data-confirm="Are you sure you would like to reset?">Reset</button>';
 }
 
+/** "← Back to …" link to an explicit parent page (browser history isn't relied on). */
+function back_button(string $href, string $label): string
+{
+    return '<a class="btn btn-ghost btn-sm btn-back" href="' . e($href) . '"><span aria-hidden="true">&larr;</span> ' . e($label) . '</a>';
+}
+
+/**
+ * Cancel link for a form: goes to $href without saving. app.js asks before leaving when the form has unsaved
+ * changes (data-cancel).
+ */
+function cancel_button(string $href, string $size = 'btn-lg'): string
+{
+    return '<a class="btn btn-secondary ' . e($size) . '" href="' . e($href) . '" data-cancel>Cancel</a>';
+}
+
+/**
+ * Category <select name="category_id"> from the categories table: active ones, plus $row's current one when an
+ * admin has since deactivated it. Choosing "Other" enables the category_detail box (see other_input()).
+ */
+function category_select(?array $row): string
+{
+    $current = isset($row['category_id']) ? (int) $row['category_id'] : null;
+    $html  = '<select id="category_id" name="category_id" required><option value="">Select a category…</option>';
+    $other = '';
+    foreach (selectable_categories($current) as $c) {
+        $html .= '<option value="' . $c['category_id'] . '"' . ($c['category_id'] === $current ? ' selected' : '') . '>'
+            . e($c['name']) . ($c['is_active'] ? '' : ' (no longer offered)') . '</option>';
+        if (is_other_category($c)) {
+            $other = (string) $c['category_id'];
+        }
+    }
+    $isOther = $other !== '' && (string) $current === $other;
+    return $html . '</select>'
+        . ($other === '' ? '' : '<input type="text" name="category_detail" data-other-for="category_id" data-other-value="' . $other . '" required maxlength="50"'
+            . ' class="mt-1" aria-label="Describe the other category" placeholder="If Other: please specify"'
+            . ' value="' . e($isOther ? (string) $row['category_detail'] : '') . '"' . ($isOther ? '' : ' disabled') . '>');
+}
+
 /** Found-item card for the browse grid. Public fields only. */
 function item_card(array $item): string
 {
@@ -142,6 +180,39 @@ function activity_table(array $events, string $id = 'activityTable'): string
                 <td><?= $actor && $ev['user_id'] && (int) $ev['user_id'] !== (int) $actor ? $person($ev['u_first'], $ev['u_last'], $ev['u_role']) : '<span class="text-muted">—</span>' ?></td>
                 <td class="nowrap"><?= $target ? e(implode(', ', $target)) : '<span class="text-muted">—</span>' ?></td>
                 <td class="text-sm cell-wide"><?php foreach ($details as $k => $v): ?><?= e(str_replace('_', ' ', (string) $k)) ?>: <?= e(is_scalar($v) ? (string) $v : json_encode($v)) ?><br><?php endforeach; ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php
+    return ob_get_clean();
+}
+
+/**
+ * Successful returns from successful_returns(): the same table on the dashboard and on the Claims tab, so both
+ * read the same records.
+ */
+function returns_table(array $rows, string $id = 'returnsTable'): string
+{
+    if (!$rows) {
+        return empty_state('No returns yet', 'Items handed over to their owners show up here.', '', '', '&#127873;');
+    }
+    $name = fn (?array $u) => $u ? e(full_name($u)) : '<span class="text-muted">Not recorded</span>';
+    ob_start(); ?>
+<div class="table-wrap">
+    <table class="table" id="<?= e($id) ?>">
+        <thead><tr><th>Item</th><th>Claim</th><th>Claimant</th><th>Returned</th><th>Handed over by</th><th>ID verified by</th><th>Status</th></tr></thead>
+        <tbody>
+        <?php foreach ($rows as $r): $item = $r['item']; $claim = $r['claim']; ?>
+            <tr>
+                <td><a class="table-title" href="<?= e(item_url('found', $item['item_id'])) ?>"><?= e($item['item_name']) ?></a><span class="table-sub">Item #<?= $item['item_id'] ?> &middot; <?= e($item['category']) ?></span></td>
+                <td class="nowrap"><?= $claim ? '<a href="' . e(item_url('found', $item['item_id']) . '#claim-' . $claim['claim_id']) . '">#' . $claim['claim_id'] . '</a>' : '<span class="text-muted">—</span>' ?></td>
+                <td><?= $r['claimant'] ? e(full_name($r['claimant'])) . '<span class="table-sub">' . e($r['claimant']['email']) . '</span>' : '<span class="text-muted">Not recorded</span>' ?></td>
+                <td class="nowrap"><?= e(format_datetime($item['returned_at'])) ?></td>
+                <td><?= $name($r['returned_by']) ?></td>
+                <td><?= $r['verification'] ? $name(find_user($r['verification']['verified_by'])) . '<span class="table-sub">' . e(format_datetime($r['verification']['verified_at'])) . '</span>' : '<span class="text-muted">Not recorded</span>' ?></td>
+                <td><?= status_badge('returned') ?></td>
             </tr>
         <?php endforeach; ?>
         </tbody>

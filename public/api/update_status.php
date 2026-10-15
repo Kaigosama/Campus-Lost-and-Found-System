@@ -3,13 +3,16 @@ require_once __DIR__ . '/../../src/bootstrap.php';
 
 /**
  * POST /api/update_status.php   (JSON body or form fields)
- *   { type: 'found'|'lost', id, status, item_id? }
- *   found → staff only. Marking an item returned also closes the linked report and rejects other pending claims.
- *   lost  → staff may set any status (status=matched takes item_id, the found item it was matched to);
- *           the owner may only close their own open report.
+ *   { type: 'found', id, status: 'disposed', disposal_reason, disposal_notes?, confirm_disposal: 1 }
+ *   → staff only: dispose of an item in storage held DISPOSAL_HOLD_DAYS or more, with no claim approved or awaiting
+ *     review (see disposal_blocker()). Records who, when and why. "returned" is set only by the claim hand-over
+ *     (api/claims.php action=return); returned and disposed are final and never change back.
+ *   { type: 'lost', id, status, item_id? }
+ *   → staff may set any status (status=matched takes item_id, the found item it was matched to);
+ *     the owner may only close their own open report.
  *   { type: 'found', id, moderation: 'approved'|'rejected', review_note?, storage_location? }
  *   → staff review of a student's found-item post. Approving needs a storage location; rejecting needs a reason.
- * Response: { ok, type, id, previous, status, message, rejected_claims: [claim_id…] }
+ * Response: { ok, type, id, previous, status, message, rejected_claims: [] }
  *   (moderation responses also carry storage_location)
  */
 require_method('POST');
@@ -67,27 +70,38 @@ if ($type === 'found' && isset($in['moderation'])) {
 
 if ($type === 'found') {
     if (!is_staff()) {
-        json_error(403, 'Only staff can change an item\'s status.');
-    }
-    if (!isset(FOUND_STATUSES[$status])) {
-        json_error(422, 'Invalid status.', ['allowed' => array_keys(FOUND_STATUSES)]);
+        json_error(403, 'Only Lost & Found staff can dispose of items.');
     }
     $row = find_found_item($id);
     if (!$row) {
         json_error(404, 'Item not found.');
     }
-
-    $pdo->beginTransaction();
-    $returnedAt = $status === 'returned' ? ($row['returned_at'] ?? date('Y-m-d H:i:s')) : $row['returned_at'];
-    $pdo->prepare('UPDATE found_items SET status = ?, returned_at = ? WHERE item_id = ?')->execute([$status, $returnedAt, $id]);
-    if ($status === 'returned') {
-        $pdo->prepare('UPDATE lost_reports r JOIN claims c ON c.report_id = r.report_id
-                       SET r.status = "closed", r.matched_item_id = c.item_id WHERE c.item_id = ? AND c.status = "approved"')->execute([$id]);
-        $rejectedClaims = array_map('intval', array_column(where(where(all_claims(), 'item_id', $id), 'status', 'pending'), 'claim_id'));
-        $pdo->prepare('UPDATE claims SET status = "rejected", reviewed_by = ?, reviewed_at = NOW(),
-                       review_note = "The item was returned to another claimant." WHERE item_id = ? AND status = "pending"')->execute([$user['user_id'], $id]);
+    if ($status !== 'disposed') {
+        json_error(422, $status === 'returned'
+            ? 'Items are marked returned from the claim hand-over, after the claimant\'s ID is verified.'
+            : 'Returned and disposed are final; an item\'s status can only be set to disposed here.', ['allowed' => ['disposed']]);
     }
-    $pdo->commit();
+    $reason = trim((string) ($in['disposal_reason'] ?? ''));
+    $notes  = trim((string) ($in['disposal_notes'] ?? ''));
+    $errors = [];
+    if (mb_strlen($reason) < 10 || mb_strlen($reason) > 1000) {
+        $errors['disposal_reason'] = mb_strlen($reason) < 10 ? 'Give the reason for disposal (at least 10 characters).' : 'Must be 1000 characters or fewer.';
+    }
+    if (mb_strlen($notes) > 1000) {
+        $errors['disposal_notes'] = 'Must be 1000 characters or fewer.';
+    }
+    if (empty($in['confirm_disposal'])) {
+        $errors['confirm_disposal'] = 'Tick this box to confirm the disposal.';
+    }
+    if ($errors) {
+        json_error(422, 'Please fix the highlighted fields.', ['errors' => $errors]);
+    }
+    try {
+        $message = dispose_item($row, $reason, $notes, $user);
+    } catch (DomainException $e) {
+        json_error(409, $e->getMessage());
+    }
+    json_response(['ok' => true, 'type' => 'found', 'id' => $id, 'previous' => $row['status'], 'status' => 'disposed', 'message' => $message, 'rejected_claims' => []]);
 } else {
     if (!isset(LOST_STATUSES[$status])) {
         json_error(422, 'Invalid status.', ['allowed' => array_keys(LOST_STATUSES)]);

@@ -5,7 +5,7 @@ require_once __DIR__ . '/../../src/bootstrap.php';
 /**
  * GET /api/staff_updates.php   — staff only, polled by app.js every 15 seconds on staff pages
  * Response: { ok, latest_claim, latest_post, pending_claims, pending_posts }
- *   latest_* are the newest pending claim id and pending student-post id (0 when none). The page compares them
+ *   latest_* are the newest claim awaiting review and pending student-post id (0 when none). The page compares them
  *   with its first answer and offers a refresh when something new arrives.
  */
 require_method('GET');
@@ -17,8 +17,8 @@ if (!is_staff()) {
 }
 
 $row = db()->query("SELECT
-        (SELECT COALESCE(MAX(claim_id), 0) FROM claims WHERE status = 'pending')                 AS latest_claim,
-        (SELECT COUNT(*) FROM claims WHERE status = 'pending')                                     AS pending_claims,
+        (SELECT COALESCE(MAX(claim_id), 0) FROM claims c WHERE status = 'pending' AND NOT EXISTS (SELECT 1 FROM claim_reviews r WHERE r.claim_id = c.claim_id)) AS latest_claim,
+        (SELECT COUNT(*) FROM claims c WHERE status = 'pending' AND NOT EXISTS (SELECT 1 FROM claim_reviews r WHERE r.claim_id = c.claim_id))                AS pending_claims,
         (SELECT COALESCE(MAX(item_id), 0) FROM found_items WHERE moderation_status = 'pending')  AS latest_post,
         (SELECT COUNT(*) FROM found_items WHERE moderation_status = 'pending')                     AS pending_posts")->fetch();
 

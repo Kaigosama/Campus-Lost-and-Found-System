@@ -43,10 +43,15 @@ function url_with(array $params): string
     return $path . ($query ? '?' . http_build_query($query) : '');
 }
 
+/** Badge text for every status key. Post moderation's "approved" reads "Approved"; a claim's says "Approved for collection" in its pill tab. */
+function status_labels(): array
+{
+    return ['approved' => 'Approved'] + LOST_STATUSES + FOUND_STATUSES + CLAIM_STATUSES + REPORT_MODERATION_STATUSES;
+}
+
 function status_label(string $status): string
 {
-    $labels = LOST_STATUSES + FOUND_STATUSES + CLAIM_STATUSES + REPORT_MODERATION_STATUSES;
-    return $labels[$status] ?? ucfirst($status);
+    return status_labels()[$status] ?? ucfirst($status);
 }
 
 /** $for ("found-3", "claim-7", …) lets app.js update the badge in place after an API call. */
@@ -99,9 +104,10 @@ function activity_label(?string $lastActivity, int $onlineSessions): string
 function event_badge(string $type): string
 {
     return match (true) {
-        in_array($type, ['login_success', 'email_verified', 'account_unlocked', 'account_reactivated', 'register', 'claim_approved', 'post_approved'], true) => 'approved',
-        in_array($type, ['account_locked', 'login_blocked_locked', 'session_revoked', 'account_deactivated', 'captcha_failed',
-                         'report_marked_false', 'report_marked_spam', 'report_deleted', 'false_report_warning'], true) => 'rejected',
+        in_array($type, ['login_success', 'email_verified', 'account_unlocked', 'account_reactivated', 'register', 'claim_approved', 'post_approved',
+                         'claim_identity_verified', 'item_returned', 'category_created', 'category_activated'], true) => 'approved',
+        in_array($type, ['account_locked', 'login_blocked_locked', 'session_revoked', 'account_deactivated', 'captcha_failed', 'claim_identity_failed',
+                         'report_marked_false', 'report_marked_spam', 'report_deleted', 'false_report_warning', 'found_item_disposed', 'category_deleted'], true) => 'rejected',
         str_starts_with($type, 'login_') || in_array($type, ['password_change_failed', 'report_rate_limited', 'report_duplicate_blocked', 'report_rejected', 'claim_rejected', 'post_rejected'], true) => 'pending',
         default => 'closed',
     };
@@ -125,9 +131,13 @@ function event_label(string $type): string
         'report_rejected' => 'Rejected a lost-item report', 'report_marked_false' => 'Marked a report as false', 'report_marked_spam' => 'Marked a report as spam',
         'report_deleted' => 'Removed a false or spam report', 'report_rate_limited' => 'Hit the report submission limit',
         'report_duplicate_blocked' => 'Exact duplicate report refused', 'false_report_warning' => 'Issued a false-report warning',
-        'claim_submitted' => 'Submitted a claim', 'claim_approved' => 'Approved a claim', 'claim_rejected' => 'Rejected a claim', 'claim_withdrawn' => 'Withdrew a claim',
+        'claim_submitted' => 'Submitted a claim', 'claim_approved' => 'Approved a claim for collection', 'claim_rejected' => 'Rejected a claim (stays pending)', 'claim_withdrawn' => 'Withdrew a claim',
+        'claim_identity_verified' => "Verified a claimant's ID", 'claim_identity_failed' => "Recorded a failed ID check", 'item_returned' => 'Handed an item over (returned)',
         'post_submitted' => 'Posted a found item for review', 'post_approved' => 'Approved a found-item post', 'post_rejected' => 'Rejected a found-item post',
-        'found_item_logged' => 'Logged a found item', 'found_item_deleted' => 'Deleted a found item',
+        'found_item_logged' => 'Logged a found item', 'found_item_edited' => 'Edited a found item', 'found_item_deleted' => 'Deleted a found item',
+        'found_item_disposed' => 'Disposed of a found item',
+        'category_created' => 'Added a category', 'category_activated' => 'Activated a category', 'category_deactivated' => 'Deactivated a category',
+        'category_deleted' => 'Deleted a category', 'verification_resent' => 'Requested a new verification email',
         'security_logs_exported' => 'Exported the security logs',
     ][$type] ?? ucfirst(str_replace('_', ' ', $type));
 }
@@ -179,7 +189,7 @@ function listed(?string $value, array $list): string
 function other_input(string $name, ?string $saved, array $list, int $max): string
 {
     $isOther = listed($saved, $list) === 'Other';
-    return '<input type="text" name="' . e($name) . '_other" data-other-for="' . e($name) . '" required maxlength="' . $max . '"'
+    return '<input type="text" name="' . e($name) . '_other" data-other-for="' . e($name) . '" data-other-value="Other" required maxlength="' . $max . '"'
         . ' class="mt-1" aria-label="Describe the other choice" placeholder="If Other: please specify"'
         . ' value="' . e($isOther && $saved !== 'Other' ? $saved : '') . '"' . ($isOther ? '' : ' disabled') . '>';
 }

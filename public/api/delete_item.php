@@ -3,8 +3,8 @@ require_once __DIR__ . '/../../src/bootstrap.php';
 
 /**
  * POST /api/delete_item.php   { id }   — staff only
- *   Deletes a found item logged by mistake. Refused once the item was returned or a claim on it was approved;
- *   use status Disposed for real items instead. Pending and rejected claims on it are deleted with it, lost
+ *   Deletes a found item logged by mistake. Refused once the item was returned or disposed, or any claim on it was
+ *   reviewed (review history is kept); dispose of real items instead. Unreviewed claims on it are deleted with it, lost
  *   reports matched to it go back to "open", and an uploaded photo is removed. Recorded in the security log.
  * Response: { ok, id, message }
  */
@@ -23,7 +23,7 @@ if (!$item) {
     json_error(404, 'Item not found.');
 }
 if (!can_delete_found_item($item)) {
-    json_error(409, 'This item was returned or has an approved claim, so it stays on record. Set its status to Disposed instead.');
+    json_error(409, 'This item was returned or disposed, or a claim on it has been reviewed, so it stays on record. Dispose of it instead.');
 }
 
 $pdo = db();
