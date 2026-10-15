@@ -27,14 +27,14 @@
 <main>
     <h1>Cardinal Finds — Entity-Relationship Diagram</h1>
     <p class="sub">Campus lost-and-found system · ITS122P Group 4 · generated from the implemented database: <code>database/schema.sql</code>
-        plus every file in <code>database/migrations/</code> (001–015, applied in order by <code>database/seed.php</code>).
+        plus every file in <code>database/migrations/</code> (001–016, applied in order by <code>database/seed.php</code>).
         Every table, column, primary key, foreign key, unique key and check below is read from that database, so the diagram and the schema match.
-        12 tables; the bookkeeping table <code>schema_migrations</code> is left out.</p>
+        11 tables; the bookkeeping table <code>schema_migrations</code> is left out.</p>
 
     <h2>How the tables are grouped</h2>
     <table>
         <thead><tr><th>Group</th><th>Answers</th><th>Tables</th></tr></thead>
-        <tbody><tr><td>School records</td><td>who exists in the school</td><td><code>students</code>, <code>employees</code></td></tr><tr><td>Accounts</td><td>who has an account, and how they sign in</td><td><code>users</code>, <code>user_sessions</code>, <code>security_events</code></td></tr><tr><td>Lost-and-found</td><td>reports, items, claims and their history</td><td><code>categories</code>, <code>lost_reports</code>, <code>found_items</code>, <code>claims</code>, <code>claim_reviews</code>, <code>claim_verifications</code></td></tr><tr><td>Moderation</td><td>confirmed false reports</td><td><code>account_violations</code></td></tr></tbody>
+        <tbody><tr><td>School records</td><td>who exists in the school</td><td><code>students</code>, <code>employees</code></td></tr><tr><td>Accounts</td><td>who has an account, and how they sign in</td><td><code>users</code>, <code>user_sessions</code>, <code>security_events</code></td></tr><tr><td>Lost-and-found</td><td>reports, items, claims and their history</td><td><code>categories</code>, <code>lost_reports</code>, <code>found_items</code>, <code>claims</code>, <code>claim_reviews</code>, <code>claim_verifications</code></td></tr></tbody>
     </table>
 
     <h2>Diagram</h2>
@@ -58,12 +58,9 @@ erDiagram
     users ||--o{ claims : &quot;makes&quot;
     users |o--o{ claim_reviews : &quot;reviews&quot;
     users ||--o{ claim_verifications : &quot;validates&quot;
-    users |o--o{ account_violations : &quot;issues&quot;
-    users ||--o{ account_violations : &quot;receives&quot;
     categories ||--o{ lost_reports : &quot;classifies&quot;
     categories ||--o{ found_items : &quot;classifies&quot;
     lost_reports |o--o{ claims : &quot;is linked to&quot;
-    lost_reports ||--o{ account_violations : &quot;confirmed false in&quot;
     found_items |o--o{ lost_reports : &quot;is matched to&quot;
     found_items ||--o{ claims : &quot;receives&quot;
     claims |o--o| found_items : &quot;returned under&quot;
@@ -227,16 +224,6 @@ erDiagram
         int verified_by FK
         datetime verified_at
     }
-    account_violations {
-        int violation_id PK
-        int user_id FK
-        int report_id FK
-        enum violation_type &quot;false_report&quot;
-        text reason
-        enum action_taken &quot;warning | deactivated&quot;
-        int issued_by FK &quot;nullable&quot;
-        datetime created_at
-    }
         </pre>
         <p class="offline" id="offline" hidden>The diagram is drawn by Mermaid from a CDN and needs an internet connection. Offline, paste the text above into
             <a href="https://mermaid.live">mermaid.live</a>, or use the tables below, which list the same schema.</p>
@@ -288,7 +275,6 @@ erDiagram
 <tr><td><code>claims</code></td><td><code>claim_id</code></td><td>claimant_id → users<br>item_id → found_items<br>report_id → lost_reports</td><td>—</td><td class="cols">claim_id, item_id, claimant_id, proof_description, status, date_claimed, created_at, updated_at</td><td class="cols">report_id</td></tr>
 <tr><td><code>claim_reviews</code></td><td><code>review_id</code></td><td>claim_id → claims<br>reviewer_id → users</td><td>—</td><td class="cols">review_id, claim_id, outcome, reason, created_at</td><td class="cols">reviewer_id, previous_outcome</td></tr>
 <tr><td><code>claim_verifications</code></td><td><code>verification_id</code></td><td>claim_id → claims<br>verified_by → users</td><td>—</td><td class="cols">verification_id, claim_id, id_type, result, verified_by, verified_at</td><td class="cols">id_reference, notes</td></tr>
-<tr><td><code>account_violations</code></td><td><code>violation_id</code></td><td>issued_by → users<br>report_id → lost_reports<br>user_id → users</td><td>report_id + violation_type</td><td class="cols">violation_id, user_id, report_id, violation_type, reason, action_taken, created_at</td><td class="cols">issued_by</td></tr>
         </tbody>
     </table>
 
@@ -313,12 +299,9 @@ erDiagram
 <tr><td><code>users</code> 1 — 0..n <code>claims</code></td><td><code>claims.claimant_id</code></td><td>makes</td><td>RESTRICT</td><td>CASCADE</td></tr>
 <tr><td><code>users</code> 0..1 — 0..n <code>claim_reviews</code></td><td><code>claim_reviews.reviewer_id</code></td><td>reviews</td><td>SET NULL</td><td>CASCADE</td></tr>
 <tr><td><code>users</code> 1 — 0..n <code>claim_verifications</code></td><td><code>claim_verifications.verified_by</code></td><td>validates</td><td>RESTRICT</td><td>CASCADE</td></tr>
-<tr><td><code>users</code> 0..1 — 0..n <code>account_violations</code></td><td><code>account_violations.issued_by</code></td><td>issues</td><td>SET NULL</td><td>CASCADE</td></tr>
-<tr><td><code>users</code> 1 — 0..n <code>account_violations</code></td><td><code>account_violations.user_id</code></td><td>receives</td><td>RESTRICT</td><td>CASCADE</td></tr>
 <tr><td><code>categories</code> 1 — 0..n <code>lost_reports</code></td><td><code>lost_reports.category_id</code></td><td>classifies</td><td>RESTRICT</td><td>CASCADE</td></tr>
 <tr><td><code>categories</code> 1 — 0..n <code>found_items</code></td><td><code>found_items.category_id</code></td><td>classifies</td><td>RESTRICT</td><td>CASCADE</td></tr>
 <tr><td><code>lost_reports</code> 0..1 — 0..n <code>claims</code></td><td><code>claims.report_id</code></td><td>is linked to</td><td>SET NULL</td><td>CASCADE</td></tr>
-<tr><td><code>lost_reports</code> 1 — 0..n <code>account_violations</code></td><td><code>account_violations.report_id</code></td><td>confirmed false in</td><td>RESTRICT</td><td>CASCADE</td></tr>
 <tr><td><code>found_items</code> 0..1 — 0..n <code>lost_reports</code></td><td><code>lost_reports.matched_item_id</code></td><td>is matched to</td><td>SET NULL</td><td>CASCADE</td></tr>
 <tr><td><code>found_items</code> 1 — 0..n <code>claims</code></td><td><code>claims.item_id</code></td><td>receives</td><td>CASCADE</td><td>CASCADE</td></tr>
 <tr><td><code>claims</code> 0..1 — 0..1 <code>found_items</code></td><td><code>found_items.return_claim_id</code></td><td>returned under</td><td>RESTRICT</td><td>CASCADE</td></tr>
@@ -336,6 +319,9 @@ erDiagram
         <li><code>found_items.status</code> keeps its three values; <code>returned</code> and <code>disposed</code> are the two final outcomes.
             The return record is on the item (<code>returned_at</code>, <code>returned_by</code>, <code>return_claim_id</code>, unique), the disposal record too
             (<code>disposed_at</code>, <code>disposed_by</code>, <code>disposal_reason</code>, <code>disposal_notes</code>): no separate returned-items or disposed-items table.</li>
+        <li>A false-report violation is a <code>lost_reports</code> row with <code>status = 'false_report'</code>: the reporter (<code>reported_by</code>),
+            the staff member (<code>moderated_by</code>), the reason and the time are on the report. An account's violations are its reports in that status,
+            oldest first; the <code>FALSE_REPORTS_TO_DEACTIVATE</code>-th deactivates it (recorded on <code>users</code> and in <code>security_events</code>).</li>
         <li><code>claim_verifications</code> stores one row per identity check: ID type, the last four characters of the ID number only (cleared after the retention period),
             result, the validating staff member and the database time.</li>
     </ul>
@@ -352,7 +338,7 @@ erDiagram
             <tr><td><code>found_items</code></td><td><code>moderation_status</code>, <code>moderated_by</code>, <code>moderation_note</code>, <code>moderated_at</code></td><td>migration 001</td><td>Students’ found-item posts stay private until staff approve them.</td></tr>
             <tr><td><code>user_sessions</code>, <code>security_events</code></td><td>new tables</td><td>migration 001</td><td>Server-side sessions; security and activity log.</td></tr>
             <tr><td><code>users</code>, <code>lost_reports</code>, <code>security_events</code></td><td>deactivation, report moderation and soft-delete columns, <code>actor_id</code></td><td>migration 008</td><td>False-report handling and the admin activity feed.</td></tr>
-            <tr><td><code>account_violations</code></td><td>new table</td><td>migration 008</td><td>Confirmed false reports.</td></tr>
+            <tr><td><code>account_violations</code></td><td>new table</td><td>migration 008</td><td>Confirmed false reports. Removed in migration 016.</td></tr>
             <tr><td><code>categories</code></td><td>new table; <code>lost_reports.category_id</code>, <code>found_items.category_id</code>; old <code>category</code> text kept as <code>category_detail</code> (only the “Other” description)</td><td>migration 011</td><td>Admin-managed form categories (Dashboard → Categories).</td></tr>
             <tr><td><code>students</code>, <code>employees</code></td><td>new tables (created as <code>student_records</code> / <code>employee_records</code>); <code>users.student_number</code>, <code>users.employee_number</code></td><td>migration 012</td><td>Registration verified against the school's records; password check against the birth date.</td></tr>
             <tr><td><code>claim_reviews</code>, <code>claim_verifications</code></td><td>new tables; <code>claims.status</code> becomes pending / approved / verified / returned;
@@ -362,6 +348,9 @@ erDiagram
                 <td>school record tables renamed; names no longer copied into <code>users</code> (<code>chk_users_name_source</code>); <code>user_id</code> renamed
                 <code>reported_by</code> / <code>claimant_id</code> / <code>added_by</code>; the <code>visitors</code> table (migration 013) and <code>security_events.visitor_id</code> removed</td>
                 <td>migration 015</td><td>One users table for every login, linked to the school's records; clearer foreign keys; no anonymous tracking.</td></tr>
+            <tr><td><code>account_violations</code>, <code>lost_reports</code></td><td><code>account_violations</code> removed (its data copied onto the
+                false-reported <code>lost_reports</code> rows first); index <code>idx_lost_user</code> now (<code>reported_by</code>, <code>status</code>)</td>
+                <td>migration 016</td><td>A violation was a copy of a report marked false; it is now read from the report.</td></tr>
         </tbody>
     </table>
 </main>

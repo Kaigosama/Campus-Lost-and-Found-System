@@ -112,7 +112,7 @@
     $stmt = db()->prepare('SELECT user_id, COUNT(*) FROM user_sessions WHERE status = "active" AND last_activity_at > NOW() - INTERVAL ? MINUTE GROUP BY user_id');
     $stmt->execute([SESSION_IDLE_MINUTES]);
     $online     = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-    $violations = db()->query('SELECT user_id, COUNT(*) FROM account_violations GROUP BY user_id')->fetchAll(PDO::FETCH_KEY_PAIR);
+    $violations = db()->query("SELECT reported_by, COUNT(*) FROM lost_reports WHERE status = 'false_report' GROUP BY reported_by")->fetchAll(PDO::FETCH_KEY_PAIR);
     $isMaster   = has_role('master_admin');
     $assignable = array_intersect_key(ROLES, array_flip($isMaster ? ['user', 'staff', 'admin'] : ['user', 'staff']));
     ?>

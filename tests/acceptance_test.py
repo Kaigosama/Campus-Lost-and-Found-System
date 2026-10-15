@@ -431,6 +431,37 @@ def main():
     status, _, _ = admin.get('/?tab=visitors')
     check('Visitors admin page is gone', status == 404)
 
+    # ------------------------------------------------------------------ False reports (violations read from lost_reports, migration 016)
+    miguel_id = one("SELECT user_id FROM users WHERE email = 'miguel@example.com'")
+    today = time.strftime('%Y-%m-%d')
+    reports = []
+    for cat, place, name, desc in ((2, 'Canteen & Café', 'Silver wristwatch', 'Silver wristwatch with a cracked glass face and a black strap.'),
+                                   (3, 'Parking Area', 'Red umbrella', 'Folding red umbrella with a wooden handle and a torn panel.')):
+        _, r = miguel.api('add_item.php', {'type': 'lost', 'item_name': name, 'category_id': cat, 'date_lost': today,
+                                           'location_lost': place, 'description': desc})
+        reports.append(r.get('id'))
+    check('Miguel files two lost reports', all(reports), reports)
+    status, r = staff.api('moderate_report.php', {'report_id': reports[0], 'action': 'false_report', 'reason': 'Reporter admitted the watch was never lost.'})
+    check('First false report warns and keeps the account active', status == 200 and 'warned' in r.get('message', '')
+          and one(f'SELECT is_active FROM users WHERE user_id = {miguel_id}') == '1', r)
+    _, html, _ = admin.get(f'/?tab=users&id={miguel_id}')
+    check('Admin sees violation 1 of 2 as a warning, with reason and issuer', 'False-report violations (1 of 2)' in html
+          and 'Reporter admitted the watch was never lost.' in html and 'Warning' in html)
+    status, r = staff.api('moderate_report.php', {'report_id': reports[1], 'action': 'false_report', 'reason': 'Same umbrella was reported by its real owner.'})
+    row = sql(f'SELECT is_active, deactivation_reason, deactivated_by FROM users WHERE user_id = {miguel_id}')
+    check('Second false report deactivates the account', status == 200 and row == [['0', 'false_reports', staff_id]], (r, row))
+    status, _, headers = miguel.get('/?tab=reports')
+    check('Deactivated account is logged out', status == 302 and 'login.php' in headers.get('Location', ''), (status, headers.get('Location')))
+    _, html, _ = admin.get(f'/?tab=users&id={miguel_id}')
+    check('Violation history lists both reports, the second as the deactivation', 'False-report violations (2 of 2)' in html and 'Account deactivated' in html)
+    staff.api('moderate_report.php', {'report_id': reports[0], 'action': 'delete', 'reason': 'Removing the confirmed false report.'})
+    _, html, _ = admin.get(f'/?tab=users&id={miguel_id}')
+    check('A removed false report still counts as a violation', 'False-report violations (2 of 2)' in html)
+    _, html, _ = admin.get('/')
+    check('Deactivated reporter is listed under accounts needing attention', 'Miguel Santiago' in html and '2 / 2' in html)
+    check('account_violations table is gone (violations are lost_reports rows)',
+          one("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'account_violations'") == '0')
+
     # ------------------------------------------------------------------ Data integrity
     orphans = one("""SELECT (SELECT COUNT(*) FROM lost_reports r LEFT JOIN categories c ON c.category_id = r.category_id WHERE c.category_id IS NULL)
                           + (SELECT COUNT(*) FROM found_items f LEFT JOIN categories c ON c.category_id = f.category_id WHERE c.category_id IS NULL)
@@ -442,7 +473,7 @@ def main():
                           + (SELECT COUNT(*) FROM users u LEFT JOIN students s ON s.student_number = u.student_number
                                  WHERE u.student_number IS NOT NULL AND s.student_number IS NULL)""")
     check('No orphaned foreign keys (reports, claims, posts, sessions, school links, reviews)', orphans == '0', orphans)
-    check('All 15 migrations recorded', one('SELECT COUNT(*) FROM schema_migrations') == '15')
+    check('All 16 migrations recorded', one('SELECT COUNT(*) FROM schema_migrations') == '16')
 
     failed = results.count(False)
     print(f'\n{len(results) - failed} of {len(results)} checks passed' + (f', {failed} failed' if failed else ''))

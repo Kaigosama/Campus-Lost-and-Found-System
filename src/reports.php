@@ -82,14 +82,23 @@ function is_moderated_report(array $report): bool
     return isset(REPORT_MODERATION_STATUSES[$report['status']]);
 }
 
-/** Confirmed false-report violations of an account, oldest first, with the reporting staff member's name. */
+/**
+ * Confirmed false-report violations of an account, oldest first: its lost reports staff marked "false_report"
+ * (removed ones too), with reason, issued_by, created_at, the staff member's name and action_taken. The
+ * FALSE_REPORTS_TO_DEACTIVATE-th and later deactivated the account; each one before was a warning.
+ */
 function account_violations(int $userId): array
 {
-    $stmt = db()->prepare('SELECT v.*, r.item_name, u.first_name, u.last_name FROM account_violations v
-                           JOIN lost_reports r ON r.report_id = v.report_id LEFT JOIN ' . USERS_SQL . ' u ON u.user_id = v.issued_by
-                           WHERE v.user_id = ? ORDER BY v.violation_id');
+    $stmt = db()->prepare("SELECT r.report_id, r.item_name, r.moderation_reason AS reason, r.moderated_by AS issued_by,
+                                  r.moderated_at AS created_at, u.first_name, u.last_name
+                           FROM lost_reports r LEFT JOIN " . USERS_SQL . " u ON u.user_id = r.moderated_by
+                           WHERE r.reported_by = ? AND r.status = 'false_report' ORDER BY r.moderated_at, r.report_id");
     $stmt->execute([$userId]);
-    return $stmt->fetchAll();
+    $rows = $stmt->fetchAll();
+    foreach ($rows as $i => &$row) {
+        $row['action_taken'] = $i + 1 >= FALSE_REPORTS_TO_DEACTIVATE ? 'deactivated' : 'warning';
+    }
+    return $rows;
 }
 
 /**
@@ -112,10 +121,8 @@ function moderate_report(array $report, string $outcome, string $reason, array $
         if ($outcome !== 'false_report') {
             return [null, 0];
         }
-        $count  = 1 + count(account_violations($report['reported_by']));
+        $count  = count(account_violations($report['reported_by']));   // this report included: it is marked above
         $action = $count >= FALSE_REPORTS_TO_DEACTIVATE ? 'deactivated' : 'warning';
-        $pdo->prepare('INSERT INTO account_violations (user_id, report_id, reason, action_taken, issued_by) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$report['reported_by'], $report['report_id'], $reason, $action, $staff['user_id']]);
         if ($action === 'deactivated') {
             $pdo->prepare('UPDATE users SET is_active = 0, deactivation_reason = "false_reports", deactivated_at = NOW(), deactivated_by = ? WHERE user_id = ?')
                 ->execute([$staff['user_id'], $report['reported_by']]);

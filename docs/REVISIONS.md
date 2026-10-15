@@ -114,7 +114,7 @@ master administrator) is one `users` row, and every Student / Faculty row links 
 | `claims` | KEEP (column renamed) | `user_id` → `claimant_id`. Pending / approved / verified / returned are statuses. |
 | `claim_reviews` | KEEP | One row per decision, because a rejected claim keeps every rejection (the brief requires the history). |
 | `claim_verifications` | KEEP | One row per ID check at pickup; a failed check is kept too. |
-| `account_violations` | KEEP | One row per confirmed false report; the first warns, the second deactivates. |
+| `account_violations` | KEEP | One row per confirmed false report; the first warns, the second deactivates. Later removed as a copy of `lost_reports` (migration 016, section 1.3). |
 | `schema_migrations` | KEEP | Bookkeeping for `database/seed.php`; not part of the ERD. |
 
 **Final tables (12, plus `schema_migrations`)**
@@ -132,7 +132,7 @@ master administrator) is one `users` row, and every Student / Faculty row links 
 | `claims` | Ownership claims on found items. |
 | `claim_reviews` | Every approve / reject decision on a claim. |
 | `claim_verifications` | Identity checks at pickup. |
-| `account_violations` | Confirmed false reports and the action taken. |
+| `account_violations` | Confirmed false reports and the action taken (removed in migration 016; see section 1.3). |
 
 **Database changes (migration 015)**
 
@@ -196,6 +196,101 @@ password rule; login never searches the school records.
 numbers rather than new numeric ids. The login email is the one the person registers with, not the school email,
 because the sample records use undeliverable `.test` addresses (see Known limitations).
 
+### 1.3 Table reduction audit
+
+A fourth round asked whether the tables added since the first version can be reduced without losing data,
+integrity or features. The test for each table: is it a real entity, a relationship or a history the workflows
+need, or is it a copy of other data, a status, or a dashboard section? One table failed that test and was removed
+(migration `016_violations_from_reports.sql`); the rest are each needed and stay.
+
+**Old and current database.** The first `schema.sql` had 4 tables: `users`, `lost_reports`, `found_items`, `claims`.
+
+| Table | Added by | Revision that caused it | Needed its own table? |
+|---|---|---|---|
+| `user_sessions` | migration 001 | Session expiry, one device per account, revocation | Yes: one row per login, ended and revoked on the server |
+| `security_events` | migration 001 | Security log, admin activity feed | Yes: one structured log for every action (type, account, actor, IP, JSON details) |
+| `account_violations` | migration 008 | First false report warns, second deactivates | **No**: each row copied a lost report marked false (removed by 016) |
+| `categories` | migration 011 | Admin-managed form categories | Yes: shared list referenced by `category_id` |
+| `students`, `employees` | migration 012 (renamed in 015) | Registration against school records | Yes: the school's own records, kept apart from accounts |
+| `visitors` | migration 013 | Anonymous visitor tracking | No: removed by 015 |
+| `claim_reviews` | migration 014 | Rejected claims keep every rejection | Yes: many decisions per claim |
+| `claim_verifications` | migration 014 | ID check at pickup, failed checks kept | Yes: many checks per claim, holds the masked ID number |
+
+**Table audit and decision**
+
+| Table | Kind | Primary key | References | Referenced by | Used by | Decision |
+|---|---|---|---|---|---|---|
+| `students` | entity (school source data) | `student_number` | — | `users` | registration, names, birthday password rule | KEEP |
+| `employees` | entity (school source data) | `employee_number` | — | `users` | the same | KEEP |
+| `users` | entity (accounts) | `user_id` | `students`, `employees`, `users` | every other table | log-in, roles, every action | KEEP |
+| `user_sessions` | entity (session state) | `session_id` | `users` | — | log-in, idle expiry, one device, revocation, Security Logs | KEEP |
+| `security_events` | history (audit log) | `event_id` | `users` ×2 | — | activity feed, Security Logs, account and item history, exports | KEEP |
+| `categories` | entity | `category_id` | `users` | `lost_reports`, `found_items` | forms, filters, Admin → Categories | KEEP |
+| `lost_reports` | entity | `report_id` | `users` ×3, `categories`, `found_items` | `claims` | reports, moderation, matching, **false-report violations** | KEEP |
+| `found_items` | entity (with its return and disposal record) | `item_id` | `users` ×4, `categories`, `claims` | `lost_reports`, `claims` | intake, posts, browse, returns, disposal | KEEP |
+| `claims` | relationship (an account claims an item) | `claim_id` | `users`, `found_items`, `lost_reports` | `found_items`, `claim_reviews`, `claim_verifications` | claim workflow | KEEP |
+| `claim_reviews` | history | `review_id` | `claims`, `users` | — | approve / reject, rejection history, Rejected list | KEEP |
+| `claim_verifications` | history | `verification_id` | `claims`, `users` | — | ID check at pickup, Returned Items | KEEP |
+| `account_violations` | copy of `lost_reports` rows | `violation_id` | `users` ×2, `lost_reports` | — | violation count and list | **REMOVE** (merged into `lost_reports`) |
+| `schema_migrations` | bookkeeping | `name` | — | — | `database/seed.php` | KEEP (not in the ERD) |
+
+**Redundancy findings**
+
+- **Duplicate table: `account_violations`.** Every row repeated a lost report with `status = 'false_report'`:
+  `user_id` = `reported_by`, `reason` = `moderation_reason`, `issued_by` = `moderated_by`, `created_at` =
+  `moderated_at`. `violation_type` had one possible value, and `action_taken` follows from the order (the
+  `FALSE_REPORTS_TO_DEACTIVATE`-th false report deactivates, each one before warns). A moderated report never changes
+  status again, and a removed report keeps its status, so the reports are the complete history. The deactivation
+  itself stays on `users` (`deactivation_reason`, `deactivated_at`, `deactivated_by`) and in `security_events`.
+- **Status-only tables: none.** Rejected, false, spam and removed reports; returned and disposed items; pending,
+  approved, verified and returned claims are all statuses or columns on their own table.
+- **Tables for UI sections: none.** Returned Items, Disposed Items, Rejected claims and Successful returns are
+  queries on `found_items`, `claims` and `claim_reviews`.
+- **One-to-one tables: none.** `users` ↔ `students` / `employees` is at most one to one, but the school records
+  are a different thing (who exists in the school) with their own source and lifecycle.
+- **Unused tables, models or endpoints: none** (every table name searched in `src/`, `public/`, `templates/`,
+  `database/` and `tests/`). `visitors` was already removed in 015.
+- **Logging and history: one log, two domain histories.** `security_events` is the only log. `claim_reviews` and
+  `claim_verifications` are the claim workflow's own records: the code reads the latest review to decide what a claim
+  may do next, so they need structured columns, not log JSON. The log keeps a one-line summary of each decision.
+  `user_sessions` holds session state; log-in and log-out history is in `security_events`.
+- **Duplicate profile fields: none.** Since 015 a linked account's name is read from its school record
+  (`chk_users_name_source`). `students.school_email` and `users.email` are different addresses on purpose.
+- **Summary columns kept on purpose:** `users.last_login_at` and `last_activity_at` repeat the newest
+  `user_sessions` row, but accounts that signed in before migration 001 have no session rows, so dropping them would
+  lose data. The users list also reads them without a join.
+
+**Merges considered and not made**
+
+| Idea | Why not |
+|---|---|
+| `claim_verifications` into `claim_reviews` | Different columns (ID type, masked number, result), the ID number has its own retention clean-up, and every "latest review outcome" query would need an extra filter. Two clear histories are simpler than one mixed one. |
+| `lost_reports` + `found_items` into one `items` table | Claims apply only to found items; the two have different creators, statuses, moderation and private fields. One table would need about 15 columns that are empty for half its rows. |
+| `students` + `employees` into one table | They are the school's two source lists with different columns (college / program vs department) and statuses; the brief keeps them apart. |
+
+**Final schema (11 tables, plus `schema_migrations`)**: school records `students`, `employees`; accounts `users`,
+`user_sessions`, `security_events`; lost-and-found `categories`, `lost_reports`, `found_items`, `claims`,
+`claim_reviews`, `claim_verifications`.
+
+| | Count |
+|---|---|
+| Before (migration 015) | 12 tables (+ `schema_migrations`) |
+| Removed | `account_violations` (data moved onto `lost_reports`) |
+| After (migration 016) | 11 tables (+ `schema_migrations`) |
+| Reduced by | 1 |
+
+**Migration 016, in order:** (1) copy onto each violation's report anything the report lacks (status
+`false_report`, reason, staff member, time), so no violation is lost; (2) replace the index on
+`lost_reports.reported_by` with (`reported_by`, `status`), which serves the violation count; (3) drop
+`account_violations`. Tested on a database holding a violation whose report had no moderation data: after 016 the
+report carries the reason, staff member and time.
+
+**Code changes:** `account_violations()` in `src/reports.php` reads the account's false-reported lost reports
+(oldest first) and returns the same fields as before, with `action_taken` from the order. `moderate_report()` no
+longer inserts a copy; it counts after marking the report, inside the same transaction with the reporter's row
+locked. The two counts (`accounts_needing_attention()` in `src/repository.php`, the Users list in
+`templates/dashboard/users.php`) count `lost_reports` rows. Pages and messages are unchanged.
+
 ## 2. Files changed
 
 **New**
@@ -236,11 +331,13 @@ because the sample records use undeliverable `.test` addresses (see Known limita
 | `public/js/app.js`, `public/js/api.js`, `public/css/styles.css` | Live password checklist, Turnstile states, unsaved-change guard, new API calls, styles; visitor consent call removed |
 | `templates/layout/navbar.php`, `header.php`, `footer.php` | Staff and admin header reduced to Dashboard and account (no duplicate menus), cookie banner text (login cookie only) |
 | `docs/erd.html`, `README.md`, `.env.example`, `docker-compose.yml` | Documentation and configuration |
+| `database/migrations/016_violations_from_reports.sql`, `src/reports.php`, `src/repository.php`, `templates/dashboard/users.php`, `tests/acceptance_test.py`, `docs/erd.html` | Table reduction (section 1.3): violations read from `lost_reports`, `account_violations` dropped, false-report regression tests, ERD redrawn |
 
 ## 3. Database changes
 
-Migrations 011–015 run once each, in order, through `php database/seed.php` (automatically on every Docker / Railway
-start). They add, rename and move data; the only records deleted are the visitor records (015).
+Migrations 011–016 run once each, in order, through `php database/seed.php` (automatically on every Docker / Railway
+start). They add, rename and move data; the only records deleted are the visitor records (015) and the
+`account_violations` copies (016, after their data is on the reports).
 
 - **011** `categories` (PK `category_id`, unique `name`, `is_active`, `created_by` → users SET NULL). `lost_reports.category_id`
   and `found_items.category_id` NOT NULL → categories RESTRICT. The old `category` column becomes `category_detail`
@@ -256,6 +353,8 @@ start). They add, rename and move data; the only records deleted are the visitor
 - **015** See section 1.2: record tables renamed `students` / `employees`; old sign-ups linked by school email;
   linked accounts' names read from the record (`chk_users_name_source`); `reported_by`, `claimant_id`, `added_by`;
   `visitors` and `security_events.visitor_id` dropped.
+- **016** See section 1.3: violation data copied onto the false-reported `lost_reports` rows; index
+  `idx_lost_user` becomes (`reported_by`, `status`); `account_violations` dropped.
 
 Tested on an empty database, on a copy of a populated local database, and on the original sample claims (a rejected claim
 became Pending with one history row).
@@ -264,9 +363,9 @@ became Pending with one history row).
 
 Open [`erd.html`](erd.html) in a browser (the diagram is drawn by Mermaid from a CDN; the tables under it list the same
 schema offline). It covers the school records (students, employees), users, sessions, security events,
-categories, lost reports, found items (with return and disposal records), claims, claim review history, identity checks
-and violations, with every primary key, foreign key, unique key, check, cardinality and delete rule, grouped as
-school records, accounts, lost-and-found and moderation. It was regenerated from the database after migration 015.
+categories, lost reports (false reports included), found items (with return and disposal records), claims, claim
+review history and identity checks, with every primary key, foreign key, unique key, check, cardinality and delete
+rule, grouped as school records, accounts and lost-and-found. It was regenerated after migration 016: 11 tables.
 
 ## 5. Registration configuration
 
@@ -308,15 +407,15 @@ Registration always creates a Student / Faculty account. Staff and admin roles a
 
 - `php tests/password_policy_test.php`: **29 / 29 passed** (names, look-alikes, accents, birthdays, full dates,
   legitimate passwords without false positives).
-- `python tests/acceptance_test.py` against a test container: **123 / 123 passed**, covering every scenario in section 17
+- `python tests/acceptance_test.py` against a test container: **129 / 129 passed**, covering every scenario in section 17
   of the brief: category create / deactivate / reactivate / delete rules and permissions; student and employee look-ups,
   invalid, ineligible and tampered identifiers, duplicate numbers and emails, role forcing; password rules on the server;
   30-minute expiry, expired, used and replaced links, resend, unverified log-in; CAPTCHA pass / fail via Cloudflare's
   test keys, missing credentials, wrong password; rejection history, Pending main status, grouped rejected listing,
   ID check (masked, validator, server time, not logged), hand-over consistency, returns on the dashboard and in
   Returned Items, edit lock; disposal permissions, eligibility, confirmation, listing, exclusion from claims; admin
-  read-only monitoring; no orphaned foreign keys; all 15 migrations applied. Navigation (section 1.1):
-  Found Items in the staff and admin section bar and no header menus; five legacy URLs redirect with their filters;
+  read-only monitoring; no orphaned foreign keys; all 16 migrations applied. Navigation (section 1.1):
+  Found Items in the staff and admin section bar and no header menus; staff opening `/browse.php` go to Found Items;
   Found Items lists no returned or disposed items; Back from a lost report returns to Lost Reports with its filters;
   an item opened from Claims goes Back to Claims; a disposed item goes Back to Disposed Items, shows Disposal details
   and has no "Staff view" panel or review / dispose forms; students get 403 on Found Items. Accounts (section 1.2):
@@ -324,7 +423,10 @@ Registration always creates a Student / Faculty account. Staff and admin roles a
   account per record and a copied name on a linked account; one staff, two admin and one master admin account sit
   next to the three registered students / faculty; display names come from the records (dashboard greeting, claimant
   names); an unlinked account is flagged, not deleted; no orphaned report, claim, post, session or school link; the
-  `visitors` table, its column and the Visitors page are gone. Existing log-in, registration, reports, claims,
+  `visitors` table, its column and the Visitors page are gone. Table reduction (section 1.3): the first false report
+  warns and keeps the account active, the second deactivates it and logs it out, the admin's violation history shows
+  1 of 2 then 2 of 2 with reason, issuer and action, a removed false report still counts, the account is listed under
+  Accounts needing attention, and `account_violations` no longer exists. Existing log-in, registration, reports, claims,
   moderation, returns, disposal and activity-log checks all still pass after the migration.
 - Browser check (desktop and 375 px phone): login CAPTCHA states, registration steps with the live checklist, Back,
   admin dashboard, Claims → Rejected, Categories, item page history, disposed item page, Found Items section. No
@@ -332,7 +434,7 @@ Registration always creates a Student / Faculty account. Staff and admin roles a
 
 ## 9. Deployment
 
-1. Deploy as before (push to `main` for Railway, or `docker compose up --build`). Migrations 011–015 run on start.
+1. Deploy as before (push to `main` for Railway, or `docker compose up --build`). Migrations 011–016 run on start.
    Afterwards, review accounts flagged "No school record" (section 1.2).
 2. Optionally set `EMAIL_VERIFICATION_EXPIRY_MINUTES` (defaults to 30).
 3. Load authorized student and employee records before opening registration (section 5).

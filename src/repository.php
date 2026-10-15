@@ -145,7 +145,7 @@ function accounts_needing_attention(): array
 {
     return db()->query("SELECT * FROM (
             SELECT u.*,
-                (SELECT COUNT(*) FROM account_violations v WHERE v.user_id = u.user_id) AS violations,
+                (SELECT COUNT(*) FROM lost_reports v WHERE v.reported_by = u.user_id AND v.status = 'false_report') AS violations,
                 (SELECT COUNT(*) FROM lost_reports r WHERE r.reported_by = u.user_id AND r.status = 'spam') AS spam_reports,
                 (SELECT COUNT(*) FROM security_events e WHERE e.user_id = u.user_id AND e.created_at > NOW() - INTERVAL 7 DAY
                     AND e.event_type IN ('report_rate_limited', 'report_duplicate_blocked')) AS blocked_submissions,
