@@ -221,7 +221,7 @@ include APP_ROOT . '/templates/layout/header.php';
                             <label class="check"><input type="radio" name="resubmission_allowed" value="yes" required> Yes</label>
                             <label class="check"><input type="radio" name="resubmission_allowed" value="no"> No</label>
                         </fieldset>
-                        <div class="form-actions"><button type="submit" class="btn btn-secondary" data-confirm="Reject this report? It doesn't count as a false report.">Confirm rejection</button></div>
+                        <div class="form-actions"><button type="submit" class="btn btn-secondary" data-confirm="Reject this report? It doesn't count as a false report.">Confirm rejection</button><span class="form-hint" data-guard-hint hidden>Complete the required fields above to continue.</span></div>
                     </fieldset>
 
                     <fieldset class="decision-form" data-show-when="action=false_report" hidden disabled>
@@ -251,7 +251,7 @@ include APP_ROOT . '/templates/layout/header.php';
                         </div>
                         <div class="form-actions"><button type="submit" class="btn btn-danger" data-confirm="<?= e($deactivates
                             ? "Confirm this false report? It is the reporter's violation $nextViolation: their account will be deactivated and logged out."
-                            : 'Confirm this false report? The reporter will receive a warning.') ?>">Confirm false report</button></div>
+                            : 'Confirm this false report? The reporter will receive a warning.') ?>">Confirm false report</button><span class="form-hint" data-guard-hint hidden>Complete the required fields above to continue.</span></div>
                     </fieldset>
 
                     <fieldset class="decision-form" data-show-when="action=spam" hidden disabled>
@@ -265,7 +265,7 @@ include APP_ROOT . '/templates/layout/header.php';
                             <label for="rep_details_spam">Details <span class="text-muted text-sm">(optional)</span></label>
                             <textarea id="rep_details_spam" name="details" maxlength="1000"></textarea>
                         </div>
-                        <div class="form-actions"><button type="submit" class="btn btn-danger" data-confirm="Mark this report as spam?">Confirm spam</button></div>
+                        <div class="form-actions"><button type="submit" class="btn btn-danger" data-confirm="Mark this report as spam?">Confirm spam</button><span class="form-hint" data-guard-hint hidden>Complete the required fields above to continue.</span></div>
                     </fieldset>
                 </form>
             </div>
@@ -456,7 +456,7 @@ include APP_ROOT . '/templates/layout/header.php';
                         <textarea id="mod_internal" name="internal_note" maxlength="1000" placeholder="Staff only, e.g. received from the guard at the main gate."></textarea>
                         <span class="form-hint">Only staff and administrators see this. The poster is told: "Your found-item post has been approved and is now visible in the public listing."</span>
                     </div>
-                    <div class="form-actions"><button type="submit" class="btn btn-success" data-confirm="Approve and publish this post?">Confirm approval</button></div>
+                    <div class="form-actions"><button type="submit" class="btn btn-success" data-confirm="Approve and publish this post?">Confirm approval</button><span class="form-hint" data-guard-hint hidden>Complete the required fields above to continue.</span></div>
                 </fieldset>
 
                 <fieldset class="decision-form" data-show-when="moderation=rejected" hidden disabled>
@@ -480,7 +480,7 @@ include APP_ROOT . '/templates/layout/header.php';
                         <textarea id="mod_corrections" name="required_corrections" required minlength="10" maxlength="1000" data-min-words="2" disabled
                                   placeholder="e.g. Bring the item to the office first, then post it again with a photo."></textarea>
                     </div>
-                    <div class="form-actions"><button type="submit" class="btn btn-danger" data-confirm="Reject this post?">Confirm rejection</button></div>
+                    <div class="form-actions"><button type="submit" class="btn btn-danger" data-confirm="Reject this post?">Confirm rejection</button><span class="form-hint" data-guard-hint hidden>Complete the required fields above to continue.</span></div>
                 </fieldset>
             </form>
         </div>
@@ -609,7 +609,7 @@ include APP_ROOT . '/templates/layout/header.php';
                             <textarea id="approve_notes_<?= $cid ?>" name="details" maxlength="1000"></textarea>
                         </div>
                         <p class="text-sm text-muted">Approving does not hand the item over: the ID check and hand-over come next, at the desk.</p>
-                        <div class="form-actions"><button type="submit" class="btn btn-success" data-confirm="Approve this claim for collection?">Confirm approval</button></div>
+                        <div class="form-actions"><button type="submit" class="btn btn-success" data-confirm="Approve this claim for collection?">Confirm approval</button><span class="form-hint" data-guard-hint hidden>Complete the required fields above to continue.</span></div>
                     </fieldset>
 
                     <fieldset class="decision-form" data-show-when="decision=reject" hidden disabled>
@@ -634,7 +634,7 @@ include APP_ROOT . '/templates/layout/header.php';
                                       placeholder="e.g. A photo of the item or a receipt showing the serial number."></textarea>
                         </div>
                         <p class="text-sm text-muted">The claim stays <strong>Pending</strong>; this rejection is added to its review history.</p>
-                        <div class="form-actions"><button type="submit" class="btn btn-danger" data-confirm="Reject this claim? It stays pending, with this rejection in its history.">Confirm rejection</button></div>
+                        <div class="form-actions"><button type="submit" class="btn btn-danger" data-confirm="Reject this claim? It stays pending, with this rejection in its history.">Confirm rejection</button><span class="form-hint" data-guard-hint hidden>Complete the required fields above to continue.</span></div>
                     </fieldset>
                 </form>
 

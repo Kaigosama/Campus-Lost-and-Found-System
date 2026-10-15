@@ -491,8 +491,7 @@
         form.querySelectorAll('button[type="submit"]:not([formnovalidate])').forEach(function (button) {   // "Back" always works
             button.disabled = !ready;
         });
-        var hint = form.querySelector('[data-guard-hint]');
-        if (hint) hint.hidden = valid;
+        form.querySelectorAll('[data-guard-hint]').forEach(function (hint) { hint.hidden = valid; });   // one per decision fieldset
     }
     document.querySelectorAll('form').forEach(function (form) {
         if (!guarded(form)) return;

@@ -311,8 +311,10 @@ fieldset.staff-only legend { color: var(--blue-dark); }
     border-radius: var(--radius); background: var(--surface); font-weight: 600; cursor: pointer; }
 .decision-choices label:has(input:checked) { border-color: var(--blue); background: var(--blue-light); color: var(--blue-dark); }
 .decision-choices input { accent-color: var(--blue); margin: 0; }
-.decision-form { border-color: var(--blue); }
-.decision-form .form-actions { margin-top: .25rem; }
+.decision-form { border-color: var(--blue); padding-bottom: 1.25rem; }
+.decision-form .form-actions { margin-top: .5rem; padding-top: 0; border-top: 0; }
+/* Not ready yet: neutral grey with the reason beside it, rather than a faded colour that looks broken. */
+.decision-form .btn[disabled] { background: var(--neutral-bg); color: var(--neutral); border-color: var(--border); opacity: 1; }
 
 .photo-upload { display: grid; grid-template-columns: 1fr; gap: 1rem; }
 @media (min-width: 640px) { .photo-upload { grid-template-columns: 180px 1fr; } }
