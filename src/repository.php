@@ -5,6 +5,18 @@ declare(strict_types=1);
  * Data layer: whole tables loaded once per request and filtered in PHP.
  */
 
+/**
+ * users with each account's name resolved: a Student / Faculty account (or an office account linked to an employee
+ * record) is named by its school record; only accounts with no record keep a name of their own in users.
+ * Every query that shows a person's name reads users through this. List new users columns here too.
+ */
+const USERS_SQL = '(SELECT u.user_id, u.email, u.student_number, u.employee_number, u.password_hash, u.role, u.is_active,
+        u.deactivation_reason, u.deactivated_at, u.deactivated_by, u.email_verified, u.email_verified_at,
+        u.email_verification_token_hash, u.email_verification_expires_at, u.failed_login_attempts, u.locked_at,
+        u.last_login_at, u.last_activity_at, u.created_at, u.updated_at,
+        COALESCE(s.first_name, e.first_name, u.first_name) AS first_name, COALESCE(s.last_name, e.last_name, u.last_name) AS last_name
+    FROM users u LEFT JOIN students s ON s.student_number = u.student_number LEFT JOIN employees e ON e.employee_number = u.employee_number)';
+
 const TABLE_KEYS = [
     'users' => 'user_id', 'found_items' => 'item_id', 'lost_reports' => 'report_id', 'claims' => 'claim_id',
     'categories' => 'category_id', 'claim_reviews' => 'review_id', 'claim_verifications' => 'verification_id',
@@ -15,6 +27,7 @@ const TABLE_KEYS = [
  *   claims                     the latest claim_reviews row: review_outcome, reviewed_by, review_note, reviewed_at
  */
 const TABLE_QUERIES = [
+    'users'        => 'SELECT * FROM ' . USERS_SQL . ' t',
     'found_items'  => 'SELECT t.*, c.name AS category_name, COALESCE(t.category_detail, c.name) AS category
                        FROM found_items t JOIN categories c ON c.category_id = t.category_id',
     'lost_reports' => 'SELECT t.*, c.name AS category_name, COALESCE(t.category_detail, c.name) AS category
@@ -75,7 +88,7 @@ function public_found_items(): array
 
 function find_user_by_email(string $email): ?array
 {
-    $stmt = db()->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
+    $stmt = db()->prepare('SELECT * FROM ' . USERS_SQL . ' t WHERE email = ? LIMIT 1');
     $stmt->execute([mb_strtolower(trim($email))]);
     return $stmt->fetch() ?: null;
 }
@@ -116,7 +129,7 @@ function activity_events(string $filter = '', ?int $userId = null, int $limit = 
     }
     $stmt = db()->prepare('SELECT e.*, u.first_name AS u_first, u.last_name AS u_last, u.role AS u_role,
                                   a.first_name AS a_first, a.last_name AS a_last, a.role AS a_role
-                           FROM security_events e LEFT JOIN users u ON u.user_id = e.user_id LEFT JOIN users a ON a.user_id = e.actor_id'
+                           FROM security_events e LEFT JOIN ' . USERS_SQL . ' u ON u.user_id = e.user_id LEFT JOIN ' . USERS_SQL . ' a ON a.user_id = e.actor_id'
         . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY e.event_id DESC LIMIT ' . $limit);
     $stmt->execute($args);
     return $stmt->fetchAll();
@@ -124,21 +137,24 @@ function activity_events(string $filter = '', ?int $userId = null, int $limit = 
 
 /**
  * Student / faculty accounts an admin may want to look at: false-report violations, spam reports, a lockout,
- * deactivation, submission-limit or duplicate hits in the last 7 days, or the same name as an account deactivated
- * for false reports (a possible re-registration; shown for review, never blocked automatically).
+ * deactivation, submission-limit or duplicate hits in the last 7 days, the same name as an account deactivated
+ * for false reports (a possible re-registration; shown for review, never blocked automatically), or no link to a
+ * school record (registered before school records existed and not matched by migration 015).
  */
 function accounts_needing_attention(): array
 {
     return db()->query("SELECT * FROM (
             SELECT u.*,
                 (SELECT COUNT(*) FROM account_violations v WHERE v.user_id = u.user_id) AS violations,
-                (SELECT COUNT(*) FROM lost_reports r WHERE r.user_id = u.user_id AND r.status = 'spam') AS spam_reports,
+                (SELECT COUNT(*) FROM lost_reports r WHERE r.reported_by = u.user_id AND r.status = 'spam') AS spam_reports,
                 (SELECT COUNT(*) FROM security_events e WHERE e.user_id = u.user_id AND e.created_at > NOW() - INTERVAL 7 DAY
                     AND e.event_type IN ('report_rate_limited', 'report_duplicate_blocked')) AS blocked_submissions,
-                EXISTS (SELECT 1 FROM users d WHERE d.deactivation_reason = 'false_reports' AND d.user_id <> u.user_id
-                    AND LOWER(d.first_name) = LOWER(u.first_name) AND LOWER(d.last_name) = LOWER(u.last_name)) AS name_matches_deactivated
-            FROM users u WHERE u.role = 'user') t
-        WHERE violations > 0 OR spam_reports > 0 OR blocked_submissions > 0 OR name_matches_deactivated OR locked_at IS NOT NULL OR is_active = 0
+                EXISTS (SELECT 1 FROM " . USERS_SQL . " d WHERE d.deactivation_reason = 'false_reports' AND d.user_id <> u.user_id
+                    AND LOWER(d.first_name) = LOWER(u.first_name) AND LOWER(d.last_name) = LOWER(u.last_name)) AS name_matches_deactivated,
+                u.student_number IS NULL AND u.employee_number IS NULL AS no_school_record
+            FROM " . USERS_SQL . " u WHERE u.role = 'user') t
+        WHERE violations > 0 OR spam_reports > 0 OR blocked_submissions > 0 OR name_matches_deactivated OR no_school_record
+           OR locked_at IS NOT NULL OR is_active = 0
         ORDER BY is_active, violations DESC, spam_reports DESC, blocked_submissions DESC LIMIT 50")->fetchAll();
 }
 

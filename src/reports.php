@@ -10,7 +10,7 @@ declare(strict_types=1);
 /** Seconds until $userId may file another lost report (0 = allowed now). Counts every report filed, removed ones too. */
 function report_limit_wait(int $userId): int
 {
-    $stmt = db()->prepare('SELECT created_at FROM lost_reports WHERE user_id = ? AND created_at > NOW() - INTERVAL ? MINUTE ORDER BY created_at DESC LIMIT ?');
+    $stmt = db()->prepare('SELECT created_at FROM lost_reports WHERE reported_by = ? AND created_at > NOW() - INTERVAL ? MINUTE ORDER BY created_at DESC LIMIT ?');
     $stmt->execute([$userId, REPORT_LIMIT_WINDOW_MINUTES, REPORT_LIMIT_MAX]);
     $times = $stmt->fetchAll(PDO::FETCH_COLUMN);
     if (count($times) < REPORT_LIMIT_MAX) {
@@ -51,7 +51,7 @@ function word_overlap(string $a, string $b): float
  */
 function similar_reports(int $userId, array $v): array
 {
-    $stmt = db()->prepare("SELECT * FROM lost_reports WHERE user_id = ? AND deleted_at IS NULL AND status IN ('open', 'matched')
+    $stmt = db()->prepare("SELECT * FROM lost_reports WHERE reported_by = ? AND deleted_at IS NULL AND status IN ('open', 'matched')
                            AND created_at > NOW() - INTERVAL ? DAY ORDER BY created_at DESC");
     $stmt->execute([$userId, DUPLICATE_LOOKBACK_DAYS]);
     $same = fn (string $a, string $b) => words_of($a) === words_of($b);
@@ -86,7 +86,7 @@ function is_moderated_report(array $report): bool
 function account_violations(int $userId): array
 {
     $stmt = db()->prepare('SELECT v.*, r.item_name, u.first_name, u.last_name FROM account_violations v
-                           JOIN lost_reports r ON r.report_id = v.report_id LEFT JOIN users u ON u.user_id = v.issued_by
+                           JOIN lost_reports r ON r.report_id = v.report_id LEFT JOIN ' . USERS_SQL . ' u ON u.user_id = v.issued_by
                            WHERE v.user_id = ? ORDER BY v.violation_id');
     $stmt->execute([$userId]);
     return $stmt->fetchAll();
@@ -104,7 +104,7 @@ function moderate_report(array $report, string $outcome, string $reason, array $
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('SELECT user_id FROM users WHERE user_id = ? FOR UPDATE')->execute([$report['user_id']]);
+        $pdo->prepare('SELECT user_id FROM users WHERE user_id = ? FOR UPDATE')->execute([$report['reported_by']]);
         $stmt = $pdo->prepare("UPDATE lost_reports SET status = ?, moderation_reason = ?, moderated_by = ?, moderated_at = NOW()
                                WHERE report_id = ? AND deleted_at IS NULL AND status IN ('open', 'matched')");
         $stmt->execute([$outcome, $reason, $staff['user_id'], $report['report_id']]);
@@ -113,14 +113,14 @@ function moderate_report(array $report, string $outcome, string $reason, array $
         }
         $action = null;
         if ($outcome === 'false_report') {
-            $count  = 1 + count(account_violations($report['user_id']));
+            $count  = 1 + count(account_violations($report['reported_by']));
             $action = $count >= FALSE_REPORTS_TO_DEACTIVATE ? 'deactivated' : 'warning';
             $pdo->prepare('INSERT INTO account_violations (user_id, report_id, reason, action_taken, issued_by) VALUES (?, ?, ?, ?, ?)')
-                ->execute([$report['user_id'], $report['report_id'], $reason, $action, $staff['user_id']]);
+                ->execute([$report['reported_by'], $report['report_id'], $reason, $action, $staff['user_id']]);
             if ($action === 'deactivated') {
                 $pdo->prepare('UPDATE users SET is_active = 0, deactivation_reason = "false_reports", deactivated_at = NOW(), deactivated_by = ? WHERE user_id = ?')
-                    ->execute([$staff['user_id'], $report['user_id']]);
-                revoke_sessions($report['user_id']);
+                    ->execute([$staff['user_id'], $report['reported_by']]);
+                revoke_sessions($report['reported_by']);
             }
         }
         $pdo->commit();
@@ -129,7 +129,7 @@ function moderate_report(array $report, string $outcome, string $reason, array $
         throw $e;
     }
 
-    $owner = find_user($report['user_id']);
+    $owner = find_user($report['reported_by']);
     $meta  = ['report_id' => $report['report_id'], 'item_name' => $report['item_name'], 'reason' => $reason];
     log_event(['rejected' => 'report_rejected', 'false_report' => 'report_marked_false', 'spam' => 'report_marked_spam'][$outcome], $owner, $meta);
     $id = $report['report_id'];
@@ -156,7 +156,7 @@ function remove_report(array $report, string $reason, array $staff): string
     if (!$stmt->rowCount()) {
         throw new DomainException('Only reports marked as false or spam can be removed, and only once.');
     }
-    log_event('report_deleted', find_user($report['user_id']), ['report_id' => $report['report_id'], 'item_name' => $report['item_name'], 'reason' => $reason]);
+    log_event('report_deleted', find_user($report['reported_by']), ['report_id' => $report['report_id'], 'item_name' => $report['item_name'], 'reason' => $reason]);
     return "Report #{$report['report_id']} removed. It stays on record for audits.";
 }
 

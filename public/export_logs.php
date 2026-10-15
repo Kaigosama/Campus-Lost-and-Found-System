@@ -18,7 +18,7 @@ $role    = fn (array $r) => $r['role'] ? (ROLES[$r['role']] ?? $r['role']) : '';
 // Account is who the event concerns; By is who performed it (blank when nobody was signed in).
 $events = [['When', 'Event', 'Account', 'By', 'Email', 'Role', 'Details', 'IP', 'Device']];
 foreach (db()->query('SELECT e.*, u.first_name, u.last_name, u.role, a.first_name AS a_first, a.last_name AS a_last FROM security_events e
-                     LEFT JOIN users u ON u.user_id = e.user_id LEFT JOIN users a ON a.user_id = e.actor_id ORDER BY e.event_id DESC') as $ev) {
+                     LEFT JOIN ' . USERS_SQL . ' u ON u.user_id = e.user_id LEFT JOIN ' . USERS_SQL . ' a ON a.user_id = e.actor_id ORDER BY e.event_id DESC') as $ev) {
     $details = [];
     foreach (json_decode((string) $ev['metadata'], true) ?: [] as $k => $v) {
         $details[] = str_replace('_', ' ', (string) $k) . ': ' . (is_scalar($v) ? (string) $v : json_encode($v));
@@ -30,7 +30,7 @@ foreach (db()->query('SELECT e.*, u.first_name, u.last_name, u.role, a.first_nam
 }
 
 $sessions = [['#', 'Account', 'Email', 'Role', 'Status', 'Logged in', 'Last activity', 'Ended / expires', 'IP', 'Device']];
-foreach (db()->query('SELECT s.*, u.first_name, u.last_name, u.email, u.role FROM user_sessions s JOIN users u ON u.user_id = s.user_id ORDER BY s.session_id DESC') as $s) {
+foreach (db()->query('SELECT s.*, u.first_name, u.last_name, u.email, u.role FROM user_sessions s JOIN ' . USERS_SQL . ' u ON u.user_id = s.user_id ORDER BY s.session_id DESC') as $s) {
     $sessions[] = [$s['session_id'], $account($s), $s['email'], $role($s), ucwords(str_replace('_', ' ', $s['status'])),
                    format_datetime($s['created_at']), format_datetime($s['last_activity_at']),
                    $s['ended_at'] ? format_datetime($s['ended_at']) : 'expires ' . format_datetime($s['expires_at']),

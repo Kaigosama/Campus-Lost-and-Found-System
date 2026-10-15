@@ -248,12 +248,12 @@ function register_user(array $in, bool $captchaPassed): array
         log_event('register_existing_email', $existing);
         return [];
     }
-    // The name is copied from the school record so the account keeps a display name like staff and admin accounts
-    // (which have no record); the record stays linked through the unique student_number / employee_number column.
+    // The account links to its school record through the unique student_number / employee_number column, set
+    // here from the looked-up record and never from the form; its name is read from that record, not copied.
     $column = SCHOOL_ID_TYPES[$record['type']][2];
     try {
-        db()->prepare("INSERT INTO users (first_name, last_name, email, $column, password_hash, role, email_verified) VALUES (?, ?, ?, ?, ?, 'user', 0)")
-            ->execute([$record['first_name'], $record['last_name'], $email, $record['school_id'], password_hash($password, PASSWORD_DEFAULT)]);
+        db()->prepare("INSERT INTO users (email, $column, password_hash, role, email_verified) VALUES (?, ?, ?, 'user', 0)")
+            ->execute([$email, $record['school_id'], password_hash($password, PASSWORD_DEFAULT)]);
     } catch (PDOException $e) {
         // Two sign-ups at the same moment: the unique keys let only one through.
         if ($e->getCode() !== '23000') {

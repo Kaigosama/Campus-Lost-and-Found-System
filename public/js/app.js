@@ -1010,8 +1010,6 @@
             var choice = event.target.closest('[data-cookie-choice]');
             if (choice) {
                 try { localStorage.setItem(CONSENT_KEY, choice.dataset.cookieChoice); } catch (e) { /* private mode: ask again next visit */ }
-                // Accept creates the anonymous visitor record; Reject deletes it (src/visitors.php).
-                if (window.ClafsApi) ClafsApi.visitorConsent(choice.dataset.cookieChoice).catch(function () { /* try again on the next choice */ });
                 banner.hidden = true;
                 applyConsent(choice.dataset.cookieChoice);
             } else if (event.target.closest('[data-cookie-settings]')) {

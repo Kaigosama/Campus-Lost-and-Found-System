@@ -38,7 +38,7 @@ function verification_token_state(string $token): array
     if (!preg_match('/^[0-9a-f]{64}$/', $token)) {
         return ['invalid', null];
     }
-    $stmt = db()->prepare('SELECT *, email_verification_expires_at > NOW() AS link_valid FROM users WHERE email_verification_token_hash = ? AND email_verified = 0');
+    $stmt = db()->prepare('SELECT *, email_verification_expires_at > NOW() AS link_valid FROM ' . USERS_SQL . ' t WHERE email_verification_token_hash = ? AND email_verified = 0');
     $stmt->execute([hash('sha256', $token)]);
     $user = $stmt->fetch();
     return !$user ? ['invalid', null] : [$user['link_valid'] ? 'valid' : 'expired', $user];
@@ -72,9 +72,9 @@ function delete_expired_unverified(): int
     $deleted = db()->exec("DELETE u FROM users u
         WHERE u.role = 'user' AND u.email_verified = 0
           AND (u.email_verification_expires_at IS NULL OR u.email_verification_expires_at < NOW() - INTERVAL " . UNVERIFIED_GRACE_HOURS . " HOUR)
-          AND NOT EXISTS (SELECT 1 FROM lost_reports r WHERE r.user_id = u.user_id)
-          AND NOT EXISTS (SELECT 1 FROM found_items f WHERE f.user_id = u.user_id)
-          AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.user_id = u.user_id)");
+          AND NOT EXISTS (SELECT 1 FROM lost_reports r WHERE r.reported_by = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM found_items f WHERE f.added_by = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.claimant_id = u.user_id)");
     if ($deleted) {
         log_event('unverified_accounts_deleted', null, ['count' => $deleted]);
     }
@@ -83,14 +83,13 @@ function delete_expired_unverified(): int
 
 /**
  * Data retention, run on each deploy (seed.php) and when an admin opens the dashboard (there is no cron):
- * expired unconfirmed sign-ups, visitor records unseen for VISITOR_RETENTION_DAYS, and the masked ID numbers of
- * identity checks older than ID_RECORD_RETENTION_DAYS (the check, its result and who did it stay on record).
+ * expired unconfirmed sign-ups and the masked ID numbers of identity checks older than ID_RECORD_RETENTION_DAYS
+ * (the check, its result and who did it stay on record).
  * Returns [what => rows affected].
  */
 function run_retention(): array
 {
     $done = ['unverified accounts deleted' => delete_expired_unverified()];
-    $done['visitor records deleted'] = (int) db()->exec('DELETE FROM visitors WHERE last_seen_at < NOW() - INTERVAL ' . VISITOR_RETENTION_DAYS . ' DAY');
     $done['ID references cleared'] = (int) db()->exec('UPDATE claim_verifications SET id_reference = NULL
         WHERE id_reference IS NOT NULL AND verified_at < NOW() - INTERVAL ' . ID_RECORD_RETENTION_DAYS . ' DAY');
     return array_filter($done);

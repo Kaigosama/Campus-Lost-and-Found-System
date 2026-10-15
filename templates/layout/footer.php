@@ -18,12 +18,10 @@
             <h2 id="cookie-title">Cookies on <?= e(APP_NAME) ?></h2>
             <p>
                 We use <strong>one necessary cookie</strong>, set only when you log in, to keep you signed in and protect your session.
-                If you accept, we also keep <strong>an anonymous visitor ID</strong> while you browse without logging in, so the office can count
-                visits and spot repeated failed log-ins. It holds no name, email or IP address, stays in our own database, and is deleted after
-                <?= VISITOR_RETENTION_DAYS ?> days without a visit. No advertising or third-party tracking. The CAPTCHA on the log-in and
-                registration forms is provided by Cloudflare Turnstile.
+                Browsing without logging in is anonymous: nothing about you is stored. No advertising or third-party tracking. The CAPTCHA
+                on the log-in and registration forms is provided by Cloudflare Turnstile.
             </p>
-            <p class="text-sm mb-0">If you reject cookies (now or later, through Cookie settings) any visitor record is deleted. You can still browse found items,
+            <p class="text-sm mb-0">If you reject cookies (now or later, through Cookie settings) you can still browse found items,
                 but you can't log in, because logging in needs the session cookie.</p>
         </div>
         <div class="btn-row">

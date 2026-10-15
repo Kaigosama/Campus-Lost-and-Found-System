@@ -2,15 +2,16 @@
 declare(strict_types=1);
 
 /**
- * School reference records (student_records, employee_records) behind registration: a new Student / Faculty
- * account names its school identifier, and its name comes from the matching record. The record's birth date is
+ * School reference records (students, employees: who exists in the school) behind registration: a new Student /
+ * Faculty account (a users row: who has an account) names its school identifier and links to the matching record,
+ * which also supplies its name. The record's birth date is
  * used only by the password check and never leaves the server.
  */
 
 /** Registration types: label, reference table, its key column (also the users column), format, example, eligible statuses. */
 const SCHOOL_ID_TYPES = [
-    'student'  => ['Student', 'student_records', 'student_number', STUDENT_NUMBER_PATTERN, '2023100001', ELIGIBLE_STUDENT_STATUSES, 'academic_status', 'student number'],
-    'employee' => ['Faculty / Employee', 'employee_records', 'employee_number', EMPLOYEE_NUMBER_PATTERN, 'EMP-10001', ELIGIBLE_EMPLOYEE_STATUSES, 'employment_status', 'employee number'],
+    'student'  => ['Student', 'students', 'student_number', STUDENT_NUMBER_PATTERN, '2023100001', ELIGIBLE_STUDENT_STATUSES, 'academic_status', 'student number'],
+    'employee' => ['Faculty / Employee', 'employees', 'employee_number', EMPLOYEE_NUMBER_PATTERN, 'EMP-10001', ELIGIBLE_EMPLOYEE_STATUSES, 'employment_status', 'employee number'],
 ];
 
 /**

@@ -95,7 +95,7 @@ function review_claim(array $claim, string $decision, string $note, array $staff
         $count->execute([$claim['claim_id']]);
         return (int) $count->fetchColumn();
     });
-    log_event('claim_' . $outcome, find_user($claim['user_id']), ['claim_id' => $claim['claim_id'], 'item_id' => $claim['item_id'], 'note' => $note]
+    log_event('claim_' . $outcome, find_user($claim['claimant_id']), ['claim_id' => $claim['claim_id'], 'item_id' => $claim['item_id'], 'note' => $note]
         + ($outcome === 'rejected' ? ['rejections' => $events] : []));
     $id = $claim['claim_id'];
     return $outcome === 'approved'
@@ -121,7 +121,7 @@ function verify_claim_identity(array $claim, string $idType, string $last4, bool
         }
     });
     // The ID number is never written to the activity log.
-    log_event($passed ? 'claim_identity_verified' : 'claim_identity_failed', find_user($claim['user_id']),
+    log_event($passed ? 'claim_identity_verified' : 'claim_identity_failed', find_user($claim['claimant_id']),
         ['claim_id' => $claim['claim_id'], 'item_id' => $claim['item_id'], 'id_type' => ID_TYPES[$idType]]);
     return $passed
         ? "Identity verified for claim #{$claim['claim_id']}. Hand the item over, then mark it as returned."
@@ -166,7 +166,7 @@ function complete_return(array $claim, array $staff): array
         return $closed;
     });
     $item = find_found_item($claim['item_id']);
-    log_event('item_returned', find_user($claim['user_id']), ['claim_id' => $claim['claim_id'], 'item_id' => $claim['item_id'], 'item_name' => $item['item_name']]);
+    log_event('item_returned', find_user($claim['claimant_id']), ['claim_id' => $claim['claim_id'], 'item_id' => $claim['item_id'], 'item_name' => $item['item_name']]);
     foreach ($closed as $otherId) {
         log_event('claim_rejected', find_user(find_claim($otherId)['user_id']), ['claim_id' => $otherId, 'item_id' => $claim['item_id'], 'note' => 'The item was returned to another claimant.']);
     }
@@ -236,7 +236,7 @@ function successful_returns(?int $limit = null): array
         $rows[] = [
             'item'         => $item,
             'claim'        => $claim,
-            'claimant'     => $claim ? find_user($claim['user_id']) : null,
+            'claimant'     => $claim ? find_user($claim['claimant_id']) : null,
             'returned_by'  => find_user($item['returned_by']),
             'verification' => $claim ? (where(claim_verifications_of($claim['claim_id']), 'result', 'verified')[0] ?? null) : null,
         ];

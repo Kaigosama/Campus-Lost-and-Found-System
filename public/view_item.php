@@ -17,33 +17,33 @@ if ($type === 'lost') {
     require_login();
     $report = find_lost_report($id);
     // Removed (soft-deleted) reports stay visible to staff and admins only, for audits.
-    if (!$report || (!can_monitor() && ($report['user_id'] !== $user['user_id'] || $report['deleted_at'] !== null))) {
+    if (!$report || (!can_monitor() && ($report['reported_by'] !== $user['user_id'] || $report['deleted_at'] !== null))) {
         abort(404, 'Report not found', 'This lost report does not exist or you do not have access to it.', url('/?tab=reports'), 'Back to my reports');
     }
-    $isOwner      = $report['user_id'] === $user['user_id'];
-    $owner        = find_user($report['user_id']);
+    $isOwner      = $report['reported_by'] === $user['user_id'];
+    $owner        = find_user($report['reported_by']);
     $linkedClaims = where(all_claims(), 'report_id', $report['report_id']);
     $matchedItem  = $report['matched_item_id'] ? find_found_item((int) $report['matched_item_id']) : null;
     $moderator    = find_user($report['moderated_by']);
-    $ownerViolations = can_monitor() ? account_violations($report['user_id']) : [];
+    $ownerViolations = can_monitor() ? account_violations($report['reported_by']) : [];
     $pageTitle    = $report['item_name'];
 } else {
     $item = find_found_item($id);
     $itemClaims = $item ? where(all_claims(), 'item_id', $item['item_id']) : [];
-    $myClaim    = $user ? (where($itemClaims, 'user_id', $user['user_id'])[0] ?? null) : null;
+    $myClaim    = $user ? (where($itemClaims, 'claimant_id', $user['user_id'])[0] ?? null) : null;
     // The public sees approved items in storage; a student also sees their own post while it is reviewed,
     // and a claimant keeps seeing the item after it leaves storage (e.g. returned to them).
-    $isPoster = $item && $user && $item['user_id'] === $user['user_id'] && !can_monitor();
+    $isPoster = $item && $user && $item['added_by'] === $user['user_id'] && !can_monitor();
     if (!$item || (!can_monitor() && !$isPoster && !$myClaim && !is_public_item($item))) {
         abort(404, 'Item not found', 'This item is no longer listed. It may have been returned to its owner.', can_monitor() ? dashboard_url('items') : url('/browse.php'), 'Back to found items');
     }
     $pendingCount = count(array_filter($itemClaims, 'awaiting_review'));
-    $loggedBy     = find_user($item['user_id']);
+    $loggedBy     = find_user($item['added_by']);
     $pageTitle    = $item['item_name'];
     // Only students and faculty file claims, never on their own post. Staff review them; admins do neither.
     $canClaim     = is_public_item($item) && !$isPoster && (!$user || has_role('user'));
     if ($user && $canClaim && !$myClaim) {
-        $myOpenReports = array_values(array_filter(all_lost_reports(), fn ($r) => $r['user_id'] === $user['user_id'] && $r['status'] === 'open'));
+        $myOpenReports = array_values(array_filter(all_lost_reports(), fn ($r) => $r['reported_by'] === $user['user_id'] && $r['status'] === 'open'));
     }
 }
 
@@ -399,9 +399,9 @@ include APP_ROOT . '/templates/layout/header.php';
         $order = fn (array $c) => match (true) { awaiting_review($c) => 0, in_array($c['status'], ['approved', 'verified'], true) => 1, $c['status'] === 'pending' => 2, default => 3 };
         usort($itemClaims, fn ($a, $b) => [$order($a), $a['created_at']] <=> [$order($b), $b['created_at']]);
         foreach ($itemClaims as $claim):
-            $claimant = find_user($claim['user_id']);
+            $claimant = find_user($claim['claimant_id']);
             $linked   = $claim['report_id'] ? find_lost_report($claim['report_id']) : null;
-            $history  = array_values(array_filter(all_claims(), fn ($c) => $c['user_id'] === $claim['user_id'] && $c['claim_id'] !== $claim['claim_id']));
+            $history  = array_values(array_filter(all_claims(), fn ($c) => $c['claimant_id'] === $claim['claimant_id'] && $c['claim_id'] !== $claim['claim_id']));
             $reviews  = claim_reviews_of($claim['claim_id']);
             $checks   = claim_verifications_of($claim['claim_id']);
             $rejects  = count(where($reviews, 'outcome', 'rejected'));

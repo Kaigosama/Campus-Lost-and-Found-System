@@ -33,7 +33,7 @@ if ($type === 'found') {
         $rows = array_values(array_filter($rows, fn ($r) => !is_moderated_report($r)));
     }
     if (!can_monitor()) {
-        $rows = where($rows, 'user_id', current_user()['user_id']);
+        $rows = where($rows, 'reported_by', current_user()['user_id']);
     }
     $dateColumn = 'date_lost';
 }

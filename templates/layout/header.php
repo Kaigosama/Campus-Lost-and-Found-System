@@ -2,7 +2,6 @@
 defined('APP_ROOT') || exit;
 /** Pages may set $pageTitle, $flash (['type' => …, 'message' => …]) and $type ('found'|'lost', for the navbar) first. */
 $title = !empty($pageTitle) ? $pageTitle . ' · ' . APP_NAME : APP_NAME . ' · ' . APP_FULL_NAME;
-touch_visitor();   // counts the page view of a consenting, logged-out visitor
 ?>
 <!DOCTYPE html>
 <html lang="en" data-base="<?= e(BASE_URL) ?>"<?= is_staff() ? ' data-staff-watch' : '' ?>>

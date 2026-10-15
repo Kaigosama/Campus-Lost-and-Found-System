@@ -81,12 +81,12 @@ if ($photoError) {
 }
 
 if ($type === 'found') {
-    $sql  = 'INSERT INTO found_items (user_id, item_name, category_id, category_detail, description, private_details, location_found, storage_location, date_found, image_url, moderation_status)
+    $sql  = 'INSERT INTO found_items (added_by, item_name, category_id, category_detail, description, private_details, location_found, storage_location, date_found, image_url, moderation_status)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
     $args = [$user['user_id'], $v['item_name'], $v['category_id'], $v['category_detail'], $v['description'], $v['private_details'],
              $v['location_found'], $isIntake ? $v['storage_location'] : '', $v['date_found'], $imageUrl, $isIntake ? 'approved' : 'pending'];
 } else {
-    $sql  = 'INSERT INTO lost_reports (user_id, item_name, category_id, category_detail, description, location_lost, date_lost, image_url)
+    $sql  = 'INSERT INTO lost_reports (reported_by, item_name, category_id, category_detail, description, location_lost, date_lost, image_url)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
     $args = [$user['user_id'], $v['item_name'], $v['category_id'], $v['category_detail'], $v['description'], $v['location_lost'], $v['date_lost'], $imageUrl];
 }

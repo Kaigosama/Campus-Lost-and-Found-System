@@ -60,7 +60,7 @@ if ($type === 'found' && isset($in['moderation'])) {
     }
     $pdo->prepare('UPDATE found_items SET moderation_status = ?, moderated_by = ?, moderation_note = ?, moderated_at = NOW(), storage_location = ? WHERE item_id = ?')
         ->execute([$status, $user['user_id'], $note ?: null, $storage, $id]);
-    log_event($status === 'approved' ? 'post_approved' : 'post_rejected', find_user($row['user_id']),
+    log_event($status === 'approved' ? 'post_approved' : 'post_rejected', find_user($row['added_by']),
         ['item_id' => $id, 'item_name' => $row['item_name']] + ($note !== '' ? ['reason' => $note] : []));
     json_response([
         'ok' => true, 'type' => 'found', 'id' => $id, 'previous' => 'pending', 'status' => $status, 'storage_location' => $storage, 'rejected_claims' => [],
@@ -107,7 +107,7 @@ if ($type === 'found') {
         json_error(422, 'Invalid status.', ['allowed' => array_keys(LOST_STATUSES)]);
     }
     $row = find_lost_report($id);
-    if (!$row || $row['deleted_at'] !== null || (!is_staff() && $row['user_id'] !== $user['user_id'])) {
+    if (!$row || $row['deleted_at'] !== null || (!is_staff() && $row['reported_by'] !== $user['user_id'])) {
         json_error(404, 'Report not found.');
     }
     if (is_moderated_report($row)) {
@@ -125,7 +125,7 @@ if ($type === 'found') {
     }
     $pdo->prepare('UPDATE lost_reports SET status = ?, matched_item_id = ? WHERE report_id = ?')->execute([$status, $matchedItem, $id]);
     if ($status !== $row['status']) {
-        log_event('report_' . $status, find_user($row['user_id']), ['report_id' => $id, 'item_name' => $row['item_name']] + ($matchedItem ? ['item_id' => $matchedItem] : []));
+        log_event('report_' . $status, find_user($row['reported_by']), ['report_id' => $id, 'item_name' => $row['item_name']] + ($matchedItem ? ['item_id' => $matchedItem] : []));
     }
 }
 

@@ -46,7 +46,6 @@ function dashboard_tabs(bool $all = false): array
         'stats'      => ['Statistics', MONITOR_ROLES],
         'users'      => ['Users & Activity', ADMIN_ROLES],
         'categories' => ['Categories', ADMIN_ROLES],
-        'visitors'   => ['Visitors', ADMIN_ROLES],
         'logs'       => ['Security Logs', ADMIN_ROLES],
         'account'    => ['Account', null],
     ];

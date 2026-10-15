@@ -35,7 +35,7 @@ if ($type === 'found') {
 } elseif ($id) {
     $row = find_lost_report($id);
     // Only the owner may edit, and only while the report is still open.
-    if (!$row || $row['user_id'] !== $user['user_id'] || $row['status'] !== 'open') {
+    if (!$row || $row['reported_by'] !== $user['user_id'] || $row['status'] !== 'open') {
         abort(404, 'Report not found', 'This report does not exist, is not yours, or is no longer open.', url('/?tab=reports'), 'Back to my reports');
     }
 }

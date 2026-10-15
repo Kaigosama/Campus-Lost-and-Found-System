@@ -34,7 +34,7 @@ if ($type === 'found') {
     }
 } else {
     $row = find_lost_report($id);
-    if (!$row || $row['user_id'] !== $user['user_id']) {
+    if (!$row || $row['reported_by'] !== $user['user_id']) {
         json_error(404, 'Report not found.');
     }
     if ($row['status'] !== 'open') {

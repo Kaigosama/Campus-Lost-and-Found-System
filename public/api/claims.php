@@ -55,10 +55,10 @@ try {
         if (!$item || !is_public_item($item)) {
             json_error(404, 'This item is not available to claim.');
         }
-        if ($item['user_id'] === $user['user_id']) {
+        if ($item['added_by'] === $user['user_id']) {
             json_error(403, 'You posted this item, so you cannot claim it.');
         }
-        if (where(where(all_claims(), 'item_id', $itemId), 'user_id', $user['user_id'])) {
+        if (where(where(all_claims(), 'item_id', $itemId), 'claimant_id', $user['user_id'])) {
             json_error(409, 'You have already submitted a claim for this item.');
         }
         $proof = trim((string) ($in['proof_description'] ?? ''));
@@ -69,7 +69,7 @@ try {
         $reportId = (int) ($in['report_id'] ?? 0) ?: null;
         if ($reportId) {
             $report = find_lost_report($reportId);
-            if (!$report || $report['user_id'] !== $user['user_id'] || $report['status'] !== 'open') {
+            if (!$report || $report['reported_by'] !== $user['user_id'] || $report['status'] !== 'open') {
                 $errors['report_id'] = 'Choose one of your open lost reports.';
             }
         }
@@ -79,7 +79,7 @@ try {
         if ($errors) {
             json_error(422, 'Please fix the highlighted fields.', ['errors' => $errors]);
         }
-        $pdo->prepare('INSERT INTO claims (item_id, user_id, report_id, proof_description, status, date_claimed) VALUES (?, ?, ?, ?, "pending", CURDATE())')
+        $pdo->prepare('INSERT INTO claims (item_id, claimant_id, report_id, proof_description, status, date_claimed) VALUES (?, ?, ?, ?, "pending", CURDATE())')
             ->execute([$itemId, $user['user_id'], $reportId, $proof]);
         $claimId = (int) $pdo->lastInsertId();
         log_event('claim_submitted', $user, ['claim_id' => $claimId, 'item_id' => $itemId, 'item_name' => $item['item_name']]);
@@ -133,7 +133,7 @@ try {
     } elseif ($action === 'withdraw') {
         $claimId = (int) ($in['claim_id'] ?? 0);
         $claim   = find_claim($claimId);
-        if (!$claim || $claim['user_id'] !== $user['user_id']) {
+        if (!$claim || $claim['claimant_id'] !== $user['user_id']) {
             json_error(404, 'Claim not found.');
         }
         // A reviewed claim stays, so its review history is kept.

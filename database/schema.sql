@@ -17,7 +17,7 @@ CREATE DATABASE IF NOT EXISTS clafs CHARACTER SET utf8mb4 COLLATE utf8mb4_unicod
 USE clafs;
 
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS claim_verifications, claim_reviews, visitors, categories, student_records, employee_records,
+DROP TABLE IF EXISTS claim_verifications, claim_reviews, visitors, categories, student_records, employee_records, students, employees,
     account_violations, claims, found_items, lost_reports, users, user_sessions, security_events, schema_migrations;
 SET FOREIGN_KEY_CHECKS = 1;
 

@@ -81,7 +81,6 @@ window.ClafsApi = (function () {
         moderateReport: function (reportId, action, reason) { return post('moderate_report.php', { report_id: reportId, action: action, reason: reason }); },
         updateUser:   function (userId, changes)          { return post('update_user.php', Object.assign({ user_id: userId }, changes)); },
         manageCategory: function (fields)                 { return post('categories.php', fields); },   // action: create | set_active | delete
-        visitorConsent: function (choice)                 { return post('visitor.php', { choice: choice }); },
         staffUpdates: function ()                         { return get('staff_updates.php'); },
 
         /* ---- External API: Philippine public holidays (office closures) ---- */

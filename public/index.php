@@ -7,7 +7,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
  * Logged in   → dashboard sections (dashboard_tabs()): overview | account   students/faculty: + reports (their own) | my_claims | posts
  *               staff: + reports | items | queue | returned | disposed | moderation | stats
  *               admins: + reports | items | queue | returned | disposed | stats (the staff views, read-only)
- *                       + users (with account activity) | categories | visitors | logs
+ *                       + users (with account activity) | categories | logs
  *               Every management list lives here, once; old browse.php?manage=1 / ?type=lost links redirect here.
  *               POST on ?tab=account changes the password.
  * POST ?action=logout ends the session. It must be a POST so another site can't log visitors out with a link.
@@ -167,7 +167,7 @@ if (!$user) {
 /* ------------------------------------------------------------ Dashboard */
 
 if (is_admin()) {
-    run_retention();   // keeps the Users list free of sign-ups that never confirmed; drops old visitor records and ID numbers
+    run_retention();   // keeps the Users list free of sign-ups that never confirmed; drops old ID numbers
 }
 
 $allTabs = dashboard_tabs(true);
@@ -196,9 +196,9 @@ if ($tab === 'account' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$myReports = newest_first(where(all_lost_reports(), 'user_id', $user['user_id']));
+$myReports = newest_first(where(all_lost_reports(), 'reported_by', $user['user_id']));
 $reportRows = can_monitor() ? newest_first(array_values(all_lost_reports())) : $myReports;   // the Lost Reports tab
-$myClaims  = newest_first(where(all_claims(), 'user_id', $user['user_id']));
+$myClaims  = newest_first(where(all_claims(), 'claimant_id', $user['user_id']));
 $storedCount = count(public_found_items());
 $pendingPosts = newest_first(where(all_found_items(), 'moderation_status', 'pending'));
 
@@ -271,11 +271,6 @@ include APP_ROOT . '/templates/layout/header.php';
 <?php elseif ($tab === 'categories'): ?>
 <div class="page-header">
     <div><h1>Categories</h1><p>The categories offered on lost-report and found-item forms. Deactivating hides one from new forms; records that already use it keep it.</p></div>
-</div>
-<?php elseif ($tab === 'visitors'): ?>
-<div class="page-header">
-    <div><h1>Visitors</h1><p>Anonymous visitors who accepted cookies, identified only by a random browser token. No names, emails or IP addresses are kept;
-        records unseen for <?= VISITOR_RETENTION_DAYS ?> days are deleted.</p></div>
 </div>
 <?php elseif ($tab === 'users'): ?>
 <div class="page-header">
@@ -407,7 +402,12 @@ include APP_ROOT . '/templates/layout/header.php';
                             <td><?= (int) $u['violations'] ?> / <?= FALSE_REPORTS_TO_DEACTIVATE ?></td>
                             <td><?= (int) $u['spam_reports'] ?></td>
                             <td><?= (int) $u['blocked_submissions'] ?></td>
-                            <td class="text-sm"><?= $u['name_matches_deactivated'] ? 'Same name as an account deactivated for false reports. Check it is not a re-registration.' : ($u['deactivation_reason'] === 'false_reports' ? 'Deactivated for repeated false reports.' : '') ?></td>
+                            <td class="text-sm"><?= match (true) {
+                                $u['name_matches_deactivated'] => 'Same name as an account deactivated for false reports. Check it is not a re-registration.',
+                                $u['deactivation_reason'] === 'false_reports' => 'Deactivated for repeated false reports.',
+                                (bool) $u['no_school_record'] => 'Not linked to a school record: registered before school records and no record matches its email. Link it to the right student or employee number.',
+                                default => '',
+                            } ?></td>
                             <td class="actions"><a class="btn btn-outline btn-sm" href="<?= e(url('/?tab=users&id=' . $u['user_id'])) ?>">Review</a></td>
                         </tr>
                     <?php endforeach; ?>
@@ -457,7 +457,7 @@ include APP_ROOT . '/templates/layout/header.php';
                 <table class="table">
                     <thead><tr><th>Item</th><th>Claimant</th><th>Submitted</th><th class="actions"></th></tr></thead>
                     <tbody>
-                    <?php foreach ($pendingClaims as $claim): $item = find_found_item($claim['item_id']); $claimant = find_user($claim['user_id']); ?>
+                    <?php foreach ($pendingClaims as $claim): $item = find_found_item($claim['item_id']); $claimant = find_user($claim['claimant_id']); ?>
                         <tr>
                             <td><span class="table-title"><?= e($item['item_name']) ?></span><span class="table-sub"><?= e($item['category']) ?></span></td>
                             <td><?= e(full_name($claimant)) ?></td>
@@ -486,7 +486,7 @@ include APP_ROOT . '/templates/layout/header.php';
                     <?php foreach ($pendingPosts as $post): ?>
                         <tr>
                             <td><span class="table-title"><?= e($post['item_name']) ?></span><span class="table-sub"><?= e($post['category']) ?></span></td>
-                            <td><?= e(full_name(find_user($post['user_id']))) ?></td>
+                            <td><?= e(full_name(find_user($post['added_by']))) ?></td>
                             <td class="nowrap"><?= e(format_datetime($post['created_at'])) ?></td>
                             <td class="actions"><a class="btn btn-primary btn-sm" href="<?= e(item_url('found', $post['item_id'])) ?>">Review</a></td>
                         </tr>
@@ -662,7 +662,7 @@ include APP_ROOT . '/templates/layout/header.php';
                         <a class="table-title" href="<?= e(item_url('lost', $report['report_id'])) ?>"><?= e($report['item_name']) ?></a>
                         <span class="table-sub"><?= e(excerpt($report['description'], 70)) ?></span>
                     </td>
-                    <?php if (can_monitor()): $owner = find_user($report['user_id']); ?>
+                    <?php if (can_monitor()): $owner = find_user($report['reported_by']); ?>
                         <td><?= e(full_name($owner)) ?><span class="table-sub"><?= e($owner['email']) ?></span></td>
                     <?php endif; ?>
                     <td><?= e($report['category']) ?></td>
@@ -796,7 +796,7 @@ include APP_ROOT . '/templates/layout/header.php';
                         <td><?= status_badge('pending') ?></td>
                         <td><span class="badge badge-rejected">Rejected</span></td>
                         <td><?= count($g['claims']) ?> claim<?= count($g['claims']) === 1 ? '' : 's' ?>
-                            <span class="table-sub"><?= e(implode(', ', array_map(fn ($c) => '#' . $c['claim_id'] . ' ' . full_name(find_user($c['user_id'])), $g['claims']))) ?></span></td>
+                            <span class="table-sub"><?= e(implode(', ', array_map(fn ($c) => '#' . $c['claim_id'] . ' ' . full_name(find_user($c['claimant_id'])), $g['claims']))) ?></span></td>
                         <td><?= $g['rejections'] ?> event<?= $g['rejections'] === 1 ? '' : 's' ?></td>
                         <td class="nowrap"><?= e(format_datetime($g['latest'])) ?></td>
                         <td class="actions"><a class="btn btn-outline btn-sm" href="<?= e(item_url('found', $item['item_id'], 'queue') . '#claims') ?>">Open</a></td>
@@ -814,7 +814,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <table class="table">
             <thead><tr><th>#</th><th>Item</th><th>Claimant</th><th>Proof (excerpt)</th><th>Linked report</th><th>Submitted</th><th>Status</th><th class="actions"></th></tr></thead>
             <tbody>
-            <?php foreach ($rows as $claim): $item = find_found_item($claim['item_id']); $claimant = find_user($claim['user_id']); ?>
+            <?php foreach ($rows as $claim): $item = find_found_item($claim['item_id']); $claimant = find_user($claim['claimant_id']); ?>
                 <tr>
                     <td class="text-muted"><?= $claim['claim_id'] ?></td>
                     <td>
@@ -1093,41 +1093,6 @@ include APP_ROOT . '/templates/layout/header.php';
         </aside>
     </div>
 
-<?php /* ================================================== VISITORS (admin) */ ?>
-<?php elseif ($tab === 'visitors'): ?>
-    <?php
-    $visitorStats = db()->query('SELECT COUNT(*) AS total, COALESCE(SUM(last_seen_at > NOW() - INTERVAL 7 DAY), 0) AS week, COALESCE(SUM(page_views), 0) AS views FROM visitors')->fetch();
-    $visitorRows  = db()->query('SELECT v.*, (SELECT COUNT(*) FROM security_events e WHERE e.visitor_id = v.visitor_id) AS events
-                                 FROM visitors v ORDER BY v.last_seen_at DESC LIMIT 200')->fetchAll();
-    ?>
-    <div class="stat-grid">
-        <div class="stat-card"><span class="stat-label">Visitor records</span><span class="stat-value"><?= (int) $visitorStats['total'] ?></span><span class="stat-note">accepted cookies</span></div>
-        <div class="stat-card info"><span class="stat-label">Seen in 7 days</span><span class="stat-value"><?= (int) $visitorStats['week'] ?></span></div>
-        <div class="stat-card success"><span class="stat-label">Page views</span><span class="stat-value"><?= (int) $visitorStats['views'] ?></span><span class="stat-note">while not logged in</span></div>
-        <div class="stat-card warning"><span class="stat-label">Kept for</span><span class="stat-value stat-value-sm"><?= VISITOR_RETENTION_DAYS ?> days</span><span class="stat-note">after the last visit</span></div>
-    </div>
-    <?php if ($visitorRows): ?>
-    <div class="table-wrap">
-        <table class="table">
-            <thead><tr><th>Visitor</th><th>Consented</th><th>First seen</th><th>Last seen</th><th>Page views</th><th>Security events</th></tr></thead>
-            <tbody>
-            <?php foreach ($visitorRows as $v): ?>
-                <tr>
-                    <td><span class="table-title">Visitor #<?= (int) $v['visitor_id'] ?></span><span class="table-sub">Token hash <?= e(substr($v['token_hash'], 0, 10)) ?>…</span></td>
-                    <td class="nowrap"><?= e(format_datetime($v['consented_at'])) ?></td>
-                    <td class="nowrap"><?= e(format_datetime($v['first_seen_at'])) ?></td>
-                    <td class="nowrap"><?= e(time_ago($v['last_seen_at'])) ?></td>
-                    <td><?= (int) $v['page_views'] ?></td>
-                    <td><?= (int) $v['events'] ? (int) $v['events'] . ' (failed log-ins, sign-ups…)' : '<span class="text-muted">None</span>' ?></td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-    <?php else: ?>
-        <?= empty_state('No visitor records', 'A record is created when someone who is not logged in accepts cookies on the banner.') ?>
-    <?php endif; ?>
-
 <?php /* ================================================== ACCOUNT REVIEW (admin) */ ?>
 <?php elseif ($tab === 'users' && ($member = find_user((int) ($_GET['id'] ?? 0)))): ?>
     <?php
@@ -1145,7 +1110,7 @@ include APP_ROOT . '/templates/layout/header.php';
             <dl class="detail-list">
                 <dt>Email</dt><dd><?= e($member['email']) ?><?= $member['email_verified'] ? '' : ' <span class="badge badge-pending">Unverified</span>' ?></dd>
                 <dt>Role</dt><dd><?= e(ROLES[$member['role']] ?? $member['role']) ?></dd>
-                <dt>School record</dt><dd><?= $member['student_number'] || $member['employee_number'] ? e(account_type_label($member)) : '<span class="text-muted">None (provisioned or registered before school records)</span>' ?></dd>
+                <dt>School record</dt><dd><?= $member['student_number'] || $member['employee_number'] ? e(account_type_label($member)) : ($member['role'] === 'user' ? '<span class="badge badge-pending">None: registered before school records; needs linking</span>' : '<span class="text-muted">None (office account without an employee record)</span>') ?></dd>
                 <dt>Registered</dt><dd><?= e(format_datetime($member['created_at'])) ?></dd>
                 <dt>Last login</dt><dd><?= e(format_datetime($member['last_login_at'])) ?></dd>
                 <?php if (account_locked($member)): ?><dt>Locked</dt><dd><?= e(format_datetime($member['locked_at'])) ?> (unlock from the users list)</dd><?php endif; ?>
@@ -1265,7 +1230,8 @@ include APP_ROOT . '/templates/layout/header.php';
                             <span class="avatar" aria-hidden="true"><?= e(initials($u)) ?></span>
                             <span class="table-title"><a href="<?= e(url('/?tab=users&id=' . $u['user_id'])) ?>"><?= e(full_name($u)) ?></a><?= $isMe ? ' <small class="text-muted">(you)</small>' : '' ?>
                                 <span class="table-sub"><?= e($u['email']) ?></span>
-                                <?php if ($u['student_number'] || $u['employee_number']): ?><span class="table-sub"><?= e(account_type_label($u)) ?></span><?php endif; ?></span>
+                                <?php if ($u['student_number'] || $u['employee_number']): ?><span class="table-sub"><?= e(account_type_label($u)) ?></span>
+                                <?php elseif ($u['role'] === 'user'): ?><span class="badge badge-pending">No school record</span><?php endif; ?></span>
                         </div>
                     </td>
                     <td>
@@ -1320,7 +1286,7 @@ include APP_ROOT . '/templates/layout/header.php';
 
 <?php /* ================================================== MY FOUND POSTS (students / faculty) */ ?>
 <?php elseif ($tab === 'posts'): ?>
-    <?php $myPosts = newest_first(where(all_found_items(), 'user_id', $user['user_id'])); ?>
+    <?php $myPosts = newest_first(where(all_found_items(), 'added_by', $user['user_id'])); ?>
     <?php if ($myPosts): ?>
     <div class="table-wrap">
         <table class="table">
@@ -1353,7 +1319,7 @@ include APP_ROOT . '/templates/layout/header.php';
         <table class="table">
             <thead><tr><th>#</th><th>Item</th><th>Posted by</th><th>Found</th><th>Submitted</th><th class="actions"></th></tr></thead>
             <tbody>
-            <?php foreach (array_reverse($pendingPosts) as $post): $poster = find_user($post['user_id']); ?>
+            <?php foreach (array_reverse($pendingPosts) as $post): $poster = find_user($post['added_by']); ?>
                 <tr>
                     <td class="text-muted"><?= $post['item_id'] ?></td>
                     <td>
@@ -1400,7 +1366,7 @@ include APP_ROOT . '/templates/layout/header.php';
         $where[] = "(CONCAT(u.first_name, ' ', u.last_name) LIKE ? OR u.email LIKE ? OR s.ip_address LIKE ? OR s.user_agent LIKE ?)";
         array_push($args, ...array_fill(0, 4, $like($sq)));
     }
-    [$sessionRows, $spage, $spages, $stotal] = $logPage('FROM user_sessions s JOIN users u ON u.user_id = s.user_id', $where, $args,
+    [$sessionRows, $spage, $spages, $stotal] = $logPage('FROM user_sessions s JOIN ' . USERS_SQL . ' u ON u.user_id = s.user_id', $where, $args,
         's.session_id, s.user_id, s.status, s.ip_address, s.user_agent, s.created_at, s.last_activity_at, s.expires_at, s.ended_at, u.first_name, u.last_name, u.email, u.role',
         's.session_id DESC', 'spage');
 
@@ -1414,7 +1380,7 @@ include APP_ROOT . '/templates/layout/header.php';
                      OR e.ip_address LIKE ? OR e.user_agent LIKE ? OR CAST(e.metadata AS CHAR) LIKE ?)";
         array_push($args, ...array_fill(0, 7, $like($eq)));
     }
-    [$events, $epage, $epages, $etotal] = $logPage('FROM security_events e LEFT JOIN users u ON u.user_id = e.user_id', $where, $args,
+    [$events, $epage, $epages, $etotal] = $logPage('FROM security_events e LEFT JOIN ' . USERS_SQL . ' u ON u.user_id = e.user_id', $where, $args,
         'e.*, u.first_name, u.last_name, u.role', 'e.event_id DESC', 'epage');
 
     // Hidden inputs that keep the other table's search, filter and page when one table's form is submitted.

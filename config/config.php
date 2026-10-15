@@ -68,8 +68,6 @@ const LOOKUP_MAX_PER_IP = 10;
 /** Where people whose record can't be verified are sent. */
 const RECORDS_OFFICE = "the Registrar's Office (students) or Human Resources (employees)";
 
-/** Anonymous visitor records (visitors table) unseen for this long are deleted. */
-const VISITOR_RETENTION_DAYS = 90;
 
 /** The only choices for where an item was found or lost (Mapúa Makati campus); database/migrations/009 moved older values onto them. */
 const CAMPUS_LOCATIONS = [
